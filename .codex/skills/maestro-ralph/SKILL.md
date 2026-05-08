@@ -27,13 +27,53 @@ Session at `.workflow/.maestro/ralph-{YYYYMMDD-HHmmss}/status.json`.
 </purpose>
 
 <context>
-$ARGUMENTS — intent text or keywords.
+$ARGUMENTS — intent text, flags, or keywords.
 
-**Routing:**
+**State files:**
+- `.workflow/state.json` — artifact registry, milestones, phases
+- `.workflow/roadmap.md` — milestone/phase structure
+- `.workflow/.maestro/ralph-*/status.json` — ralph session state
+
+**Parse & Route:**
 ```
-"status"              → handleStatus(). End.
-"execute" | "continue"→ Phase 2 (Wave Execution).
-otherwise             → Phase 1 (New Session).
+Parse $ARGUMENTS:
+  -y / --yes    → auto_mode = true
+  .md/.txt path → input_doc (supplementary context for downstream commands)
+  Remaining     → intent
+
+Route:
+  intent == "status"   → handleStatus(). End.
+  intent == "execute" | "continue" → Phase 2 (Wave Execution).
+
+  Check running ralph session (.workflow/.maestro/ralph-*/status.json, status=="running"):
+    If found AND steps[current_step].type == "decision" AND steps[current_step].status == "running":
+      → Phase 2, Step 2.2 (Delegate Evaluation — resume mid-decision)
+    Else if intent is non-empty:
+      → Phase 1 (New Session)
+    Else:
+      → AskUserQuestion: "请描述目标，或输入 status/continue/execute"
+```
+
+HARD RULE: `input_doc` is supplementary context only. It NEVER substitutes for lifecycle stages.
+
+### handleStatus()
+```
+Find latest ralph session (by created_at).
+Display:
+  Session:  {id}
+  Status:   {status}
+  Position: {lifecycle_position}
+  Quality:  {quality_mode}
+  Progress: {completed}/{total} steps ({decision_count} decisions)
+  Current:  [{current_step}] {steps[current_step].skill} [{type}]
+
+  Steps:
+    [✓] 0. maestro-analyze 1         [W1, barrier]
+    [▸] 1. maestro-plan 1            [barrier]
+    [ ] 2. maestro-execute 1         [barrier]
+    [ ] 3. ◆ post-verify             [decision]
+    ...
+End.
 ```
 
 **Flags:**
@@ -96,6 +136,12 @@ Read `.workflow/state.json` schema:
 
 ### 1.2: Infer lifecycle position
 
+**Intent-based override:**
+
+If intent matches brainstorm pattern (contains "brainstorm", "头脑风暴", "探索", "ideate", or "设计思路"), position = `brainstorm` regardless of project state.
+
+Chain for existing project: `brainstorm → roadmap → analyze → ...` (skip init if `.workflow/state.json` exists).
+
 **Bootstrap detection:**
 
 | Condition | Position | Chain starts at |
@@ -123,7 +169,8 @@ Filter by `milestone == current_milestone`, target phase. Find latest completed 
 | Condition | Position |
 |-----------|----------|
 | verification.json: `passed==false` or `gaps[]` non-empty | `verify-failed` |
-| verification.json: `passed==true`, no review.json | `post-verify` |
+| verification.json: `passed==true`, no review.json, has `.tests/auto-test/report.json` | `review` |
+| verification.json: `passed==true`, no review.json, no `.tests/auto-test/report.json` | `business-test` (full) / `review` (standard/quick) |
 | review.json: `verdict=="BLOCK"` | `review-failed` |
 | review.json: `verdict!="BLOCK"` | `test` |
 | uat.md: all passed | `milestone-audit` |
@@ -135,7 +182,16 @@ Full path = .workflow/scratch/{artifact.path}/
 Fallback: glob .workflow/scratch/*-P{phase}-*/ sorted by date DESC, take first
 ```
 
-### 1.3: Determine quality mode
+### 1.3: Resolve phase number
+
+Priority order:
+1. Regex from intent: `phase\s*(\d+)` or bare number
+2. Latest in-progress artifact's phase field
+3. First incomplete phase in current milestone's `phases[]`
+4. `null` if position is brainstorm/init/roadmap (deferred to post-roadmap)
+5. AskUserQuestion if ambiguous (auto_mode does NOT skip this)
+
+### 1.4: Determine quality mode
 
 **Auto-inference (can be overridden by user to any mode):**
 
@@ -147,20 +203,20 @@ Fallback: glob .workflow/scratch/*-P{phase}-*/ sorted by date DESC, take first
 
 User can specify `--quality full|standard|quick` to override auto-inference.
 
-### 1.4: Build command sequence
+### 1.5: Build command sequence
 
 **Lifecycle stages:**
 
 | Stage | Skill | Barrier | Decision after | Condition |
 |-------|-------|---------|----------------|-----------|
-| brainstorm | `maestro-brainstorm "{intent}"` | yes | — | 0→1 only |
+| brainstorm | `maestro-brainstorm "{intent}"` | yes | — | intent-override or 0→1 bootstrap |
 | init | `maestro-init` | no | — | always |
 | roadmap | `maestro-roadmap "{intent}"` | yes | — | always |
 | analyze | `maestro-analyze {phase}` | yes | — | always |
 | plan | `maestro-plan {phase}` | yes | — | always |
 | execute | `maestro-execute {phase}` | yes | — | always |
 | verify | `maestro-verify {phase}` | no | `post-verify` | always |
-| business-test | `quality-auto-test {phase}` | no | `post-biz-test` | full only |
+| business-test | `quality-auto-test {phase}` | no | `post-business-test` | full only |
 | review | `quality-review {phase}` | no | `post-review` | always (quick: +`--tier quick`) |
 | test-gen | `quality-auto-test {phase}` | no | — | full; standard if coverage < 80% |
 | test | `quality-test {phase}` | no | `post-test` | full/standard |
@@ -172,9 +228,29 @@ User can specify `--quality full|standard|quick` to override auto-inference.
 2. Filter by quality_mode (remove inapplicable stages)
 3. After each decision-triggering stage, insert decision node: `{ decision, retry_count: 0, max_retries: 2 }`
 4. Conditional steps (test-gen in standard) use: `{ "condition": "check_coverage", "threshold": 80 }`
-5. Args use placeholders resolved at wave build time by coordinator
+5. Phase-independent commands (brainstorm, roadmap, init) use `"{intent}"` as args
+6. Commands needing prior output (analyze→plan, plan→execute) have args resolved via artifact lookup at wave build time by coordinator (see buildSkillCall enrichment table in 2.3)
+7. Args use placeholders resolved at wave build time by coordinator
 
-### 1.5: Create session
+**Example — from "plan" position, standard quality mode:**
+```json
+[
+  { "index": 0, "type": "external", "skill": "maestro-plan", "args": "{phase}", "barrier": true },
+  { "index": 1, "type": "external", "skill": "maestro-execute", "args": "{phase}", "barrier": true },
+  { "index": 2, "type": "external", "skill": "maestro-verify", "args": "{phase}" },
+  { "index": 3, "type": "decision", "skill": "maestro-ralph", "args": "{\"decision\":\"post-verify\",\"retry_count\":0,\"max_retries\":2}" },
+  { "index": 4, "type": "external", "skill": "quality-review", "args": "{phase}" },
+  { "index": 5, "type": "decision", "skill": "maestro-ralph", "args": "{\"decision\":\"post-review\",\"retry_count\":0,\"max_retries\":2}" },
+  { "index": 6, "type": "external", "skill": "quality-auto-test", "args": "{phase}", "condition": "check_coverage" },
+  { "index": 7, "type": "external", "skill": "quality-test", "args": "{phase}" },
+  { "index": 8, "type": "decision", "skill": "maestro-ralph", "args": "{\"decision\":\"post-test\",\"retry_count\":0,\"max_retries\":2}" },
+  { "index": 9, "type": "external", "skill": "maestro-milestone-audit", "args": "" },
+  { "index": 10, "type": "external", "skill": "maestro-milestone-complete", "args": "" },
+  { "index": 11, "type": "decision", "skill": "maestro-ralph", "args": "{\"decision\":\"post-milestone\"}" }
+]
+```
+
+### 1.6: Create session
 
 Write `.workflow/.maestro/ralph-{YYYYMMDD-HHmmss}/status.json`:
 ```json
@@ -185,6 +261,7 @@ Write `.workflow/.maestro/ralph-{YYYYMMDD-HHmmss}/status.json`:
   "intent": "{user_intent}",
   "status": "running",
   "chain_name": "ralph-lifecycle",
+  "task_type": "lifecycle",
   "lifecycle_position": "{position}",
   "target": "milestone-complete",
   "phase": null | N,
@@ -202,7 +279,7 @@ Write `.workflow/.maestro/ralph-{YYYYMMDD-HHmmss}/status.json`:
 }
 ```
 
-### 1.6: Initialize plan + confirm
+### 1.7: Initialize plan + confirm
 
 ```
 functions.update_plan({
@@ -230,7 +307,7 @@ Display:
 ```
 
 - If `-y`: proceed directly
-- Else: AskUserQuestion → Proceed / Cancel / Change quality mode
+- Else: AskUserQuestion → Proceed / Edit / Cancel / Change quality mode
 
 Fall through to Phase 2.
 
@@ -250,7 +327,7 @@ Find first pending step.
 ### 2.2: Delegate Evaluation (decision nodes)
 
 **Route by decision type:**
-- Quality-gate decisions (post-verify, post-biz-test, post-review, post-test) → delegate analysis
+- Quality-gate decisions (post-verify, post-business-test, post-review, post-test) → delegate analysis
 - Structural decisions (post-milestone, post-debug-escalate) → direct evaluation
 
 #### 2.2a: Delegate quality-gate assessment
@@ -262,7 +339,7 @@ Read decision metadata: `{ decision, retry_count, max_retries }`
 | Decision | Files to include |
 |----------|-----------------|
 | post-verify | `{artifact_dir}/verification.json` |
-| post-biz-test | `{artifact_dir}/business-test-results.json` |
+| post-business-test | `{artifact_dir}/.tests/auto-test/report.json` |
 | post-review | `{artifact_dir}/review.json` |
 | post-test | `{artifact_dir}/uat.md`, `{artifact_dir}/.tests/test-results.json` |
 
@@ -298,7 +375,8 @@ If parse fails → fallback: STATUS = "fix", GAP_SUMMARY = generic
 | Mode | Behavior |
 |------|----------|
 | `-y` (auto_mode) | Follow verdict directly, no user prompt |
-| Interactive | Display recommendation, AskUserQuestion: "按建议执行 / 覆盖 / 取消" |
+| Interactive + confidence == "high" | Display recommendation, AskUserQuestion: "按建议执行 / 覆盖 proceed / 覆盖 fix / 取消" |
+| Interactive + confidence != "high" | Display recommendation **with warning**, AskUserQuestion: "按建议执行 / 覆盖 proceed / 覆盖 fix / 取消" |
 
 **Verdict → action:**
 
@@ -321,7 +399,7 @@ maestro-verify {phase}
 decision:post-verify {retry+1}
 ```
 
-**post-biz-test fix-loop (full mode):**
+**post-business-test fix-loop (full mode):**
 ```
 quality-debug --from-business-test "{gap_summary}"
 maestro-plan --gaps {phase}           [barrier]
@@ -329,7 +407,7 @@ maestro-execute {phase}               [barrier]
 maestro-verify {phase}
 decision:post-verify {retry: 0}
 quality-auto-test {phase}
-decision:post-biz-test {retry+1}
+decision:post-business-test {retry+1}
 ```
 
 **post-review fix-loop:**
@@ -337,6 +415,8 @@ decision:post-biz-test {retry+1}
 quality-debug "{gap_summary}"
 maestro-plan --gaps {phase}           [barrier]
 maestro-execute {phase}               [barrier]
+maestro-verify {phase}
+decision:post-verify {retry: 0}
 quality-review {phase}
 decision:post-review {retry+1}
 ```
@@ -348,6 +428,11 @@ maestro-plan --gaps {phase}           [barrier]
 maestro-execute {phase}               [barrier]
 maestro-verify {phase}
 decision:post-verify {retry: 0}
+quality-auto-test {phase}                          # full mode only
+decision:post-business-test {retry: 0}             # full mode only
+quality-review {phase}
+decision:post-review {retry: 0}
+quality-auto-test {phase}                          # full mode; standard if coverage < 80%
 quality-test {phase}
 decision:post-test {retry+1}
 ```
@@ -574,7 +659,7 @@ Rules:
 - [ ] retry_count tracked per decision, max_retries enforced → escalation
 - [ ] ALL external steps via spawn_agents_on_csv — coordinator never executes directly
 - [ ] Barrier steps solo wave, non-barriers parallel
-- [ ] functions.update_plan() initialized in 1.6, synced per wave, finalized in Phase 3
+- [ ] functions.update_plan() initialized in 1.7, synced per wave, finalized in Phase 3
 - [ ] status.json persisted after every wave and decision
 - [ ] Command insertion + reindex preserves step integrity
 </success_criteria>

@@ -2,7 +2,7 @@
 name: maestro-brainstorm
 description: Brainstorm with auto pipeline or single-role analysis
 argument-hint: "[topic] [-y|--yes] [-c|--concurrency N] [--continue] [--count N] [--skip-questions]"
-allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
 <purpose>
@@ -31,12 +31,14 @@ Wave-based multi-role brainstorming using `spawn_agents_on_csv`. Diamond topolog
 |     |   +-- Feature decomposition (max 8 features)                        |
 |     |   +-- Discoveries shared via board (terms, non-goals, features)     |
 |     |   +-- Results: guidance_spec content + analysis_file path           |
+|     +-- [CHECKPOINT] User reviews guidance spec (skip if -y)              |
 |     +-- Wave 2: Role Analysis (parallel, 3-9 agents)                      |
 |     |   +-- Each role agent analyzes topic through its lens               |
 |     |   +-- Receives guidance-specification.md via prev_context           |
 |     |   +-- Feature-point organization when feature list available        |
 |     |   +-- Discoveries shared via board (role insights, conflicts)       |
 |     |   +-- Results: analysis_file path per role                          |
+|     +-- [CHECKPOINT] User reviews role analyses (skip if -y)              |
 |     +-- Wave 3: Synthesis + Feature Index (single agent)                  |
 |     |   +-- Cross-role analysis: consensus, conflicts, unique insights    |
 |     |   +-- Generate feature specs or synthesis-specification.md          |
@@ -49,6 +51,7 @@ Wave-based multi-role brainstorming using `spawn_agents_on_csv`. Diamond topolog
 |     +-- Generate context.md with all findings                             |
 |     +-- Copy artifacts to .brainstorming/ directory                       |
 |     +-- Update phase index.json with brainstorm status                    |
+|     +-- [ROUTING] Offer ui-design when UI features detected               |
 |     +-- Display summary with next steps                                   |
 |                                                                           |
 +---------------------------------------------------------------------------+
@@ -156,7 +159,7 @@ Each wave generates `wave-{N}.csv` with extra `prev_context` column.
 6. **Discovery Board is Append-Only**: Never clear, modify, or recreate discoveries.ndjson
 7. **Skip on Failure**: If guidance fails, abort. If all roles fail, skip synthesis.
 8. **Cleanup Temp Files**: Remove wave-{N}.csv after results are merged
-9. **DO NOT STOP**: Continuous execution until all waves complete
+9. **DO NOT STOP**: Continuous execution until all waves complete — only pause at [CHECKPOINT] interaction points (skipped with -y)
 10. **9 Valid Roles Only**: data-architect, product-manager, product-owner, scrum-master, subject-matter-expert, system-architect, test-strategist, ui-designer, ux-expert
 </invariants>
 
@@ -195,7 +198,7 @@ mkdir -p {sessionFolder}/.brainstorming
 | Condition | Action |
 |-----------|--------|
 | `--yes` flag | Auto-select top `roleCount` roles based on topic relevance |
-| Interactive | AskUserQuestion (multiSelect=true) with recommended roles + rationale |
+| Interactive | `request_user_input` with recommended roles + rationale |
 
 4. **Valid roles** (9 total):
 
@@ -239,6 +242,19 @@ spawn_agents_on_csv({
 
 3. Merge results into master `tasks.csv`, delete `wave-1.csv`
 4. Read generated `guidance-specification.md` for wave 2 context propagation
+5. **Interaction Checkpoint** (skip if AUTO_YES):
+   - Display guidance-specification summary: terminology count, feature list, non-goals
+   - `request_user_input`:
+     ```json
+     { "questions": [{ "id": "guidance_review", "header": "Guidance", "question": "Guidance specification generated. How to proceed?", "options": [
+       { "label": "Proceed (Recommended)", "description": "Continue to parallel role analysis with current guidance." },
+       { "label": "Revise", "description": "Provide feedback to directly edit guidance-specification.md." },
+       { "label": "Abort", "description": "Stop pipeline, output partial results (guidance only)." }
+     ]}] }
+     ```
+     - **Proceed** → continue to Wave 2
+     - **Revise** → user provides feedback, directly edit guidance-specification.md to incorporate changes
+     - **Abort** → stop pipeline, output partial results (guidance only)
 
 **Guidance agent responsibilities**:
 - Analyze topic, extract 5-10 core domain terms
@@ -266,6 +282,20 @@ spawn_agents_on_csv({
 ```
 
 5. Merge results into master `tasks.csv`, delete `wave-2.csv`
+6. **Interaction Checkpoint** (skip if AUTO_YES):
+   - Display per-role findings summary (role name + key insight, 1-2 lines each)
+   - Show success/failure counts: "{N} roles completed, {M} failed"
+   - `request_user_input`:
+     ```json
+     { "questions": [{ "id": "role_review", "header": "Roles", "question": "Role analyses complete. How to proceed?", "options": [
+       { "label": "Proceed (Recommended)", "description": "Continue to cross-role synthesis." },
+       { "label": "Add Roles", "description": "Select additional roles and run only the new ones." },
+       { "label": "Revise", "description": "Pick role(s) to directly edit analysis files with feedback." }
+     ]}] }
+     ```
+     - **Proceed** → continue to Wave 3 (synthesis)
+     - **Add Roles** → select additional roles, generate new wave-2 rows, execute only new roles
+     - **Revise** → user picks specific role(s), directly edit its analysis files to incorporate feedback
 
 **Role agent responsibilities**:
 - Read guidance-specification.md for framework context
@@ -328,6 +358,7 @@ spawn_agents_on_csv({
 {feature-index.json summary}
 
 ## Next Steps
+- Skill: maestro-ui-design {topic} -- Generate UI prototypes (when UI features detected)
 - Skill: maestro-analyze -- Evaluate feasibility + lock decisions
 - Skill: maestro-plan -- Plan directly if scope is clear
 - Skill: maestro-roadmap --mode full -- Generate full spec package from brainstorm
@@ -335,7 +366,20 @@ spawn_agents_on_csv({
 
 4. Copy artifacts to output `.brainstorming/` directory (phase mode or scratch mode target)
 5. Update phase `index.json` with brainstorm status (if phase mode)
-6. Display summary with next step suggestions
+6. **Next-Step Routing** (skip if AUTO_YES — default to first applicable):
+   - Detect UI features: scan feature-index.json for UI/frontend-related features (keywords: ui, interface, page, component, dashboard, form, layout)
+   - `request_user_input` (include UI Design option only when UI features detected):
+     ```json
+     { "questions": [{ "id": "next_step", "header": "Next Step", "question": "Brainstorm complete. What next?", "options": [
+       { "label": "UI Design (Recommended)", "description": "Generate UI prototypes from brainstorm features." },
+       { "label": "Analyze", "description": "Evaluate feasibility and lock architectural decisions." },
+       { "label": "Plan", "description": "Create execution plan directly if scope is clear." }
+     ]}] }
+     ```
+     - **UI Design** → invoke `maestro-ui-design` with topic + brainstorm session context
+     - **Analyze** → invoke `maestro-analyze` for feasibility evaluation
+     - **Plan** → invoke `maestro-plan` directly if scope is clear
+     - When no UI features detected, replace UI Design with Roadmap: `{ "label": "Roadmap (Recommended)", "description": "Generate full spec package from brainstorm." }`
 
 ### Shared Discovery Board Protocol
 

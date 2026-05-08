@@ -112,6 +112,12 @@ Also check: `.workflow/roadmap.md` existence, `.workflow/scratch/` for result fi
 
 ### 2.2: Infer lifecycle position
 
+**Phase 0 — Intent-based override:**
+
+If intent matches brainstorm pattern (contains "brainstorm", "头脑风暴", "探索", "ideate", or "设计思路"), position = `brainstorm` regardless of project state.
+
+Chain for existing project: `brainstorm → roadmap → analyze → ...` (skip init if `.workflow/state.json` exists).
+
 **Phase 1 — Bootstrap detection:**
 
 | Condition | Position | Chain starts at |
@@ -164,7 +170,7 @@ Generate steps from `lifecycle_position` to target (default: `milestone-complete
 
 | Stage | Skill command | Type | Decision after |
 |-------|--------------|------|----------------|
-| brainstorm | `maestro-brainstorm "{intent}"` | external | — (0→1 only) |
+| brainstorm | `maestro-brainstorm "{intent}"` | external | — |
 | init | `maestro-init` | internal | — |
 | roadmap | `maestro-roadmap "{intent}"` | internal | — |
 | analyze | `maestro-analyze {phase}` | external | — |
@@ -316,7 +322,7 @@ For quality-gate decisions (post-verify, post-business-test, post-review, post-t
 | Decision type | Files to include |
 |---------------|-----------------|
 | post-verify | `{artifact_dir}/verification.json` |
-| post-business-test | `{artifact_dir}/business-test-results.json` |
+| post-business-test | `{artifact_dir}/.tests/auto-test/report.json` |
 | post-review | `{artifact_dir}/review.json` |
 | post-test | `{artifact_dir}/uat.md`, `{artifact_dir}/.tests/test-results.json` |
 
