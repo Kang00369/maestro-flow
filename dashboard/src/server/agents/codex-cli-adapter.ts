@@ -198,6 +198,13 @@ export class CodexCliAdapter extends BaseAgentAdapter {
       args.push('--profile', config.settingsFile);
     }
 
+    // Reasoning effort → Codex config override (top-level model_reasoning_effort key)
+    // Codex supports: low, medium, high, xhigh; map 'max' → 'xhigh'
+    if (config.reasoningEffort) {
+      const effort = config.reasoningEffort === 'max' ? 'xhigh' : config.reasoningEffort;
+      args.push('-c', `model_reasoning_effort="${effort}"`);
+    }
+
     const envFromFile = config.envFile ? loadEnvFile(config.envFile) : {};
     const envOverrides: Record<string, string | undefined> = { ...envFromFile, ...config.env };
     if (config.apiKey) envOverrides.OPENAI_API_KEY = config.apiKey;

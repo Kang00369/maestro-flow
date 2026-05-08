@@ -22,6 +22,10 @@ export const DOMAIN_TAGS = [
 
 export type DomainTag = (typeof DOMAIN_TAGS)[number];
 
+/** Reasoning effort levels for thinking models. */
+export const REASONING_EFFORTS = ['low', 'medium', 'high', 'max'] as const;
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+
 export interface ToolEntry {
   enabled: boolean;
   primaryModel: string;
@@ -33,6 +37,9 @@ export interface ToolEntry {
   settingsFile?: string;
   /** Base tool name for aliases (e.g. "claude" for "claude-analysis") */
   baseTool?: string;
+  /** Reasoning effort level (undefined = tool default).
+   *  Translated per-adapter: Claude → --effort, Codex → -c reasoning.effort. */
+  reasoningEffort?: ReasoningEffort;
 }
 
 export interface RoleMapping {

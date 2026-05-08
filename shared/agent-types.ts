@@ -40,6 +40,8 @@ export interface AgentConfig {
   mcpConfigPath?: string;
   /** Opaque metadata bag — used to pass team session context through the spawn pipeline */
   metadata?: Record<string, unknown>;
+  /** Reasoning effort level (undefined = tool default) */
+  reasoningEffort?: 'low' | 'medium' | 'high' | 'max';
 }
 
 /** Runtime state of a spawned agent process */

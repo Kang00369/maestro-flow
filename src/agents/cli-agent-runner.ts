@@ -80,6 +80,8 @@ export interface CliRunOptions {
   baseTool?: string;
   /** Delegate role — maps to spec categories for targeted spec injection */
   role?: string;
+  /** Reasoning effort level — overrides config-level setting */
+  reasoningEffort?: 'low' | 'medium' | 'high' | 'max';
 }
 
 // ---------------------------------------------------------------------------
@@ -358,6 +360,9 @@ function spawnQueuedDelegateWorker(
   if (options.sessionId) {
     args.push('--session', options.sessionId);
   }
+  if (options.reasoningEffort) {
+    args.push('--effort', options.reasoningEffort);
+  }
 
   const child = spawn(process.execPath, args, {
     cwd: options.workDir,
@@ -551,6 +556,7 @@ export class CliAgentRunner {
       approvalMode: options.mode === 'write' ? 'auto' : 'suggest',
       interactive: adapter.supportsInteractive?.() === true,
       settingsFile: options.settingsFile?.replace(/^~(?=[\\/])/, homedir()),
+      reasoningEffort: options.reasoningEffort,
     };
 
     const agentProcess = await adapter.spawn(config);

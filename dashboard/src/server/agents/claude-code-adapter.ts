@@ -164,6 +164,11 @@ export class ClaudeCodeAdapter extends BaseAgentAdapter {
       args.push('--settings', config.settingsFile);
     }
 
+    // Reasoning effort level (low, medium, high, max)
+    if (config.reasoningEffort) {
+      args.push('--effort', config.reasoningEffort);
+    }
+
     // Map approvalMode to Claude Code permission flags.
     // 'auto' → bypass all permission prompts (yolo) — required for non-interactive
     // --print mode where stdin is closed and no approval responder exists.

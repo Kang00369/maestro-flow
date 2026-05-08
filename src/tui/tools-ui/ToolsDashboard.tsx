@@ -112,6 +112,7 @@ export function ToolsDashboard({ workDir, initialView }: ToolsDashboardProps) {
               </Text>
               <Text bold>{padRight(name, 12)}</Text>
               <Text dimColor>{padRight(entry.primaryModel || '—', 24)}</Text>
+              <Text color="magenta">{padRight(entry.reasoningEffort ?? '—', 8)}</Text>
               <Text color="yellow">
                 {entry.tags?.length ? `[${entry.tags.join(', ')}]` : '—'}
               </Text>

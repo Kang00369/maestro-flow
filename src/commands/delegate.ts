@@ -59,6 +59,8 @@ export interface DelegateExecutionRequest {
   baseTool?: string;
   /** Delegate role for spec category mapping */
   role?: string;
+  /** Reasoning effort level */
+  reasoningEffort?: 'low' | 'medium' | 'high' | 'max';
 }
 
 interface ChildProcessLike {
@@ -154,6 +156,9 @@ export function buildDetachedDelegateWorkerArgs(
   }
   if (request.sessionId) {
     args.push('--session', request.sessionId);
+  }
+  if (request.reasoningEffort) {
+    args.push('--effort', request.reasoningEffort);
   }
 
   return args;
@@ -320,6 +325,7 @@ export function registerDelegateCommand(program: Command): void {
     .option('--includeDirs <dirs>', 'Additional directories (comma-separated)')
     .option('--session <id>', 'Claude Code session ID for completion notifications')
     .option('--backend <type>', 'Adapter backend: direct (default) or terminal (tmux/wezterm)')
+    .option('--effort <level>', 'Reasoning effort level (low, medium, high, max) — overrides tool config')
     .option('--async', 'Run detached in the background; results delivered via MCP channel notifications (default: synchronous)')
     .addOption(new Option('--worker').hideHelp())
     .action(async (prompt: string | undefined, opts: {
@@ -334,6 +340,7 @@ export function registerDelegateCommand(program: Command): void {
       includeDirs?: string;
       session?: string;
       backend?: string;
+      effort?: string;
       async?: boolean;
       worker?: boolean;
     }) => {
@@ -367,6 +374,20 @@ export function registerDelegateCommand(program: Command): void {
         process.exit(1);
       }
 
+      // Resolve reasoning effort: CLI --effort overrides config-level setting
+      const VALID_EFFORTS = ['low', 'medium', 'high', 'max'] as const;
+      type Effort = (typeof VALID_EFFORTS)[number];
+      let reasoningEffort: Effort | undefined;
+      if (opts.effort) {
+        if (!VALID_EFFORTS.includes(opts.effort as Effort)) {
+          console.error(`Invalid effort: ${opts.effort}. Use "low", "medium", "high", or "max".`);
+          process.exit(1);
+        }
+        reasoningEffort = opts.effort as Effort;
+      } else {
+        reasoningEffort = selected?.entry?.reasoningEffort;
+      }
+
       const backend = (opts.backend === 'terminal' ? 'terminal' : 'direct') as 'direct' | 'terminal';
       const execId = opts.id ?? generateCliExecId(toolName);
       const resume = opts.resume === true ? 'last' : opts.resume;
@@ -386,6 +407,7 @@ export function registerDelegateCommand(program: Command): void {
         settingsFile: selected?.entry?.settingsFile,
         baseTool: selected?.entry?.baseTool,
         role: opts.role,
+        reasoningEffort,
       };
 
       try {
