@@ -1,8 +1,8 @@
 ---
 name: maestro-roadmap
 description: Generate roadmap from requirements (light or full mode)
-argument-hint: "\"<requirements>\" [--mode light|full] [-y|--yes] [--phases N] [--skip-research] [--from-brainstorm SESSION-ID]"
-allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+argument-hint: "\"<requirements>\" [--mode light|full] [-y|--yes] [-c] [--phases N] [--skip-research] [--from-brainstorm SESSION-ID] [--revise [instructions]] [--review]"
+allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
 <purpose>
@@ -205,9 +205,10 @@ Parse `$ARGUMENTS` to extract:
 
 **Mode routing:**
 - If `--revise` or `--review`: force `mode = light`, bypass CSV pipeline
-  - **Revise**: Load `.workflow/roadmap.md`, apply instructions (preserve completed phases), write updated roadmap
-  - **Review**: Read `.workflow/roadmap.md` + `state.json`, assess health (phase completion, dependency validity, scope creep), report read-only
+  - **Revise**: Load `.workflow/roadmap.md`, apply instructions (preserve completed phases), write updated roadmap. If instructions provided inline, apply directly; if omitted, ask user via `request_user_input`.
+  - **Review**: Read `.workflow/roadmap.md` + `state.json`, assess health (phase completion, dependency validity, scope creep), report read-only. No writes.
   - Both skip Phase 1-3 CSV pipeline, go directly to operation-specific logic
+- If `-c` / `--continue`: Resume from last checkpoint in existing session
 - Otherwise: proceed with CSV pipeline
 
 Session ID: `{YYYYMMDD}-roadmap-{slug}` (light) or `{YYYYMMDD}-roadmap-full-{slug}` (full)
@@ -285,15 +286,63 @@ Write `wave-2.csv` with `prev_context` column → execute `spawn_agents_on_csv` 
 **Light mode**: Assembly agent produces roadmap.md with phases, milestones, success criteria.
 **Full mode**: Document chain agent produces 7-phase spec package + glossary.json. If agent fails, export partial output and log quality issues (do NOT abort).
 
+#### Phase 2.5: Spec Package Generation (Full Mode Only)
+
+After Wave 2 completes, read `~/.maestro/workflows/spec-generate.md` and follow its process to generate the 7-phase specification document chain:
+
+1. **Product Brief** (`product-brief.md`): Vision, goals, scope, multi-perspective synthesis
+2. **PRD** (`requirements/`): `_index.md` + individual `REQ-*.md` + `NFR-*.md` files with RFC 2119 keywords and acceptance criteria
+3. **Architecture** (`architecture/`): `_index.md` + individual `ADR-*.md` files, state machine, config model, error handling, observability
+4. **Data Model**: Entity definitions and relationships
+5. **API Specification**: Endpoint definitions and contracts
+6. **UI Wireframes**: Interface layout descriptions
+7. **Epic-to-Roadmap** (`epics/`): `_index.md` + individual `EPIC-*.md` with cross-Epic dependency map (Mermaid) and MVP subset tagged
+
+Additional outputs:
+- `glossary.json` with 5+ core terms for cross-document terminology consistency
+- `spec-summary.md` with one-page executive summary
+- All documents have valid YAML frontmatter with `session_id`
+
+Output location: `.workflow/.spec/SPEC-{slug}-{date}/`
+
 ### Phase 3: Results Aggregation
 
 Export master `tasks.csv` as `results.csv`.
 
-**Interactive refinement** (skip if AUTO_YES): Present overview, collect feedback via AskUserQuestion (max 3 rounds).
+**Interactive refinement** (skip if AUTO_YES): Present overview, collect feedback via `request_user_input` (max 3 rounds).
 
-**Full mode only — Readiness check**: Score on 4 dimensions (25% each):
-- Completeness, Consistency, Traceability, Depth
-- Gate: Pass (>=80%) / Review (60-79%) / Fail (<60%)
+Each round:
+```json
+{
+  "questions": [{
+    "id": "refinement_round_N",
+    "header": "Roadmap Refinement (Round N/3)",
+    "question": "Review the generated roadmap. Any adjustments needed?",
+    "options": [
+      { "label": "Approve", "description": "Accept the current roadmap as-is" },
+      { "label": "Refine", "description": "Provide specific changes to apply" },
+      { "label": "Regenerate", "description": "Discard and regenerate from scratch" }
+    ]
+  }]
+}
+```
+If user selects "Refine", apply changes and re-present. After 3 rounds, force proceed with current output.
+
+**Full mode only — Readiness Assessment**: Score spec package on 4 dimensions (25% each):
+
+| Dimension | Weight | Checks |
+|-----------|--------|--------|
+| Completeness | 25% | All 7 phases produced, glossary has 5+ terms, all REQ/NFR/ADR/EPIC files present |
+| Consistency | 25% | Glossary terms used consistently, cross-references valid, no contradictions |
+| Traceability | 25% | Every requirement maps to an epic, every epic maps to a roadmap phase, traceability matrix complete |
+| Depth | 25% | Acceptance criteria present, architecture covers error handling/observability, NFRs have measurable targets |
+
+Gate thresholds:
+- **Pass** (>=80%): Spec package ready for implementation
+- **Review** (60-79%): Proceed with documented caveats, note gaps in `readiness-report.md`
+- **Fail** (<60%): Attempt auto-fix (up to 2 iterations), then present manual fix options via `request_user_input`
+
+Output: `readiness-report.md` with per-dimension scores and traceability matrix
 
 Generate `context.md`:
 

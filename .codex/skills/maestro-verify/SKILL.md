@@ -2,7 +2,7 @@
 name: maestro-verify
 description: Verify goals with must-have checks and test coverage validation
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"<phase> [--skip-tests] [--skip-antipattern]\""
-allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
 <purpose>
@@ -175,6 +175,14 @@ Each wave generates `wave-{N}.csv` with extra `prev_context` column.
 **Session path** (UTC+8 date prefix): `.workflow/.csv-wave/{YYYYMMDD}-verify-P{phaseArg}-{phaseSlug}/`
 
 Create session directory.
+
+### Pre-flight: Team Conflict Check
+
+Before starting verification, run:
+```
+Bash("maestro collab preflight --phase <phase-number>")
+```
+If exit code is 1, present warnings and ask whether to proceed.
 
 ### Phase 1: Phase Resolution -> CSV
 
@@ -386,13 +394,20 @@ Issue Refs: {issue_ids}
 
 15. **Post-verify Knowledge Inquiry** (before next step routing):
 
-| Signal | Prompt User | Spec Category |
-|--------|-------------|---------------|
-| Anti-pattern blockers found | "Update `quality-rules.md`?" | `quality` via `/spec-add` |
-| Constraint/wiring violations | "Update `architecture-constraints.md`?" | `arch` via `/spec-add` |
-| Recurring Nyquist coverage gaps | "Add to `test-conventions.md`?" | `test` via `/spec-add` |
+| Signal | Prompt User | Spec Category | Target File |
+|--------|-------------|---------------|-------------|
+| Anti-pattern blockers found | "Verification found {N} anti-patterns. Update quality rules?" | `quality` | `quality-rules.md` |
+| Constraint/wiring violations | "Architecture constraint violations found. Update constraints?" | `arch` | `architecture-constraints.md` |
+| Recurring Nyquist coverage gaps | "Persistent test gap in {module}. Add to test conventions?" | `test` | `test-conventions.md` |
+| Stub/placeholder detected | "Stub artifacts found. Record as quality anti-pattern?" | `quality` | `quality-rules.md` |
+| Missing wiring (orphaned modules) | "Orphaned modules detected. Document wiring requirement?" | `arch` | `architecture-constraints.md` |
 
-On user confirm, append `<spec-entry>` to matching category file.
+On user confirm, invoke `maestro spec add <category> "<title>" "<content>" --keywords ... --source verify:{sessionId}`.
+
+Use `request_user_input` for prompts:
+```json
+{ "questions": [{ "id": "knowledge-capture", "header": "Post-Verify Knowledge Capture", "question": "...", "options": [{ "label": "Yes", "description": "Record to specs" }, { "label": "Skip", "description": "Continue without recording" }] }] }
+```
 
 16. **Next step routing**:
 

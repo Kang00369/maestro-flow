@@ -2,7 +2,7 @@
 name: maestro-execute
 description: Execute plan with parallel waves and atomic commits
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"<phase> [--auto-commit] [--method agent|cli] [--dir <path>]\""
-allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
 <purpose>
@@ -177,6 +177,14 @@ Derive:
 mkdir -p {sessionFolder}
 ```
 
+### Pre-flight: Team Conflict Check
+
+Before any task execution, run:
+```
+Bash("maestro collab preflight --phase <phase-number>")
+```
+If exit code is 1, present warnings and ask whether to proceed.
+
 ### Phase 1: Plan Resolution -> CSV
 
 **Objective**: Resolve phase, load plan + task definitions, detect resume point, generate tasks.csv.
@@ -261,10 +269,24 @@ Blocked/failed tasks cascade: mark all downstream dependents as `skipped` with e
    - Root cause/workaround → `maestro spec add debug "<title>" "<content>" --keywords ...`
    Mark artifact `harvested: true`
 
-6. **Post-task Knowledge Inquiry**: Prompt user to capture knowledge when:
-   - Execution deviation detected (plan change) -> `/spec-add arch`
-   - Retry success (>=2 retries) -> `/spec-add debug`
-   - Implicit design rationale found -> `/spec-add learning`
+6. **Post-task Knowledge Inquiry**: After each task completes, evaluate inquiry triggers:
+
+   - **Execution deviation**: If task summary mentions approach change, dependency swap, or plan deviation:
+     → Prompt: "TASK-{NNN} deviated from the plan. Record as architecture constraint?"
+     → On confirm: `maestro spec add arch "<decision>" "<rationale>" --keywords ... --source execute:{PLAN_DIR}`
+
+   - **Retry success**: If task required >=2 retries before completion:
+     → Prompt: "TASK-{NNN} succeeded after {N} retries. Document this fix pattern?"
+     → On confirm: `maestro spec add debug "<pattern>" "<content>" --keywords ... --source execute:{PLAN_DIR}`
+
+   - **Implicit knowledge**: If task summary contains design rationale ("chose X because", "rejected Y due to"):
+     → Prompt: "Design decision detected. Record as a learning?"
+     → On confirm: `maestro spec add learning "<decision>" "<rationale>" --keywords ... --source execute:{PLAN_DIR}`
+
+   Use `request_user_input` for prompts:
+   ```json
+   { "questions": [{ "id": "knowledge-capture", "header": "Knowledge Capture", "question": "...", "options": [{ "label": "Yes", "description": "Record to specs" }, { "label": "Skip", "description": "Continue without recording" }] }] }
+   ```
 
 7. **Generate context.md**: Execution report with summary (tasks/blocked/waves/auto-commit), per-wave result table (task, status, files, tests), blocked tasks, discovery board summary, next steps.
 

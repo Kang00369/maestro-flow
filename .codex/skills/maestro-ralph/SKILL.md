@@ -2,7 +2,7 @@
 name: maestro-ralph
 description: Adaptive lifecycle engine -- infer state, build command chain
 argument-hint: "\"intent\" [-y] | status | continue | execute"
-allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
 <purpose>
@@ -51,7 +51,7 @@ Route:
     Else if intent is non-empty:
       → Phase 1 (New Session)
     Else:
-      → AskUserQuestion: "请描述目标，或输入 status/continue/execute"
+      → request_user_input: "请描述目标，或输入 status/continue/execute"
 ```
 
 HARD RULE: `input_doc` is supplementary context only. It NEVER substitutes for lifecycle stages.
@@ -189,7 +189,7 @@ Priority order:
 2. Latest in-progress artifact's phase field
 3. First incomplete phase in current milestone's `phases[]`
 4. `null` if position is brainstorm/init/roadmap (deferred to post-roadmap)
-5. AskUserQuestion if ambiguous (auto_mode does NOT skip this)
+5. request_user_input if ambiguous (auto_mode does NOT skip this)
 
 ### 1.4: Determine quality mode
 
@@ -307,7 +307,7 @@ Display:
 ```
 
 - If `-y`: proceed directly
-- Else: AskUserQuestion → Proceed / Edit / Cancel / Change quality mode
+- Else: request_user_input → Proceed / Edit / Cancel / Change quality mode
 
 Fall through to Phase 2.
 
@@ -375,8 +375,18 @@ If parse fails → fallback: STATUS = "fix", GAP_SUMMARY = generic
 | Mode | Behavior |
 |------|----------|
 | `-y` (auto_mode) | Follow verdict directly, no user prompt |
-| Interactive + confidence == "high" | Display recommendation, AskUserQuestion: "按建议执行 / 覆盖 proceed / 覆盖 fix / 取消" |
-| Interactive + confidence != "high" | Display recommendation **with warning**, AskUserQuestion: "按建议执行 / 覆盖 proceed / 覆盖 fix / 取消" |
+| Interactive + confidence == "high" | Display recommendation, prompt user with options below |
+| Interactive + confidence != "high" | Display recommendation **with warning**, prompt user with options below |
+
+Interactive prompt (via `request_user_input`):
+```json
+{ "questions": [{ "id": "decision_override", "header": "◆ {meta.decision} 评估结果", "question": "STATUS: {verdict.status}\nREASON: {verdict.reason}\n\n选择操作：", "options": [
+  { "label": "按建议执行 (Recommended)", "description": "执行 {verdict.status} 操作" },
+  { "label": "覆盖 proceed", "description": "忽略问题，强制通过" },
+  { "label": "覆盖 fix", "description": "强制进入修复循环" },
+  { "label": "取消", "description": "暂停会话，手动处理" }
+]}] }
+```
 
 **Verdict → action:**
 
@@ -390,7 +400,10 @@ If parse fails → fallback: STATUS = "fix", GAP_SUMMARY = generic
 
 The delegate's `gap_summary` is passed as context to `quality-debug`.
 
+**passed_gates reset**: Every fix-loop inserts `maestro-execute` (code changes), so `passed_gates` is cleared at insertion time (see 2.2a verdict action). Downstream decision nodes restart with `retry: 0` to re-validate against modified code. Only the triggering decision's own `retry_count` increments.
+
 **post-verify fix-loop:**
+Reset: `passed_gates = []` (code changed via execute)
 ```
 quality-debug "{gap_summary}"
 maestro-plan --gaps {phase}           [barrier]
@@ -400,6 +413,7 @@ decision:post-verify {retry+1}
 ```
 
 **post-business-test fix-loop (full mode):**
+Reset: `passed_gates = []` (code changed via execute); post-verify restarts at retry: 0
 ```
 quality-debug --from-business-test "{gap_summary}"
 maestro-plan --gaps {phase}           [barrier]
@@ -411,6 +425,7 @@ decision:post-business-test {retry+1}
 ```
 
 **post-review fix-loop:**
+Reset: `passed_gates = []` (code changed via execute); post-verify restarts at retry: 0
 ```
 quality-debug "{gap_summary}"
 maestro-plan --gaps {phase}           [barrier]
@@ -422,6 +437,7 @@ decision:post-review {retry+1}
 ```
 
 **post-test fix-loop:**
+Reset: `passed_gates = []` (code changed via execute); all downstream decisions restart at retry: 0
 ```
 quality-debug --from-uat "{gap_summary}"
 maestro-plan --gaps {phase}           [barrier]
@@ -651,7 +667,7 @@ Rules:
 - [ ] Quality-gate decisions delegate-evaluated via `maestro delegate --role analyze`
 - [ ] Delegate verdict parsed: STATUS / REASON / GAP_SUMMARY / CONFIDENCE
 - [ ] `-y` mode: auto-follow delegate verdict, no STOP (except post-debug-escalate)
-- [ ] Interactive mode: display recommendation + AskUserQuestion with override
+- [ ] Interactive mode: display recommendation + request_user_input with override
 - [ ] Delegate failure fallback: treat as "fix" verdict
 - [ ] passed_gates[] tracks passed quality gates, skips re-runs in retry loops
 - [ ] passed_gates cleared when code changes (fix-loop inserts execute step)

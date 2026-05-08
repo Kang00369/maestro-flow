@@ -2,7 +2,7 @@
 name: maestro-plan
 description: Plan phase execution with exploration and verification
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"<phase> [--dir <path>] [--gaps] [--spec SPEC-xxx] [--collab]\""
-allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
 <purpose>
@@ -168,6 +168,20 @@ Each wave generates `wave-{N}.csv` with extra `prev_context` column.
 
 // Create: sessionFolder, scratchDir/.task/
 ```
+
+### Session Resume (`--continue`)
+
+When `continueMode` is true:
+1. Scan `.workflow/.csv-wave/` for directories matching `*-plan-*`
+2. If `$ARGUMENTS` contains a session ID suffix, match it; otherwise use the most recent session
+3. Read the session's `tasks.csv` to determine resume point:
+   - If all wave 1 tasks completed → skip to wave 2
+   - If wave 2 completed → skip to Phase 3 (plan checking)
+   - If Phase 3 incomplete → re-run plan checking
+4. Re-use existing `sessionFolder` and `scratchDir` (do not create new ones)
+5. Log: "Resuming session {sessionId} — skipping {N} completed tasks"
+
+If no matching session found, list available sessions and abort.
 
 ### Phase 1: Phase Resolution -> CSV
 
