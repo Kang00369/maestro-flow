@@ -267,8 +267,8 @@ Read decision metadata: `{ decision, retry_count, max_retries }`
 | post-test | `{artifact_dir}/uat.md`, `{artifact_dir}/.tests/test-results.json` |
 
 ```
-Bash({
-  command: `maestro delegate "PURPOSE: 评估 ${meta.decision} 质量门结果
+exec_command({
+  cmd: `maestro delegate "PURPOSE: 评估 ${meta.decision} 质量门结果
 TASK: 读取结果文件 | 分析通过/失败 | 评估严重性 | 给出建议
 MODE: analysis
 CONTEXT: @${result_files}
@@ -280,9 +280,11 @@ GAP_SUMMARY: 问题描述（fix/escalate 时填写）
 CONFIDENCE: high | medium | low
 ---END---
 CONSTRAINTS: 只评估 | STATUS 三选一 | retry ${meta.retry_count}/${meta.max_retries} 达上限必须 escalate" --role analyze --mode analysis`,
-  run_in_background: true
+  yield_time_ms: 30000,
+  max_output_tokens: 6000
 })
-STOP — wait for callback.
+// ⚠️ If session_id returned → poll write_stdin until completion (see @~/.maestro/workflows/delegate-protocol.codex.md)
+// NEVER skip — verdict is required for decision routing
 ```
 
 **Parse verdict** (on callback):
