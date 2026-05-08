@@ -1,6 +1,6 @@
 ---
 name: maestro-roadmap
-description: Dual-mode roadmap generation via 2-wave CSV pipeline. Light mode (default) runs scope/risk/dependency analysis → roadmap assembly. Full mode (--mode full) runs domain/competitive/tech-stack research → 7-phase specification document chain → roadmap. Both modes produce .workflow/roadmap.md.
+description: Generate roadmap from requirements (light or full mode)
 argument-hint: "\"<requirements>\" [--mode light|full] [-y|--yes] [--phases N] [--skip-research] [--from-brainstorm SESSION-ID]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

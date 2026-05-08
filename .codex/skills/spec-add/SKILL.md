@@ -1,6 +1,6 @@
 ---
 name: spec-add
-description: Add a spec entry to the appropriate specs file by category
+description: Add spec entry by category
 argument-hint: "<category> <content>"
 allowed-tools: Read, Write, Bash, Glob, Grep
 ---

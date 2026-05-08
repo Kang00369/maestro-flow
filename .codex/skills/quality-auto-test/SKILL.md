@@ -1,6 +1,6 @@
 ---
 name: quality-auto-test
-description: Unified automated testing via CSV layer pipeline. Reads project state to auto-select scenario source, builds scenarios.csv, executes test writing + diagnosis in parallel per layer using spawn_agents_on_csv, with iterative convergence engine.
+description: Auto-generate and run tests from specs or coverage gaps
 argument-hint: "<phase> [-y] [-c N] [--max-iter N] [--layer L0-L3] [--dry-run] [--re-run]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

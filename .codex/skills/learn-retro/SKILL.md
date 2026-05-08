@@ -1,6 +1,6 @@
 ---
 name: learn-retro
-description: Unified retrospective via CSV wave pipeline. Git lens (commit metrics, session detection, hotspots) and decision lens (multi-perspective evaluation via 3 parallel agents) with lens-based selection. Persists insights to lessons.jsonl.
+description: Retrospective of git activity and decision quality
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"[--lens git|decision|all] [--days N] [--author <name>] [--area <path>] [--phase N] [--compare]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

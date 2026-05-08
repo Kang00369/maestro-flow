@@ -1,6 +1,6 @@
 ---
 name: manage-issue-discover
-description: Multi-perspective issue discovery via CSV wave pipeline. 8 parallel perspective agents scan the codebase independently, then a dedup agent aggregates and creates issues. Replaces manage-issue-discover command.
+description: Discover issues via multi-perspective analysis
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"[by-prompt 'what to look for']\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

@@ -1,6 +1,6 @@
 ---
 name: maestro-composer
-description: Interactive workflow template composer — parse natural language into DAG of skill nodes, auto-inject checkpoints, confirm pipeline interactively, persist as reusable JSON template to ~/.maestro/templates/workflows/
+description: Compose reusable workflow templates from natural language
 argument-hint: "\"workflow description\" [--resume] [--edit <template-path>]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

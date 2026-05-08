@@ -1,6 +1,6 @@
 ---
 name: quality-refactor
-description: Tech debt reduction with reflection-driven iteration. Analyze scope, plan refactoring, execute with test verification, reflect on strategy per round.
+description: Reduce tech debt with reflection-driven iteration
 argument-hint: "<phase|--dir path> [--max-iterations N]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion
 ---

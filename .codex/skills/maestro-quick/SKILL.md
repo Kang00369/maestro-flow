@@ -1,6 +1,6 @@
 ---
 name: maestro-quick
-description: Fast-track single task execution with workflow guarantees — analyze, plan, execute in one pass
+description: Quick task execution, skip optional agents
 argument-hint: "\"task description\" [--discuss] [--full]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion
 ---

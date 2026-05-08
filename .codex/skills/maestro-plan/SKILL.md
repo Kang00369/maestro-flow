@@ -1,6 +1,6 @@
 ---
 name: maestro-plan
-description: Exploration-driven planning via CSV wave pipeline. Wave 1 runs parallel codebase exploration agents, Wave 2 synthesizes explorations into plan.json + TASK-*.json. Replaces maestro-plan command.
+description: Plan phase execution with exploration and verification
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"<phase> [--dir <path>] [--gaps] [--spec SPEC-xxx] [--collab]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

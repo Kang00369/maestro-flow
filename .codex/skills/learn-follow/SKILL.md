@@ -1,6 +1,6 @@
 ---
 name: learn-follow
-description: Guided follow-along reading of code or wiki entries. Section-by-section walk-through with 4 forcing questions, pattern extraction, and understanding map generation. Persists insights to lessons.jsonl.
+description: Guided reading of code or wiki to extract patterns
 argument-hint: "<path|wiki-id|topic> [--depth shallow|deep] [--save-wiki]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

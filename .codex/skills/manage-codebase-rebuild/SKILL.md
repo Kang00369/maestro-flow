@@ -1,6 +1,6 @@
 ---
 name: manage-codebase-rebuild
-description: Full codebase documentation rebuild via CSV wave pipeline. Spawns 5 parallel doc generator agents to scan project and produce complete .workflow/codebase/ documentation set. Replaces manage-codebase-rebuild command.
+description: Rebuild all codebase documentation from scratch
 argument-hint: "[-y|--yes] [-c|--concurrency 5] [--continue] \"[--force] [--skip-commit]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

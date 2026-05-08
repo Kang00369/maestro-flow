@@ -1,6 +1,6 @@
 ---
 name: wiki-digest
-description: Knowledge synthesis from wiki entries. Theme clustering, gap analysis, coverage heatmap (type × theme matrix). Optionally creates knowledge-gap issues. Persists meta-insights to lessons.jsonl.
+description: Generate wiki digest with theme clustering and gap analysis
 argument-hint: "[<topic>|--recent N] [--type <type>] [--format brief|full] [--create-issues]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

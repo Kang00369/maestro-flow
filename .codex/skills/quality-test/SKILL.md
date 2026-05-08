@@ -1,6 +1,6 @@
 ---
 name: quality-test
-description: Conversational UAT with session persistence, CSV-parallel debug diagnosis via spawn_agents_on_csv, severity inference, and gap-plan closure loop.
+description: Conversational UAT with auto-diagnosis and gap closure
 argument-hint: "<phase> [-y] [--smoke] [--auto-fix] [--session ID]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

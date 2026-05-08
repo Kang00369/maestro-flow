@@ -1,6 +1,6 @@
 ---
 name: team-tech-debt
-description: Unified team skill for tech debt identification and remediation. Scans codebase for tech debt, assesses severity, plans and executes fixes with validation. Uses team-worker agent architecture with roles/ for domain logic. Coordinator orchestrates pipeline, workers are team-worker agents. Triggers on "team tech debt".
+description: Team tech debt identification and remediation
 allowed-tools: spawn_agent(*), wait_agent(*), send_message(*), followup_task(*), close_agent(*), list_agents(*), report_agent_job_result(*), request_user_input(*), Read(*), Write(*), Edit(*), Bash(*), Glob(*), Grep(*), mcp__ace-tool__search_context(*), mcp__maestro-tools__read_file(*), mcp__maestro-tools__write_file(*), mcp__maestro-tools__edit_file(*), mcp__maestro-tools__team_msg(*)
 ---
 

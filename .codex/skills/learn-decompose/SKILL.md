@@ -1,6 +1,6 @@
 ---
 name: learn-decompose
-description: 4-dimension parallel pattern extraction via CSV wave pipeline. Structural, behavioral, data, and error dimension agents scan in parallel (Wave 1), cross-reference agent deduplicates and catalogs (Wave 2). Outputs pattern catalog to lessons.jsonl.
+description: Extract design patterns from code into specs and wiki
 argument-hint: "[-y|--yes] [-c|--concurrency 4] [--continue] \"<path|module> [--patterns <list>] [--save-spec] [--save-wiki]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

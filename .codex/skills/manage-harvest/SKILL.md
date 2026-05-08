@@ -1,6 +1,6 @@
 ---
 name: manage-harvest
-description: Extract knowledge fragments from workflow artifacts (analysis, brainstorm, debug, lite-plan, scratchpad, sessions) and route to wiki / spec / issue stores. Dedup via stable fragment IDs. Closed-loop with downstream consumers.
+description: Extract knowledge from artifacts into wiki/spec/issues
 argument-hint: "[<session-id|path>] [--to wiki|spec|issue|auto] [--source <type>] [--recent N] [--dry-run] [-y]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

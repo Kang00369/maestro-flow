@@ -1,6 +1,6 @@
 ---
 name: manage-learn
-description: Capture atomic learning insights into .workflow/learning/lessons.jsonl. Lightweight CRUD over the shared learning store — supports capture, list, search, and show modes. No LLM or CLI calls; all operations are pure file reads and writes.
+description: Capture and search learning insights and tips
 argument-hint: "[\"<insight text>\"|list|search <query>|show <INS-id>] [--category pattern|antipattern|decision|tool|gotcha|technique] [--tag t1,t2] [--phase N] [--confidence high|medium|low]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---

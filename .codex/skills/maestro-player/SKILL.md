@@ -1,6 +1,6 @@
 ---
 name: maestro-player
-description: Workflow template player — load JSON template, bind variables, execute DAG nodes wave-by-wave via spawn_agents_on_csv, persist state at checkpoints, support resume. Coordinator assembles skill_call from template nodes — never executes skills directly.
+description: Play workflow templates with checkpoint resume
 argument-hint: "<template-slug|path> [--context key=value...] [-c [session-id]] [--list] [--dry-run]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

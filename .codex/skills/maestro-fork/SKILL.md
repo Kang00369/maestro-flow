@@ -1,6 +1,6 @@
 ---
 name: maestro-fork
-description: Create git worktree for milestone-level parallel development, or sync existing worktree with main. Copies .workflow/ context and scratch artifacts into worktree since .workflow/ is gitignored.
+description: Create or sync milestone worktree for parallel dev
 argument-hint: "-m <milestone-number> [--base <branch>] [--sync]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

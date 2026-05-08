@@ -1,6 +1,6 @@
 ---
 name: quality-debug
-description: Hypothesis-driven debugging via CSV wave pipeline. Wave 1 generates parallel hypotheses, Wave 2 attempts parallel fixes on confirmed hypotheses. Replaces quality-debug command.
+description: Debug with parallel hypotheses and root cause analysis
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"[bug description] [--from-uat <phase>] [--parallel]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

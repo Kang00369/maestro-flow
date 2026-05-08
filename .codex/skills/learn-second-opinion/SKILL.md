@@ -1,6 +1,6 @@
 ---
 name: learn-second-opinion
-description: Multi-perspective analysis via CSV wave pipeline. Review mode spawns 3 parallel persona agents (pragmatist, purist, strategist), then synthesis agent merges verdicts. Also supports challenge and consult modes. Persists findings to lessons.jsonl.
+description: Get alternative perspectives -- review, challenge, or consult
 argument-hint: "[-y|--yes] [-c|--concurrency 3] [--continue] \"<target> [--mode review|challenge|consult]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

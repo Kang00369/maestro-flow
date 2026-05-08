@@ -1,6 +1,6 @@
 ---
 name: learn-investigate
-description: Systematic question investigation with hypothesis testing, evidence logging, and 3-strike escalation. 4-phase pipeline — evidence collection, pattern matching, hypothesis testing, synthesis. Persists findings to lessons.jsonl.
+description: Investigate questions with hypothesis testing and evidence logging
 argument-hint: "<question> [--scope <path>] [--max-hypotheses N]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

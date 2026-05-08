@@ -1,6 +1,6 @@
 ---
 name: maestro-ui-design
-description: Generate UI design prototypes with multiple styles. User selects style/palette/typography, generates design tokens, produces prototypes. Delegates to ui-ux-pro-max when available, falls back to self-contained pipeline.
+description: Generate UI design prototypes, select and solidify as code
 argument-hint: "[topic] [-y] [--style-skill PKG]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion
 ---

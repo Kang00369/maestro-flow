@@ -1,6 +1,6 @@
 ---
 name: maestro-milestone-audit
-description: Audit current milestone using artifact registry for cross-phase integration gaps and produce verdict report
+description: Audit current milestone for cross-phase integration gaps
 argument-hint: "[milestone, e.g., 'M1']"
 allowed-tools: Read, Write, Bash, Glob, Grep, Agent
 ---

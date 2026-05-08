@@ -1,6 +1,6 @@
 ---
 name: maestro-brainstorm
-description: Multi-role brainstorming via CSV wave pipeline. Diamond topology — guidance specification generator (Wave 1), parallel role analysis agents (Wave 2), synthesis + feature-index agent (Wave 3). Replaces maestro-brainstorm command.
+description: Brainstorm with auto pipeline or single-role analysis
 argument-hint: "[topic] [-y|--yes] [-c|--concurrency N] [--continue] [--count N] [--skip-questions]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

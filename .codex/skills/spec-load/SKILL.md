@@ -1,6 +1,6 @@
 ---
 name: spec-load
-description: Load relevant specs for current context, optionally filtered by category or keyword
+description: Load specs and lessons for current context
 argument-hint: "[--category <type>] [--keyword <word>]"
 allowed-tools: Read, Bash, Glob, Grep
 ---

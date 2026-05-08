@@ -1,6 +1,6 @@
 ---
 name: maestro-analyze
-description: Multi-dimensional analysis via CSV wave pipeline. Diamond topology — CLI exploration agents (Wave 1), 6-dimension scoring agents (Wave 2), decision synthesis agent (Wave 3). Supports dual depth with -q quick mode and --gaps issue root cause analysis. Replaces maestro-analyze command.
+description: Multi-angle analysis with CLI-assisted exploration
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"<phase|topic> [-q|--quick] [--gaps [ISS-ID]]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

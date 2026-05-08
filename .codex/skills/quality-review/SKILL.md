@@ -1,6 +1,6 @@
 ---
 name: quality-review
-description: Tiered code review via CSV wave pipeline. Decomposes into 6 dimension agents running in parallel, with optional deep-dive aggregation wave. Replaces quality-review command.
+description: Tiered code review with severity classification
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"<phase> [--level quick|standard|deep] [--dimensions list]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

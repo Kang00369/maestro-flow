@@ -1,6 +1,6 @@
 ---
 name: maestro-milestone-complete
-description: Archive completed milestone scratch artifacts to milestones/ dir, move artifact entries to milestone_history, extract learnings, advance state.
+description: Archive completed milestone and prepare for next
 argument-hint: "[milestone] [--force] [-y]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---

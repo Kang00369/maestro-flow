@@ -1,6 +1,6 @@
 ---
 name: maestro-verify
-description: Goal-Backward 3-layer verification via CSV wave pipeline. Staged parallel waves check Truths, Artifacts, and Wiring with anti-pattern scan and Nyquist test coverage audit. Replaces maestro-verify command.
+description: Verify goals with must-have checks and test coverage validation
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"<phase> [--skip-tests] [--skip-antipattern]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

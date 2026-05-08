@@ -1,6 +1,6 @@
 ---
 name: manage-issue
-description: Issue CRUD -- create, list, status, update, close, and link issues to tasks
+description: Create, query, update, close, and link issues
 argument-hint: "<create|list|status|update|close|link> [options]"
 allowed-tools: Read, Write, Bash, Glob, Grep, AskUserQuestion
 ---

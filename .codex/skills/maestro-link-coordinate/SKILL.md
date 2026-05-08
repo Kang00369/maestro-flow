@@ -1,6 +1,6 @@
 ---
 name: maestro-link-coordinate
-description: Chain-graph walker with in-process flow control. Loads chain JSON, walks nodes in main process, dispatches command nodes via spawn_agents_on_csv. Decision nodes resolved in-process between waves.
+description: Execute command chain nodes step by step
 argument-hint: "\"intent text\" [--list] [-c [sessionId]] [--chain <name>] [-y]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

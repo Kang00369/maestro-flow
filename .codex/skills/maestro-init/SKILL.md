@@ -1,6 +1,6 @@
 ---
 name: maestro-init
-description: Initialize project with auto state detection — creates .workflow/ directory, project.md, state.json, config.json, and specs/
+description: Initialize project with auto state detection
 argument-hint: "[-y] [--from-brainstorm SESSION-ID]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

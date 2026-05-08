@@ -1,6 +1,6 @@
 ---
 name: team-lifecycle-v4
-description: Full lifecycle team skill with clean architecture. SKILL.md is a universal router — all roles read it. Beat model is coordinator-only. Structure is roles/ + specs/ + templates/. Triggers on "team lifecycle v4".
+description: Full lifecycle team -- plan, develop, test, review
 allowed-tools: spawn_agent(*), wait_agent(*), send_message(*), followup_task(*), close_agent(*), list_agents(*), report_agent_job_result(*), Read(*), Write(*), Edit(*), Bash(*), Glob(*), Grep(*), request_user_input(*), mcp__maestro-tools__team_msg(*)
 ---
 

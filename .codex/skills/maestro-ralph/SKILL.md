@@ -1,6 +1,6 @@
 ---
 name: maestro-ralph
-description: Closed-loop lifecycle decision engine — read state, infer position, build adaptive chain, execute via CSV waves, delegate-evaluate at decision nodes
+description: Adaptive lifecycle engine -- infer state, build command chain
 argument-hint: "\"intent\" [-y] | status | continue | execute"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

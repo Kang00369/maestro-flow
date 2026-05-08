@@ -1,6 +1,6 @@
 ---
 name: wiki-connect
-description: Wiki knowledge graph link discovery and health improvement. Finds orphaned entries, missing connections, transitive gaps. Scores candidates and optionally auto-applies new related links via --fix.
+description: Find and link hidden connections in wiki graph
 argument-hint: "[--scope <type>] [--min-similarity N] [--fix] [--max N]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

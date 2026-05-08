@@ -1,6 +1,6 @@
 ---
 name: maestro
-description: Intelligent coordinator — analyze intent, read project state, select chain, execute wave-by-wave via spawn_agents_on_csv. Coordinator only assembles prompts and reads artifacts — never executes skills directly.
+description: Auto-route intent to optimal command chain
 argument-hint: "\"intent text\" [-y] [-c|--continue] [--dry-run] [--super]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

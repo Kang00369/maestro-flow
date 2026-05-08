@@ -1,6 +1,6 @@
 ---
 name: maestro-execute
-description: Wave-based parallel task execution via CSV wave pipeline. Reads plan.json to build CSV with pre-computed waves, executes tasks in parallel per wave with cross-wave context propagation. Core execution engine replacing maestro-execute command.
+description: Execute plan with parallel waves and atomic commits
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"<phase> [--auto-commit] [--method agent|cli] [--dir <path>]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

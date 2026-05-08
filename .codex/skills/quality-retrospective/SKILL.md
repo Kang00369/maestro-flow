@@ -1,6 +1,6 @@
 ---
 name: quality-retrospective
-description: Multi-lens 复盘 (retrospective) for completed phases. Context-Agent Fork loads phase artifacts once; four parallel lens agents (technical, process, quality, decision) analyze independently; synthesizer distills insights; outputs are routed to spec stubs, knowhow tips, issues, and lessons.jsonl.
+description: Phase retrospective with insight routing to specs and lessons
 argument-hint: "[phase|N..M] [--lens technical|process|quality|decision] [--all] [--no-route] [--compare N] [-y]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
