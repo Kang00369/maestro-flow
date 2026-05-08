@@ -181,6 +181,11 @@ mkdir -p {sessionFolder}
 
 2. **Related session discovery**: Query `state.json.artifacts[]` for matching phase+milestone. Extract relevant outputs by type: execute -> .summaries/.task/, review -> review.json (guide hypotheses), debug -> understanding.md (avoid re-investigation), test -> uat.md + .tests/auto-test/report.json.
 
+2b. **Load codebase + wiki context** (optional, informs hypothesis generation):
+   - If `.workflow/codebase/ARCHITECTURE.md` exists: read module boundaries to scope impact analysis
+   - Run `maestro wiki search "<symptom keywords>" --json 2>/dev/null`; if results: check for prior investigations on similar issues
+   - Both are optional — proceed without if unavailable
+
 3. **Symptom collection**:
 
 | Mode | Source | Action |

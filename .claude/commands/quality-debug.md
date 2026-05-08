@@ -43,6 +43,12 @@ Each artifact's type determines its outputs at `.workflow/{a.path}/`:
 
 Extract conclusions from related artifacts that may affect this debug session — review findings guide investigation direction, prior debug avoids redundant work.
 
+### Pre-load context (before hypothesis formation)
+
+1. **Codebase docs**: If `.workflow/codebase/ARCHITECTURE.md` exists, load module boundaries to scope impact analysis and inform hypothesis formation.
+2. **Wiki prior knowledge**: Run `maestro wiki search "<symptom keywords>" --json 2>/dev/null`. If results found, check for prior investigations on similar issues to avoid re-investigation.
+3. Both are optional — proceed without if unavailable.
+
 **Output**: `DEBUG_DIR = .workflow/scratch/{YYYYMMDD}-debug-P{N}-{slug}/` (P{N} = phase number when phase-scoped; omit for standalone). Output directory rules defined in workflow debug.md Step 4.
 </context>
 

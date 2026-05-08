@@ -31,6 +31,12 @@ Invoked after /maestro-plan produces a confirmed plan. When called without args 
 $ARGUMENTS — phase number, or no args for milestone-wide execution, with optional flags.
 
 Scope routing, flags, resolution logic, output directory format, artifact registration schema, and incremental learning extraction are defined in workflow `execute.md`.
+
+### Pre-load context (before task execution)
+
+1. **Codebase docs**: If `.workflow/codebase/doc-index.json` exists, read `ARCHITECTURE.md` for module boundaries. Pass as shared context to executor agents.
+2. **Wiki knowledge**: Run `maestro wiki search "<phase keywords>" --json 2>/dev/null`. If results found, extract top 5 entries as prior knowledge context for agents.
+3. Both are optional — proceed without if unavailable (log warning).
 </context>
 
 <execution>

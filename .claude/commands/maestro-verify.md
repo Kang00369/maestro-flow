@@ -38,6 +38,12 @@ Registers VRF artifact in state.json on completion.
 $ARGUMENTS — phase number or no args for milestone-wide, with optional flags.
 
 Flags (`--skip-tests`, `--skip-antipattern`, `--dir`), scope routing, output paths, and VRF artifact registration schema are defined in workflow `verify.md`.
+
+### Pre-load context (before verification)
+
+1. **Codebase docs**: If `.workflow/codebase/` exists, read `ARCHITECTURE.md` for expected module wiring and `FEATURES.md` for component mapping. Use in Layer 3 (Connection) checks.
+2. **Wiki constraints**: Run `maestro wiki search "architecture constraint" --json 2>/dev/null`. If results found, include documented invariants as additional truth checks in Layer 1.
+3. Both are optional — proceed without if unavailable.
 </context>
 
 <execution>

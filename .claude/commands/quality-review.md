@@ -48,6 +48,12 @@ Each artifact's type determines its outputs at `.workflow/{a.path}/`:
 
 Extract conclusions from related artifacts that may affect this review. Pass as prior quality context to reviewer agents — avoid redundant work, focus on gaps and regressions.
 
+### Pre-load context (before dispatching reviewer agents)
+
+1. **Codebase docs**: If `.workflow/codebase/ARCHITECTURE.md` exists, load component boundaries and layer rules. Pass as `codebase_context` to reviewer agents (especially architecture dimension).
+2. **Wiki constraints**: Run `maestro wiki search "architecture constraint" --json 2>/dev/null`. If results found, pass as `wiki_context` to reviewer agents for evaluating code against documented decisions.
+3. Both are optional — proceed without if unavailable.
+
 **Output**: `REVIEW_DIR = .workflow/scratch/{YYYYMMDD}-review-P{N}-{slug}/` (P{N} = phase number, enables directory-level identification as state.json fallback)
 </context>
 

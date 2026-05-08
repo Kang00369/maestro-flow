@@ -58,6 +58,18 @@ If exit code is 1, present warnings and ask whether to proceed.
 
 Follow '~/.maestro/workflows/plan.md' completely.
 
+### Codebase Docs Loading (P1 addition)
+
+During P1 Context Collection, after loading context files, load codebase documentation if available:
+
+```
+IF exists(.workflow/codebase/doc-index.json):
+  codebase_ctx = Read(.workflow/codebase/ARCHITECTURE.md) + Read(.workflow/codebase/FEATURES.md)
+  Pass codebase_ctx to planner agent as structural context
+ELSE:
+  display "W004: Codebase docs unavailable, continuing with code exploration only"
+```
+
 ### Wiki Knowledge Search (P1 addition)
 
 During P1 Context Collection, after loading context files and before parallel exploration (step 5), search the wiki for prior knowledge related to the phase:

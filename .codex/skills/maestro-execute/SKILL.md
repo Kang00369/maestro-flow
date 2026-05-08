@@ -201,7 +201,12 @@ mkdir -p {sessionFolder}
 
 5. **Load project specs**: Read `.workflow/specs/` for coding conventions and architecture constraints (passed to all agents)
 
-6. **User validation**: Display task/wave breakdown. Skip if AUTO_YES.
+6. **Load codebase + wiki context** (optional, passed to all agents):
+   - If `.workflow/codebase/ARCHITECTURE.md` exists: read and include as `codebase_context` in agent instructions
+   - Run `maestro wiki search "<phase keywords>" --json 2>/dev/null`; if results: include top 5 entries as `wiki_context`
+   - Both are optional — proceed without if unavailable
+
+7. **User validation**: Display task/wave breakdown. Skip if AUTO_YES.
 
 ### Phase 2: Wave Execution Engine
 

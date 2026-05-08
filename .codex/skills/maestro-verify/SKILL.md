@@ -189,6 +189,8 @@ Create session directory.
    - All `.task/TASK-{NNN}.json` -- task definitions with convergence.criteria
    - All `.summaries/TASK-{NNN}-summary.md` -- execution results
    - `uat.md` (if exists) -- human UAT gaps to incorporate
+   - `.workflow/codebase/ARCHITECTURE.md` (if exists) -- module wiring expectations for Layer 3 checks
+   - `maestro wiki search "architecture constraint" --json 2>/dev/null` -- documented invariants as additional truth checks (if available)
 
 3. **Must-have establishment** (priority order):
    - **success_criteria from index.json** -- primary contract
