@@ -71,7 +71,7 @@ CONSTRAINTS: Follow document standards" --role implement --mode write --cd <sess
   yield_time_ms: 30000,
   max_output_tokens: 6000
 })
-// ⚠️ If session_id returned → poll write_stdin until completion (see _shared/delegate-protocol.md)
+// ⚠️ If session_id returned → poll write_stdin until completion (see @~/.maestro/workflows/delegate-protocol.codex.md)
 // NEVER skip — document must be fully written before validation
 ```
 

@@ -45,7 +45,7 @@ Codebase-informed implementation planning with complexity assessment.
      yield_time_ms: 30000,
      max_output_tokens: 6000
    })
-   // ⚠️ If session_id returned → poll write_stdin until completion (see _shared/delegate-protocol.md)
+   // ⚠️ If session_id returned → poll write_stdin until completion (see @~/.maestro/workflows/delegate-protocol.codex.md)
    // NEVER skip — delegate result is required for plan generation
    ```
 5. Store results in <session>/explorations/
@@ -64,7 +64,7 @@ CONSTRAINTS: 2-7 tasks, include id/title/files[]/convergence.criteria/depends_on
   yield_time_ms: 30000,
   max_output_tokens: 6000
 })
-// ⚠️ If session_id returned → poll write_stdin until completion (see _shared/delegate-protocol.md)
+// ⚠️ If session_id returned → poll write_stdin until completion (see @~/.maestro/workflows/delegate-protocol.codex.md)
 // NEVER skip — must wait for plan files to be written
 ```
 

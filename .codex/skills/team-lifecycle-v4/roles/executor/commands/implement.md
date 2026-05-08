@@ -56,7 +56,7 @@ exec_command({
   yield_time_ms: 30000,
   max_output_tokens: 6000
 })
-// ⚠️ If session_id returned → poll write_stdin until completion (see _shared/delegate-protocol.md)
+// ⚠️ If session_id returned → poll write_stdin until completion (see @~/.maestro/workflows/delegate-protocol.codex.md)
 // NEVER skip — implementation must complete before convergence check
 ```
 

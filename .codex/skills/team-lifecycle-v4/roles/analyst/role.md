@@ -46,7 +46,7 @@ Research and codebase exploration for context gathering.
      yield_time_ms: 30000,
      max_output_tokens: 6000
    })
-   // ⚠️ If session_id returned → poll write_stdin until completion (see _shared/delegate-protocol.md)
+   // ⚠️ If session_id returned → poll write_stdin until completion (see @~/.maestro/workflows/delegate-protocol.codex.md)
    // NEVER skip — seed analysis result is required for context packaging
    ```
 6. Parse result JSON
@@ -69,7 +69,7 @@ EXPECTED: JSON with: tech_stack[], architecture_patterns[], conventions[], integ
   yield_time_ms: 30000,
   max_output_tokens: 6000
 })
-// ⚠️ If session_id returned → poll write_stdin until completion (see _shared/delegate-protocol.md)
+// ⚠️ If session_id returned → poll write_stdin until completion (see @~/.maestro/workflows/delegate-protocol.codex.md)
 // NEVER skip — codebase context is required for downstream roles
 ```
 
