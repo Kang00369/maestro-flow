@@ -270,6 +270,8 @@ export class CliHistoryStore {
       try {
         const entry = JSON.parse(trimmed) as EntryLike;
         if (entry.type === 'assistant_message') {
+          // Skip partial/streaming entries — only include final (non-partial) output
+          if (entry.partial === true) continue;
           parts.push(String(entry.content ?? ''));
         } else if (includeAll && entry.type === 'thinking') {
           parts.push(`[Thinking] ${String(entry.content ?? '')}\n`);

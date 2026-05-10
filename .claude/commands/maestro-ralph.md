@@ -190,6 +190,8 @@ Generate steps from `lifecycle_position` to target (default: `milestone-complete
 
 IMPORTANT: `external` ≠ single CLI tool call. It spawns a full Claude Code session that executes the skill command — the delegate session has complete skill access.
 
+HARD RULE: Delegate sessions are non-interactive. All skills executed via delegate MUST always append `-y`, regardless of user flags. This is enforced by ralph-execute in Step 5c — ralph does not preset flags in steps.
+
 **Build rules:**
 1. Start from inferred position, skip completed stages
 2. After each decision-triggering stage, insert a decision node with `{ decision, retry_count: 0, max_retries: 2 }`
@@ -316,6 +318,8 @@ For quality-gate decisions (post-verify, post-business-test, post-review, post-t
 
 **Structural decisions → Step 3.5 (direct evaluation)**
 **Quality-gate decisions → delegate below:**
+
+NOTE: This delegate uses `--mode analysis` (read-only) — the CLI tool won't trigger interactive prompts, so no extra `-y` needed. If this ever changes to write-mode delegate, ensure the target skill appends `-y`.
 
 **Result file mapping** (for delegate CONTEXT):
 

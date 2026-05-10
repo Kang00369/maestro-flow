@@ -178,6 +178,8 @@ export class CodexCliAdapter extends BaseAgentAdapter {
   private readonly readlineInterfaces = new Map<string, ReadlineInterface>();
   private readonly streamMonitors = new Map<string, StreamMonitor>();
   private readonly stoppedEmitted = new Set<string>();
+  /** Accumulates assistant message text within a turn; flushed on turn.completed */
+  private readonly pendingMessages = new Map<string, string[]>();
 
   // --- Lifecycle hooks -----------------------------------------------------
 
@@ -388,6 +390,9 @@ export class CodexCliAdapter extends BaseAgentAdapter {
       }
 
       case 'turn.completed': {
+        // Flush accumulated assistant messages as final output
+        this.flushPendingMessages(processId);
+
         const usage = (msg as CodexTurnCompleted).usage;
         if (usage) {
           this.emitEntry(
@@ -458,12 +463,19 @@ export class CodexCliAdapter extends BaseAgentAdapter {
       return;
     }
 
-    // Default: treat as assistant message
+    // Default: treat as assistant message — accumulate within turn,
+    // emit as partial now (for streaming display) and flush final on turn.completed
     const text = this.extractItemText(item);
     if (text.length > 0) {
+      const pending = this.pendingMessages.get(processId);
+      if (pending) {
+        pending.push(text);
+      } else {
+        this.pendingMessages.set(processId, [text]);
+      }
       this.emitEntry(
         processId,
-        EntryNormalizer.assistantMessage(processId, text, false),
+        EntryNormalizer.assistantMessage(processId, text, true),
       );
     }
   }
@@ -480,6 +492,19 @@ export class CodexCliAdapter extends BaseAgentAdapter {
     if (/create|new/.test(name)) return 'create';
     if (/delete|remove/.test(name)) return 'delete';
     return 'modify';
+  }
+
+  /** Flush accumulated partial messages as a single final assistant_message. */
+  private flushPendingMessages(processId: string): void {
+    const pending = this.pendingMessages.get(processId);
+    if (!pending || pending.length === 0) return;
+    this.pendingMessages.delete(processId);
+
+    const finalText = pending.join('\n\n');
+    this.emitEntry(
+      processId,
+      EntryNormalizer.assistantMessage(processId, finalText, false),
+    );
   }
 
   private extractItemText(item: CodexItem): string {
@@ -507,6 +532,9 @@ export class CodexCliAdapter extends BaseAgentAdapter {
   private emitStopped(processId: string, reason: string): void {
     if (this.stoppedEmitted.has(processId)) return;
     this.stoppedEmitted.add(processId);
+
+    // Flush any pending messages that weren't flushed by turn.completed
+    this.flushPendingMessages(processId);
 
     this.emitEntry(
       processId,
@@ -564,6 +592,7 @@ export class CodexCliAdapter extends BaseAgentAdapter {
       this.streamMonitors.delete(processId);
     }
     this.childProcesses.delete(processId);
+    this.pendingMessages.delete(processId);
     // Note: stoppedEmitted is intentionally NOT cleared here — it must persist
     // to guard against the readline close fallback timer firing after cleanup.
   }

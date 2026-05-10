@@ -180,21 +180,28 @@ CONSTRAINTS: Focus on authentication | Ignore test files
 
 ### Calling Convention
 
-`maestro delegate` runs synchronously — it blocks until the delegate completes. To avoid blocking the conversation, **always** use `run_in_background: true` on the Bash tool call, then stop output immediately and wait for the background completion callback.
+> **CRITICAL BEHAVIOR RULE**: After issuing a `maestro delegate` call with `run_in_background: true`, you MUST end your response immediately. Do not output any text, status message, or additional tool calls after the Bash tool call. Your entire message ends at the tool call.
+
+**Why**: `maestro delegate` blocks until completion. Background execution + immediate stop ensures the conversation remains responsive.
+
+**Correct** — response contains ONLY the Bash tool call, nothing after it:
 
 ```
-Bash({
-  command: "maestro delegate \"<PROMPT>\" --to gemini --mode analysis",
-  run_in_background: true
-})
-// STOP — do not output anything further
-// Wait for Bash background completion callback to receive results
+Bash({ command: "maestro delegate \"...\" --to gemini --mode analysis", run_in_background: true })
+```
+
+**Wrong** — any text or tool call after the Bash call is a violation:
+
+```
+Bash({ command: "maestro delegate \"...\" --to gemini --mode analysis", run_in_background: true })
+"I've started the analysis..."  ← VIOLATION: response must end above
 ```
 
 **Rules:**
-- **Never** use foreground Bash for delegate calls — it blocks the conversation for the entire execution duration
-- After the `Bash(run_in_background: true)` call, **stop immediately** — no follow-up text, no polling, no `delegate status` checks
-- When the background callback arrives, retrieve output with `maestro delegate output <id>`
+- NEVER use foreground Bash for delegate calls
+- NEVER output text, status updates, or additional tool calls after the `run_in_background` Bash call
+- NEVER poll with `delegate status` — wait for the background completion callback
+- When the callback arrives, retrieve output with `maestro delegate output <id>`
 
 ### Execution ID
 

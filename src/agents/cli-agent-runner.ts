@@ -245,10 +245,24 @@ async function createAdapter(agentType: AgentType, backend?: 'direct' | 'termina
 // Entry renderer — writes normalized entries to stdout/stderr
 // ---------------------------------------------------------------------------
 
+/** Tracks whether we've seen partial assistant messages for a given processId.
+ *  When a final (non-partial) message arrives after partials, skip it to avoid
+ *  duplicate output — the content was already streamed via the partials. */
+const _seenPartials = new Set<string>();
+
 function renderEntry(entry: NormalizedEntry): void {
   switch (entry.type) {
     case 'assistant_message':
-      process.stdout.write(entry.content);
+      if (entry.partial) {
+        _seenPartials.add(entry.processId);
+        process.stdout.write(entry.content);
+      } else if (_seenPartials.has(entry.processId)) {
+        // Final message after partials — content already streamed, skip
+        _seenPartials.delete(entry.processId);
+      } else {
+        // Final message without preceding partials — render normally
+        process.stdout.write(entry.content);
+      }
       break;
 
     case 'tool_use':

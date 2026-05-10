@@ -164,6 +164,10 @@ Never "simulate" or "inline" a skill's work. If Skill() is not called, the step 
 | quality-test | `-y --auto-fix` |
 | quality-retrospective | `-y` |
 | maestro-milestone-complete | `-y` |
+| maestro-verify | `-y` |
+| quality-review | `-y` |
+| quality-debug | `-y` |
+| maestro-milestone-audit | `-y` |
 
 ```
 flag = auto_flag_map[next.skill] || ""
@@ -182,9 +186,15 @@ Context-isolated skill execution via new Claude Code session.
 HARD RULE: external nodes ALWAYS delegate to `claude` — only Claude Code can execute slash-command skills.
 `session.cli_tool` is for analysis-mode delegates (e.g., decision evaluation in ralph), NOT for external node execution.
 
+HARD RULE: Delegate sessions are non-interactive and cannot confirm prompts. External nodes MUST always append `-y`, regardless of whether the user passed `-y`. Without it, delegate hangs indefinitely waiting for confirmation.
+
 ```
+// Always apply auto flag — delegate sessions are non-interactive and cannot confirm
+flag = auto_flag_map[next.skill] || "-y"
+effective_args = `${next.args} ${flag}`
+
 Bash({
-  command: `maestro delegate "Execute: Skill({ skill: \"${next.skill}\", args: \"${next.args}\" })
+  command: `maestro delegate "Execute: Skill({ skill: \"${next.skill}\", args: \"${effective_args}\" })
 Do NOT reimplement — invoke the skill command directly." --to claude --mode write`,
   run_in_background: true,
   timeout: 600000

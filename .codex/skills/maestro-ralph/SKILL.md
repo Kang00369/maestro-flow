@@ -95,8 +95,12 @@ End.
 | quality-auto-test | `-y` | 跳过计划确认 |
 | quality-test | `-y --auto-fix` | 自动触发 gap-fix loop |
 | maestro-milestone-complete | `-y` | 跳过 knowledge promotion 交互 |
+| maestro-verify | `-y` | 跳过交互确认 |
+| quality-review | `-y` | 跳过交互确认 |
+| quality-debug | `-y` | 跳过交互确认 |
+| maestro-milestone-audit | `-y` | 跳过交互确认 |
 
-未列出的命令无 auto flag，原样执行。
+All lifecycle commands are listed. When auto_mode is true, buildSkillCall appends the corresponding flag per this table.
 </context>
 
 <invariants>
@@ -394,7 +398,9 @@ Confidence-based verdict adjustment (after parse, before apply):
 | Interactive + confidence_score >= 80 | Display recommendation with confidence, prompt user |
 | Interactive + confidence_score < 80 | Display recommendation **with confidence warning**, prompt user |
 
-Interactive prompt (via `request_user_input`):
+**If auto_mode == true**: skip prompt, apply adjusted verdict directly → jump to "Verdict → action".
+
+**If auto_mode == false** (interactive): prompt via `request_user_input`:
 ```json
 { "questions": [{ "id": "decision_override", "header": "◆ {meta.decision} 评估结果", "question": "STATUS: {verdict.status}\nREASON: {verdict.reason}\n\n选择操作：", "options": [
   { "label": "按建议执行 (Recommended)", "description": "执行 {verdict.status} 操作" },

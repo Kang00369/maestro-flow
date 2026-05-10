@@ -21,6 +21,7 @@ import { loadMigrations, planMigrations, runPendingMigrations } from '../utils/m
 const PACKAGE_NAME = 'maestro-flow';
 const REGISTRY_URL = `https://registry.npmjs.org/${PACKAGE_NAME}/latest`;
 const FETCH_TIMEOUT_MS = 8000;
+const VIEW_SERVER_PORT = 3001;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -66,6 +67,84 @@ function execAsync(cmd: string): Promise<{ stdout: string; stderr: string }> {
       else resolve({ stdout, stderr });
     });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Pre-update: stop view server
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if the view server is running.
+ */
+async function checkViewServer(): Promise<{ status: string; workspace?: string } | null> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${VIEW_SERVER_PORT}/api/health`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (res.ok) return await res.json() as { status: string; workspace?: string };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Stop the view server if running to prevent file locks during npm install.
+ * Uses 2-stage approach: graceful API shutdown → force kill by port.
+ */
+async function stopViewServer(): Promise<boolean> {
+  const health = await checkViewServer();
+  if (!health) return false;
+
+  console.error('  Stopping view server to avoid file locks...');
+
+  // Stage 1: graceful API shutdown
+  try {
+    await fetch(`http://127.0.0.1:${VIEW_SERVER_PORT}/api/shutdown`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(5000),
+    });
+    await new Promise(r => setTimeout(r, 1000));
+  } catch {
+    // Connection refused = server already stopped
+  }
+
+  if (!(await checkViewServer())) {
+    console.error('  View server stopped.');
+    return true;
+  }
+
+  // Stage 2: force kill by port
+  try {
+    if (process.platform === 'win32') {
+      const { stdout } = await execAsync(`netstat -ano | findstr :${VIEW_SERVER_PORT}`);
+      for (const line of stdout.split('\n')) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 5 && parts[3] === 'LISTENING') {
+          const localAddr = parts[1] ?? '';
+          if (localAddr.endsWith(`:${VIEW_SERVER_PORT}`)) {
+            const pid = parts[4];
+            if (pid && /^[1-9]\d*$/.test(pid)) {
+              await execAsync(`taskkill /PID ${pid} /T /F`);
+              break;
+            }
+          }
+        }
+      }
+    } else {
+      const { stdout } = await execAsync(`lsof -i :${VIEW_SERVER_PORT} -t -sTCP:LISTEN`);
+      const pid = stdout.trim().split('\n')[0]?.trim();
+      if (pid && /^[1-9]\d*$/.test(pid)) {
+        await execAsync(`kill -TERM ${pid}`);
+      }
+    }
+    await new Promise(r => setTimeout(r, 500));
+    console.error('  View server stopped.');
+  } catch {
+    console.error('  Warning: could not stop view server. If update fails, run `maestro stop` first.');
+  }
+
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -258,6 +337,10 @@ export function registerUpdateCommand(program: Command): void {
 
       console.error('');
       console.error(`  Installing ${PACKAGE_NAME}@${latest.version}...`);
+
+      // --- Pre-update: stop view server to prevent file locks ---
+      const viewServerWasRunning = await stopViewServer();
+
       console.error('');
 
       try {
@@ -273,6 +356,9 @@ export function registerUpdateCommand(program: Command): void {
         }
         console.error('');
         console.error(`  You can try manually: npm install -g ${PACKAGE_NAME}@${latest.version}`);
+        if (viewServerWasRunning) {
+          console.error('  Run `maestro view` to restart the dashboard.');
+        }
         console.error('');
         return;
       }
@@ -282,6 +368,11 @@ export function registerUpdateCommand(program: Command): void {
 
       // --- Post-update: run pending migrations via new binary ---
       await runMigrationsForAllProjects();
+
+      if (viewServerWasRunning) {
+        console.error('');
+        console.error('  Run `maestro view` to restart the dashboard.');
+      }
 
       console.error('');
     });
