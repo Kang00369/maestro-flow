@@ -4,7 +4,10 @@
       "Bash(find:*)",
       "Read(//d/maestro2/.claude/agents//**)",
       "Read(//d/maestro2/.codex/agents//**)",
-      "Read(//d/maestro-flow-one/**)"
+      "Read(//d/maestro-flow-one/**)",
+      "Bash(wc -l D:/maestro2/.claude/skills/codify-to-knowhow/SKILL.md D:/maestro2/.claude/skills/codify-to-knowhow/phases/*.md D:/maestro2/.claude/skills/maestro-ui-codify/SKILL.md D:/maestro2/.claude/skills/maestro-ui-codify/phases/*.md)",
+      "Bash(wc -l \"D:/maestro2/.claude/commands/maestro-ui-codify.md\" D:/maestro2/workflows/ui-codify*.md \"D:/maestro2/.claude/skills/codify-to-knowhow/SKILL.md\")",
+      "Bash(wc -l \"D:/maestro2/.claude/commands/maestro-ui-codify.md\" D:/maestro2/workflows/ui-codify*.md D:/maestro2/.claude/skills/codify-to-knowhow/SKILL.md D:/maestro2/.claude/skills/codify-to-knowhow/phases/*.md D:/maestro2/.codex/skills/maestro-ui-codify/SKILL.md D:/maestro2/.codex/skills/codify-to-knowhow/SKILL.md)"
     ]
   }
 }
