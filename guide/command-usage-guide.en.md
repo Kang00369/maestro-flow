@@ -843,7 +843,7 @@ Each WikiEntry has 4 provenance fields beyond the basics (id, title, tags, statu
 # Listing + filters
 maestro wiki list                                    # All entries
 maestro wiki list --type spec                        # By type
-maestro wiki list --category security                # By category
+maestro wiki list --tag security                     # By tag
 maestro wiki list --created-by manage-harvest        # By creator
 maestro wiki list --tag auth --status active          # Combined filters
 maestro wiki list --group                            # Group by type
@@ -854,13 +854,13 @@ maestro wiki search "authentication token"
 # Create (spec / memory / note)
 maestro wiki create --type spec --slug auth-patterns \
   --title "Auth Patterns" --body "# Auth\n..." \
-  --category security --created-by manual \
+  --created-by manual \
   --source-ref "session-001" --parent "spec-coding-conventions" \
   --frontmatter '{"tags":["auth"]}'
 
 # Spec entry operations (unified write path)
-maestro wiki append spec-learnings --category bug --body "Cache invalidation issue"
-maestro wiki append spec-coding-conventions --category coding \
+maestro wiki append spec-learnings --body "Cache invalidation issue" --keywords "bug,cache"
+maestro wiki append spec-coding-conventions \
   --body "Use named exports for utility functions" --keywords "exports,module"
 maestro wiki remove-entry spec-learnings-003         # Remove sub-entry by ID
 

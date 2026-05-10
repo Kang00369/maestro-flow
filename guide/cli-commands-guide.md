@@ -284,7 +284,7 @@ maestro launcher scan ./configs         # 扫描配置文件
 
 ```bash
 maestro spec init                              # 初始化
-maestro spec load --category coding --keyword auth  # 加载
+maestro spec load --role implement --keyword auth   # 加载
 maestro spec list                              # 列出文件
 maestro spec status                            # 状态
 maestro spec add <category> "<title>" "<content>"    # 添加条目
@@ -299,7 +299,7 @@ Wiki 知识图谱查询和变更。默认离线，`--live` 使用 HTTP API。
 ```bash
 # 列表 + 过滤
 maestro wiki list --type spec                        # 按类型
-maestro wiki list --category security                # 按分类
+maestro wiki list --tag security                     # 按标签
 maestro wiki list --created-by manage-harvest        # 按创建来源
 maestro wiki list --tag auth --status active          # 组合过滤
 maestro wiki list --group                            # 按类型分组
@@ -314,11 +314,11 @@ maestro wiki get <id>                                # 获取单条
 maestro wiki create --type spec --slug auth --title "Auth" --body "# Auth\n..."
 maestro wiki create --type memory --slug debug-01 --title "Debug" --body "..."
 maestro wiki create --type note --slug tip-01 --title "Tip" --body "..."
-  # 可选: --category, --created-by, --source-ref, --parent, --frontmatter '{}'
+  # 可选: --created-by, --source-ref, --parent, --frontmatter '{}'
 
 # Spec 条目追加（统一写入路径）
-maestro wiki append <containerId> --category coding --body "Use named exports"
-maestro wiki append spec-learnings --category learning --body "Token rotation..." --keywords "auth,token"
+maestro wiki append <containerId> --body "Use named exports" --keywords "coding,exports"
+maestro wiki append spec-learnings --body "Token rotation..." --keywords "auth,token"
 
 # Spec 条目移除
 maestro wiki remove-entry <entryId>                  # 按 ID 精确删除子条目
@@ -338,7 +338,7 @@ maestro wiki graph                                   # 完整图谱 JSON
 
 | 子命令 | 用途 |
 |--------|------|
-| `list` / `ls` | 列表+过滤（type, tag, status, category, created-by, q） |
+| `list` / `ls` | 列表+过滤（type, tag, status, role, created-by, q） |
 | `get` | 获取单条目（含 body） |
 | `search` | BM25 全文搜索 |
 | `create` | 创建 spec/memory/note 文件 |

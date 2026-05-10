@@ -56,6 +56,22 @@ export const FILE_CATEGORY_MAP: Record<string, string> = {
   tools: 'tools',
 };
 
+/** Backward compat: derive roles from legacy `category` attr when no `roles` attr is present. */
+const CATEGORY_ROLE_FALLBACK: Record<string, string[]> = {
+  coding: ['implement'],
+  arch: ['plan', 'review'],
+  quality: ['review'],
+  debug: ['implement'],
+  test: ['implement', 'review'],
+  review: ['review'],
+  learning: ['implement'],
+  tools: ['implement'],
+  pattern: ['implement'],
+  decision: ['plan'],
+  rule: ['review'],
+  validation: ['review'],
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -131,10 +147,12 @@ function parseEntryBlocks(
 
     const titleMatch = innerContent.match(/^###\s+(.+)$/m);
     const title = titleMatch ? titleMatch[1].trim() : innerContent.split('\n')[0].trim();
-    const type = attrs.category ?? detectEntryType(title, fileName);
+    const type = attrs.type ?? detectEntryType(title, fileName);
     const id = `${stem}-${String(++entryIndex).padStart(3, '0')}`;
     const kws = attrs.keywords ? attrs.keywords.split(',').map((k) => k.trim()) : [];
-    const roles = attrs.roles ? attrs.roles.split(',').map((r) => r.trim().toLowerCase()).filter(Boolean) : [];
+    const roles = attrs.roles
+      ? attrs.roles.split(',').map((r) => r.trim().toLowerCase()).filter(Boolean)
+      : (attrs.category ? (CATEGORY_ROLE_FALLBACK[attrs.category] ?? []) : []);
     const ref = attrs.ref || undefined;
 
     entries.push({
@@ -145,7 +163,6 @@ function parseEntryBlocks(
       file: fileName,
       timestamp: attrs.date ?? '',
       category:
-        attrs.category ??
         (typeof frontmatter?.category === 'string'
           ? frontmatter.category
           : (FILE_CATEGORY_MAP[stem] ?? 'general')),

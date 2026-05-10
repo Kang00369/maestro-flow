@@ -6,22 +6,25 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Agent
 ---
 
 <purpose>
-Register tool specs into `.workflow/specs/tools.md`. Three modes:
+Codify reusable business processes as tool specs into `.workflow/specs/tools.md`. Once registered, entries are auto-discovered by downstream agents via `spec load --role` and spec-injector — plan agents pick up design/architecture flows, test agents pick up verification methods, implement agents pick up execution steps.
+
+Three modes:
 
 1. **Extract** — Pull reusable processes from conversations/code/docs
 2. **Generate** — Create new tool definitions from user description
 3. **Optimize** — Improve existing tool spec steps, structure, clarity
 
-Short processes (<10 steps) are written inline as spec-entry; long processes (>=10 steps or containing code examples) use ref mode with a knowhow detail document (RCP-/DOC-).
+Short processes (<10 steps) inline; long processes (>=10 steps or with code examples) use ref mode with knowhow detail doc (RCP-/DOC-).
 </purpose>
 
 <context>
 $ARGUMENTS — User intent description, or empty (interactive guidance)
 
 ```bash
-$maestro-tools-register "extract the deployment flow from this project"
-$maestro-tools-register "generate API integration test standard flow --roles implement,test"
-$maestro-tools-register "optimize integration-test tool"
+$maestro-tools-register "extract OAuth PKCE token exchange flow from src/auth/"
+$maestro-tools-register "generate Stripe webhook idempotency verification --roles implement,test"
+$maestro-tools-register "generate E2E checkout flow with payment gateway mock setup --roles test"
+$maestro-tools-register "optimize e2e-checkout tool"
 ```
 
 **Tool spec storage**: `.workflow/specs/tools.md`, format:
@@ -66,6 +69,8 @@ Parse $ARGUMENTS to determine mode:
 - Load existing tool: `maestro spec load --role implement --keyword <name>`
 - Analyze improvement points (step splitting, prerequisites, error handling)
 
+**For all modes** — identify the usage timing: when should an agent or user invoke this tool? This becomes the first line of the entry description (see Step 5).
+
 ### Step 3: Determine Roles
 
 Infer applicable roles from context, or ask user:
@@ -82,16 +87,36 @@ Infer applicable roles from context, or ask user:
 
 ### Step 5: Write
 
+**Description format**: First line after `### Title` must state **when to use** this tool (the usage timing from Step 2). This is critical for ref entries — `spec load` only shows the first 200 chars after the heading as the summary.
+
+```
+### {Title}
+
+Use when {timing/trigger condition}.
+
+1. Step one ...
+```
+
 **Inline mode**:
 ```bash
-maestro spec add tools "<title>" "<steps_content>" --roles "<csv>" --keywords "<csv>"
+maestro spec add tools "<title>" "Use when <timing>.\n\n1. <step1>\n2. <step2>" --roles "<csv>" --keywords "<csv>"
 ```
 
 **Ref mode**:
-1. Generate knowhow detail document (RCP- or DOC- prefix)
-2. Register spec index entry referencing it:
+1. Generate knowhow detail document (RCP- or DOC- prefix). YAML frontmatter must include `summary` with usage timing — this is what `wiki list` and wiki-role-loader show to agents:
+```yaml
+---
+title: <Title>
+type: recipe
+category: recipe
+summary: "Use when <timing>. <scope description>"
+tags: [<keywords>]
+roles: [<roles>]
+---
+```
+2. Register spec index entry — description must also include usage timing within 200 chars (this is what `spec load` shows):
 ```bash
-maestro spec add tools "<title>" "<summary>" --roles "<csv>" --keywords "<csv>" \
+maestro spec add tools "<title>" "Use when <timing>. <scope summary>" --roles "<csv>" --keywords "<csv>" \
   --ref "knowhow/RCP-<slug>.md" --knowhow-type recipe
 ```
 

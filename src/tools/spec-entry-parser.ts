@@ -45,7 +45,8 @@ export interface ParseError {
 
 export const VALID_CATEGORIES = ['coding', 'arch', 'quality', 'debug', 'test', 'review', 'learning', 'tools'] as const;
 
-/** Backward-compat: map old category attr to roles when roles attr is absent */
+/** @deprecated Legacy backward-compat: map old category attr to roles when roles attr is absent.
+ *  Kept for reading old entries that have category= but no roles= attribute. */
 export const CATEGORY_ROLE_FALLBACK: Record<string, string[]> = {
   coding: ['implement'], arch: ['plan'], quality: ['review'],
   debug: ['analyze'], test: ['test', 'implement'],
@@ -154,9 +155,9 @@ export function parseSpecEntries(content: string): ParseResult {
 export function validateSpecEntry(entry: SpecEntryParsed): string[] {
   const errors: string[] = [];
 
-  // roles or category — at least one must be present
-  if (!entry.category && entry.roles.length === 0) {
-    errors.push('Missing required attribute: roles (or category for backward compat)');
+  // roles is required — category alone is no longer sufficient for new entries
+  if (entry.roles.length === 0) {
+    errors.push('Missing required attribute: roles');
   }
   if (entry.category && !VALID_CATEGORIES.includes(entry.category as ValidCategory)) {
     errors.push(`Invalid category "${entry.category}". Must be one of: ${VALID_CATEGORIES.join(', ')}`);
@@ -242,7 +243,9 @@ function formatEntryClean(e: SpecEntryParsed): string {
 
 /**
  * Format a single entry for writing to a spec file.
- * When roles is provided, uses roles attr; otherwise falls back to category attr.
+ * Always writes `roles=` attribute; never writes `category=`.
+ * The `category` parameter is still accepted for file routing (spec-writer.ts) but is NOT written to the XML tag.
+ * When `roles` is not provided, falls back to CATEGORY_ROLE_FALLBACK to derive roles from category.
  */
 export function formatNewEntry(
   category: string,
@@ -258,16 +261,13 @@ export function formatNewEntry(
   const sourceAttr = source ? ` source="${source}"` : '';
   const refAttr = ref ? ` ref="${ref}"` : '';
 
-  // Primary identifier: roles (new) or category (legacy)
-  let idAttr: string;
-  if (roles && roles.length > 0) {
-    const rolesStr = roles.map(r => r.toLowerCase().trim()).filter(Boolean).join(',');
-    idAttr = `roles="${rolesStr}"`;
-  } else {
-    idAttr = `category="${category}"`;
-  }
+  // Always use roles — derive from category fallback if not explicitly provided
+  const resolvedRoles = (roles && roles.length > 0)
+    ? roles
+    : CATEGORY_ROLE_FALLBACK[category] ?? [];
+  const rolesStr = resolvedRoles.map(r => r.toLowerCase().trim()).filter(Boolean).join(',');
 
-  return `<spec-entry ${idAttr} keywords="${kwStr}" date="${date}"${sourceAttr}${refAttr}>\n\n### ${title}\n\n${content}\n\n</spec-entry>`;
+  return `<spec-entry roles="${rolesStr}" keywords="${kwStr}" date="${date}"${sourceAttr}${refAttr}>\n\n### ${title}\n\n${content}\n\n</spec-entry>`;
 }
 
 // ============================================================================

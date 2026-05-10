@@ -292,7 +292,7 @@ Load specs by role: primary role doc in full + cross-file entries with matching 
 
 **Usage:** `/maestro-tools-register <description>`
 
-Extract, generate, or optimize reusable process/tool definitions. Short processes inline in tools.md, long processes use ref mode with knowhow detail document.
+Codify reusable business processes as tool specs (e.g. payment reconciliation, OAuth integration, E2E verification). Register during planning, after execution, before testing, or during retrospective. Auto-discovered by agents via spec load and spec-injector.
 
 **Modes:** extract (from code/docs) · generate (from description) · optimize (improve existing)
 

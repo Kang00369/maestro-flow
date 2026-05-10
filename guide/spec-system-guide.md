@@ -81,7 +81,7 @@ Revoked column must be set rather than deleting tokens.
 | `source` | No | String | Origin (manual / agent / phase) |
 | `ref` | No | Path | Reference to knowhow detail document |
 
-*Backward compat: `category` attribute is still parsed and auto-mapped to roles via fallback table.
+*Backward compat: legacy `category` attribute is still parsed and auto-mapped to roles via `CATEGORY_ROLE_FALLBACK`. New entries must use `roles`.
 
 ### Tool Spec
 
@@ -154,7 +154,7 @@ maestro spec init [--scope <scope>] [--uid <uid>]
 maestro spec add coding "Always use named exports" --roles "implement"
 maestro spec add tools "Test Flow" "Steps..." --roles "implement,test" --keywords "testing"
 maestro spec add tools "OAuth PKCE" "Summary" --roles "implement" --ref "knowhow/RCP-oauth.md"
-echo '{"category":"coding","title":"...","content":"..."}' | maestro spec add --stdin
+echo '{"category":"coding","title":"...","content":"...","roles":"implement"}' | maestro spec add --stdin
 maestro spec add coding "title" "content" --json   # JSON 格式输出
 
 # Load
@@ -198,8 +198,8 @@ maestro-verify     → Quality findings → review
 
 Knowhow is broad knowledge storage supporting multiple document types. All files stored in `.workflow/knowhow/`, distinguished by filename prefix:
 
-| Prefix | Category | Purpose |
-|--------|----------|---------|
+| Prefix | Type | Purpose |
+|--------|------|---------|
 | `KNW-` | session | Session compact records |
 | `TIP-` | tip | Quick context tips |
 | `TPL-` | template | Code/config templates |
@@ -296,11 +296,11 @@ Inline entry (full content):
 Always rotate refresh tokens on use.
 ```
 
-Ref entry (summary + load command):
+Ref entry (summary from YAML `summary` field or first 200 chars + load command):
 ```
 ### OAuth 2.0 Integration
 
-Complete OAuth PKCE flow design.
+Use when implementing OAuth 2.0 login for public clients. Complete PKCE flow design.
 
 → Detail: maestro wiki load knowhow-oauth-flow
 ```

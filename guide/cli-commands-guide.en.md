@@ -288,7 +288,7 @@ Project spec management (init, load, list, status).
 
 ```bash
 maestro spec init                              # Initialize
-maestro spec load --category coding --keyword auth  # Load
+maestro spec load --role implement --keyword auth   # Load
 maestro spec list                              # List files
 maestro spec status                            # Status
 maestro spec add <category> "<title>" "<content>"    # Add entry
@@ -303,7 +303,7 @@ Wiki knowledge graph queries and mutations. Offline by default, `--live` for HTT
 ```bash
 # Listing + filters
 maestro wiki list --type spec                        # Filter by type
-maestro wiki list --category security                # Filter by category
+maestro wiki list --tag security                     # Filter by tag
 maestro wiki list --created-by manage-harvest        # Filter by creator
 maestro wiki list --tag auth --status active          # Combined filters
 maestro wiki list --group                            # Group by type
@@ -318,11 +318,11 @@ maestro wiki get <id>                                # Get single entry
 maestro wiki create --type spec --slug auth --title "Auth" --body "# Auth\n..."
 maestro wiki create --type memory --slug debug-01 --title "Debug" --body "..."
 maestro wiki create --type note --slug tip-01 --title "Tip" --body "..."
-  # Optional: --category, --created-by, --source-ref, --parent, --frontmatter '{}'
+  # Optional: --created-by, --source-ref, --parent, --frontmatter '{}'
 
 # Spec entry append (unified write path)
-maestro wiki append <containerId> --category coding --body "Use named exports"
-maestro wiki append spec-learnings --category learning --body "Token rotation..." --keywords "auth,token"
+maestro wiki append <containerId> --body "Use named exports" --keywords "coding,exports"
+maestro wiki append spec-learnings --body "Token rotation..." --keywords "auth,token"
 
 # Spec entry removal
 maestro wiki remove-entry <entryId>                  # Remove sub-entry by ID
@@ -342,7 +342,7 @@ maestro wiki graph                                   # Full graph JSON
 
 | Subcommand | Purpose |
 |------------|---------|
-| `list` / `ls` | List + filter (type, tag, status, category, created-by, q) |
+| `list` / `ls` | List + filter (type, tag, status, role, created-by, q) |
 | `get` | Get single entry (with body) |
 | `search` | BM25 full-text search |
 | `create` | Create spec/memory/note file |

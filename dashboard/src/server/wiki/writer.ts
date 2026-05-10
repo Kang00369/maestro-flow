@@ -38,12 +38,14 @@ export interface UpdateWikiReq {
 export interface AppendEntryReq {
   /** Container entry ID, e.g. "spec-learnings". */
   containerId: string;
-  /** Entry category (coding, arch, debug, learning, etc.). */
-  category: string;
+  /** Entry category (coding, arch, debug, learning, etc.). Optional — merged into keywords if provided. */
+  category?: string;
   /** Entry content (markdown body, without the <spec-entry> wrapper). */
   content: string;
   /** Optional keywords (comma-separated or array). */
   keywords?: string[] | string;
+  /** Optional roles (who loads this entry). */
+  roles?: string[];
 }
 
 export class WikiWriteError extends Error {
@@ -260,8 +262,15 @@ export class WikiWriter {
       .slice(0, 5)
       .join(',');
 
+    // Merge category into keywords when provided (backward compat)
+    const effectiveKws = req.category && !kwStr.split(',').includes(req.category)
+      ? `${req.category},${kwStr}`
+      : kwStr;
+    const rolesStr = req.roles && req.roles.length > 0 ? req.roles.join(',') : '';
+
     const entryTag = this.isKnowhowPath(absPath) ? 'knowhow-entry' : 'spec-entry';
-    const entryBlock = `\n<${entryTag} category="${req.category}" keywords="${kwStr}" date="${date}">\n\n### ${firstLine}\n\n${req.content.trim()}\n\n</${entryTag}>\n`;
+    const rolesAttr = rolesStr ? ` roles="${rolesStr}"` : '';
+    const entryBlock = `\n<${entryTag} keywords="${effectiveKws}" date="${date}"${rolesAttr}>\n\n### ${firstLine}\n\n${req.content.trim()}\n\n</${entryTag}>\n`;
 
     return this.withLock(absPath, async () => {
       let existing: string;
@@ -274,7 +283,7 @@ export class WikiWriter {
       const updated = existing.trimEnd() + '\n' + entryBlock;
 
       // Surface keywords to frontmatter
-      const surfaced = surfaceKeywords(updated, kwStr.split(','));
+      const surfaced = surfaceKeywords(updated, effectiveKws.split(','));
       await writeFile(absPath, surfaced, 'utf-8');
 
       this.indexer.invalidate(absPath);

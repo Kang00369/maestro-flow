@@ -4,7 +4,7 @@
  * Subcommands: load, list, init, status
  */
 
-import type { Command } from 'commander';
+import { Option, type Command } from 'commander';
 
 const VALID_SCOPES = ['project', 'global', 'team', 'personal'] as const;
 const SCOPE_LABELS: Record<string, string> = {
@@ -43,8 +43,8 @@ export function registerSpecCommand(program: Command): void {
   // ── load ──────────────────────────────────────────────────────────────
   spec
     .command('load')
-    .description('Load specs matching category or role')
-    .option('--category <stage>', 'Filter by category: coding|arch|quality|debug|test|review|learning|tools')
+    .description('Load specs matching role')
+    .addOption(new Option('--category <stage>', '(deprecated) Filter by category').hideHelp())
     .option('--role <role>', 'Filter by role: implement|plan|test|review|analyze|explore|brainstorm|research')
     .option('--keyword <word>', 'Filter entries by keyword')
     .option('--scope <scope>', 'Spec scope: project|global|team|personal (default: project)')
@@ -344,7 +344,7 @@ export function registerSpecCommand(program: Command): void {
           if (!fileExists(dir)) mkDir(dir, { recursive: true });
 
           const now = new Date();
-          const fmLines = ['---', `title: ${title}`, `type: ${knowhowType}`, `category: ${knowhowType}`, `created: ${now.toISOString()}`];
+          const fmLines = ['---', `title: ${title}`, `type: ${knowhowType}`, `created: ${now.toISOString()}`];
           if (keywords.length > 0) {
             fmLines.push('tags:');
             for (const t of keywords) fmLines.push(`  - ${t}`);

@@ -240,7 +240,8 @@ function loadFromDir(
     const fileRole = FILE_ROLE_MAP[file];
     const isFullLoad = role && fileRole === role;
 
-    const formatted = formatFileContent(body, keyword, isFullLoad ? undefined : role);
+    const workflowRoot = join(specsDir, '..');
+    const formatted = formatFileContent(body, keyword, isFullLoad ? undefined : role, workflowRoot);
     if (formatted) {
       sections.push(formatted);
       matched.push(file);
@@ -280,7 +281,7 @@ function shouldInclude(filename: string, category?: SpecCategory, role?: string)
  * When role is provided, only return entries with matching roles attribute.
  * Falls back to raw body for files with no structured entries.
  */
-function formatFileContent(body: string, keyword?: string, role?: string): string | null {
+function formatFileContent(body: string, keyword?: string, role?: string, workflowRoot?: string): string | null {
   const { entries, legacy } = parseSpecEntries(body);
 
   // No structured entries → pass through raw body (or keyword-grep it)
@@ -311,7 +312,7 @@ function formatFileContent(body: string, keyword?: string, role?: string): strin
     const matchedRegular = regularEntries.filter(e => e.keywords.includes(kw));
     const matchedRef = refEntries.filter(e => e.keywords.includes(kw));
     if (matchedRegular.length > 0) parts.push(formatSpecEntries(matchedRegular));
-    if (matchedRef.length > 0) parts.push(matchedRef.map(formatRefEntry).join('\n\n---\n\n'));
+    if (matchedRef.length > 0) parts.push(matchedRef.map(e => formatRefEntry(e, workflowRoot)).join('\n\n---\n\n'));
     if (!role) {
       for (const leg of legacy) {
         if (leg.content.toLowerCase().includes(kw)) parts.push(leg.content);
@@ -319,7 +320,7 @@ function formatFileContent(body: string, keyword?: string, role?: string): strin
     }
   } else {
     if (regularEntries.length > 0) parts.push(formatSpecEntries(regularEntries));
-    if (refEntries.length > 0) parts.push(refEntries.map(formatRefEntry).join('\n\n---\n\n'));
+    if (refEntries.length > 0) parts.push(refEntries.map(e => formatRefEntry(e, workflowRoot)).join('\n\n---\n\n'));
     if (!role) {
       for (const leg of legacy) parts.push(leg.content);
     }
@@ -330,21 +331,48 @@ function formatFileContent(body: string, keyword?: string, role?: string): strin
 
 /**
  * Format a ref entry as a lightweight summary with a load command hint.
+ *
+ * Summary resolution order:
+ *   1. YAML `summary` field from the referenced knowhow document
+ *   2. Spec-entry content body (first 200 chars after heading)
  */
-function formatRefEntry(e: SpecEntryParsed): string {
+function formatRefEntry(e: SpecEntryParsed, workflowRoot?: string): string {
   const refStem = (e.ref ?? '').replace(/^knowhow\//, '').replace(/\.md$/, '');
   const refSlug = refStem.replace(/^(KNW|TIP|TPL|RCP|REF|DCS|AST|BLP|DOC)-/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const refId = `knowhow-${refSlug}`;
 
-  // Extract summary from content (strip heading)
-  let summary = e.content;
-  const headingIdx = summary.indexOf('\n');
-  if (headingIdx !== -1 && summary.trimStart().startsWith('###')) {
-    summary = summary.slice(headingIdx).trim();
+  // Try to read YAML summary from the referenced knowhow document
+  let summary = resolveRefSummary(e.ref, workflowRoot);
+
+  // Fallback: extract summary from spec-entry content (strip heading)
+  if (!summary) {
+    summary = e.content;
+    const headingIdx = summary.indexOf('\n');
+    if (headingIdx !== -1 && summary.trimStart().startsWith('###')) {
+      summary = summary.slice(headingIdx).trim();
+    }
+    summary = summary.slice(0, 200).replace(/\s+/g, ' ').trim();
   }
-  summary = summary.slice(0, 200).replace(/\s+/g, ' ').trim();
 
   return `### ${e.title}\n\n${summary}\n\n\u2192 Detail: maestro wiki load ${refId}`;
+}
+
+/**
+ * Read a knowhow file's YAML frontmatter `summary` field.
+ * Returns null if the file doesn't exist or has no summary.
+ */
+function resolveRefSummary(ref: string | undefined, workflowRoot: string | undefined): string | null {
+  if (!ref || !workflowRoot) return null;
+  const absPath = join(workflowRoot, ref);
+  try {
+    const raw = readFileSync(absPath, 'utf-8');
+    const fmMatch = raw.match(/^---\s*\n([\s\S]*?)\n---/);
+    if (!fmMatch) return null;
+    const summaryMatch = fmMatch[1].match(/^summary:\s*"?(.+?)"?\s*$/m);
+    return summaryMatch ? summaryMatch[1].trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 function stripFrontmatter(raw: string): string {

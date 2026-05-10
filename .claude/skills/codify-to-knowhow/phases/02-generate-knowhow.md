@@ -34,7 +34,7 @@ for (const asset of manifest.knowhow) {
   // 构建 frontmatter
   let frontmatter = `---
 title: ${asset.title}
-category: ${asset.category}`;
+type: ${asset.category}`;
 
   if (asset.assetType) {
     frontmatter += `\nassetType: ${asset.assetType}`;
@@ -61,7 +61,7 @@ category: ${asset.category}`;
     for (let i = 0; i < asset.entries.length; i++) {
       const entry = asset.entries[i];
       const entryId = `${asset.prefix}-${manifest.slug}-${String(i + 1).padStart(3, '0')}`;
-      body += `\n\n<knowhow-entry category="${entry.category}" keywords="${entry.keywords}" date="${today}" id="${entryId}" source="codify-to-knowhow">
+      body += `\n\n<knowhow-entry keywords="${entry.category},${entry.keywords}" date="${today}" id="${entryId}" roles="${manifest.roles.join(',')}" source="codify-to-knowhow">
 
 ### ${entry.title}
 

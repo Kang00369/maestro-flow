@@ -78,7 +78,7 @@ Content here.
     const content = `
 <spec-entry date="2026-04-21">
 
-### No category or keywords
+### No roles or keywords
 
 Some content.
 
@@ -86,8 +86,8 @@ Some content.
 `;
     const result = parseSpecEntries(content);
     assert.strictEqual(result.entries.length, 1);
-    assert.ok(result.errors.length >= 2); // missing category + missing keywords
-    assert.ok(result.errors.some(e => e.message.includes('category')));
+    assert.ok(result.errors.length >= 2); // missing roles + missing keywords
+    assert.ok(result.errors.some(e => e.message.includes('roles')));
     assert.ok(result.errors.some(e => e.message.includes('keywords')));
   });
 
@@ -183,9 +183,10 @@ Content.
 // ---------------------------------------------------------------------------
 
 describe('validateSpecEntry', () => {
-  it('returns empty array for valid entry', () => {
+  it('returns empty array for valid entry with roles', () => {
     const errors = validateSpecEntry({
       category: 'coding',
+      roles: ['implement'],
       keywords: ['auth'],
       date: '2026-04-21',
       title: 'Test',
@@ -196,10 +197,25 @@ describe('validateSpecEntry', () => {
     assert.strictEqual(errors.length, 0);
   });
 
-  it('validates all categories', () => {
+  it('requires roles — category alone is no longer sufficient', () => {
+    const errors = validateSpecEntry({
+      category: 'coding',
+      roles: [],
+      keywords: ['auth'],
+      date: '2026-04-21',
+      title: 'Test',
+      content: 'Content',
+      lineStart: 1,
+      lineEnd: 5,
+    });
+    assert.ok(errors.some(e => e.includes('roles')));
+  });
+
+  it('validates all categories still accepted when roles present', () => {
     for (const cat of VALID_CATEGORIES) {
       const errors = validateSpecEntry({
         category: cat,
+        roles: ['implement'],
         keywords: ['test'],
         date: '2026-04-21',
         title: 'Test',
@@ -219,7 +235,7 @@ describe('validateSpecEntry', () => {
 describe('validateCategoryMatch', () => {
   it('returns null when categories match', () => {
     const result = validateCategoryMatch(
-      { category: 'coding', keywords: [], date: '', title: '', content: '', lineStart: 0, lineEnd: 0 },
+      { category: 'coding', roles: [], keywords: [], date: '', title: '', content: '', lineStart: 0, lineEnd: 0 },
       'coding',
     );
     assert.strictEqual(result, null);
@@ -227,7 +243,7 @@ describe('validateCategoryMatch', () => {
 
   it('returns error when categories mismatch', () => {
     const result = validateCategoryMatch(
-      { category: 'arch', keywords: [], date: '', title: '', content: '', lineStart: 0, lineEnd: 0 },
+      { category: 'arch', roles: [], keywords: [], date: '', title: '', content: '', lineStart: 0, lineEnd: 0 },
       'coding',
     );
     assert.ok(result?.includes('does not match'));
@@ -240,8 +256,8 @@ describe('validateCategoryMatch', () => {
 
 describe('formatSpecEntries', () => {
   const entries = [
-    { category: 'coding', keywords: ['auth', 'token'], date: '2026-04-21', title: 'Token rotation', content: '### Token rotation\n\nContent about auth.', lineStart: 1, lineEnd: 5 },
-    { category: 'coding', keywords: ['naming'], date: '2026-04-20', title: 'Use camelCase', content: '### Use camelCase\n\nNaming convention.', lineStart: 10, lineEnd: 14 },
+    { category: 'coding', roles: ['implement'], keywords: ['auth', 'token'], date: '2026-04-21', title: 'Token rotation', content: '### Token rotation\n\nContent about auth.', lineStart: 1, lineEnd: 5 },
+    { category: 'coding', roles: ['implement'], keywords: ['naming'], date: '2026-04-20', title: 'Use camelCase', content: '### Use camelCase\n\nNaming convention.', lineStart: 10, lineEnd: 14 },
   ];
 
   it('returns all entries when no keyword filter', () => {
@@ -267,14 +283,21 @@ describe('formatSpecEntries', () => {
 // ---------------------------------------------------------------------------
 
 describe('formatNewEntry', () => {
-  it('produces valid <spec-entry> block', () => {
+  it('produces valid <spec-entry> block with roles derived from category', () => {
     const result = formatNewEntry('coding', ['auth', 'token'], '2026-04-21', 'Token rotation', 'Content here.');
     assert.ok(result.startsWith('<spec-entry'));
     assert.ok(result.endsWith('</spec-entry>'));
-    assert.ok(result.includes('category="coding"'));
+    assert.ok(result.includes('roles="implement"'), 'should derive roles from category fallback');
+    assert.ok(!result.includes('category='), 'should never write category attribute');
     assert.ok(result.includes('keywords="auth,token"'));
     assert.ok(result.includes('date="2026-04-21"'));
     assert.ok(result.includes('### Token rotation'));
+  });
+
+  it('uses explicit roles when provided', () => {
+    const result = formatNewEntry('coding', ['test'], '2026-04-21', 'Title', 'Body', undefined, undefined, ['review', 'analyze']);
+    assert.ok(result.includes('roles="review,analyze"'));
+    assert.ok(!result.includes('category='));
   });
 
   it('includes source attribute when provided', () => {

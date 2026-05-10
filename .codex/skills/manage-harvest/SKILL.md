@@ -54,14 +54,14 @@ Follow '~/.maestro/workflows/harvest.md' Stages 1–8.
 3. **Stable fragment IDs** — `HRV-{8 hex}` from `hash(source_id + content_hash)`
 4. **Never modify source artifacts** — purely extractive
 5. **Confidence filtering** — below threshold logged but not routed
-6. **Spec format enforcement** — all spec routing must use `<spec-entry>` closed-tag format with `category`, `keywords`, `date`, `source="harvest"` attributes
+6. **Spec format enforcement** — all spec routing must use `<spec-entry>` closed-tag format with `roles`, `keywords`, `date`, `source="harvest"` attributes
 
 **Routing rules:**
 - Universal design patterns → `coding` or `arch` category
 - Component-level pitfalls → `learning` category
 - Quality enforcement rules → `quality` category
 - Wiki: `maestro wiki create --type <type> --slug harvest-<source_type>-<short_id>`
-- Spec: `maestro wiki append spec-<file> --category <category> --body "<content>" --keywords "<kws>"` (unified write path) or `Skill({ skill: "spec-add", args: "<category> <content>" })`
+- Spec: `maestro wiki append spec-<file> --body "<content>" --keywords "<kws>"` (unified write path) or `Skill({ skill: "spec-add", args: "<category> <content>" })`
 - Issue: append to `issues.jsonl` matching canonical schema
 
 **Next steps:** `/manage-wiki health`, `maestro wiki list --type note`, `/wiki-connect --fix`, `/wiki-digest`, `/manage-issue list --source harvest`

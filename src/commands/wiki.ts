@@ -55,7 +55,8 @@ export function registerWikiCommand(program: Command): void {
     .option('--scope <scope>', 'Filter by spec scope: project|global|team|personal')
     .option('--tag <tag>', 'Filter by tag')
     .option('--status <status>', 'Filter by status')
-    .option('--category <cat>', 'Filter by category')
+    .option('--category <cat>', 'Filter by category (deprecated, use --keyword)')
+    .option('--keyword <word>', 'Filter by keyword (alternative to --category)')
     .option('--created-by <cmd>', 'Filter by creating command/skill')
     .option('--role <role>', 'Filter by role: analyze|explore|review|implement|plan|brainstorm|research')
     .option('-q, --query <q>', 'BM25 full-text query')
@@ -71,7 +72,8 @@ export function registerWikiCommand(program: Command): void {
         if (opts.scope) qs.set('scope', opts.scope);
         if (opts.tag) qs.set('tag', opts.tag);
         if (opts.status) qs.set('status', opts.status);
-        if (opts.category) qs.set('category', opts.category);
+        if (opts.keyword) qs.set('category', opts.keyword);
+        else if (opts.category) qs.set('category', opts.category);
         if (opts.createdBy) qs.set('createdBy', opts.createdBy);
         if (opts.role) qs.set('role', opts.role);
         if (opts.query) qs.set('q', opts.query);
@@ -103,7 +105,8 @@ export function registerWikiCommand(program: Command): void {
       if (opts.scope) filters.scope = opts.scope as WikiScope;
       if (opts.tag) filters.tag = opts.tag;
       if (opts.status) filters.status = opts.status;
-      if (opts.category) filters.category = opts.category;
+      if (opts.keyword) filters.category = opts.keyword;
+      else if (opts.category) filters.category = opts.category;
       if (opts.createdBy) filters.createdBy = opts.createdBy;
       if (opts.role) filters.role = opts.role;
       if (opts.query) filters.q = opts.query;

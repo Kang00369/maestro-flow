@@ -168,12 +168,12 @@
       "name": "spec-load",
       "name_zh": "加载规范",
       "description": "Load relevant specs and lessons for current context (used by agents before execution)",
-      "description_zh": "加载与当前上下文相关的规范和学习记录，供代理在执行前注入上下文。支持按分类和关键词过滤",
+      "description_zh": "加载与当前上下文相关的规范和学习记录，供代理在执行前注入上下文。支持按角色和关键词过滤",
       "workflow": "代理执行前自动调用",
       "workflow_zh": "通常由代理系统自动调用，也可手动检查当前上下文规范",
       "prev_commands": [],
       "next_commands": [],
-      "flags": ["--category <type> (按分类过滤)", "--keyword <word> (关键词搜索)", "--with-lessons (包含学习记录)"]
+      "flags": ["--role <role> (按角色过滤: implement|plan|test|review|analyze)", "--keyword <word> (关键词搜索)", "--with-lessons (包含学习记录)"]
     },
     "spec-remove": {
       "name": "spec-remove",
@@ -588,9 +588,9 @@
       "name": "maestro-tools-register",
       "name_zh": "工具注册",
       "description": "Register tool specs — extract, generate, or optimize reusable process/tool definitions into .workflow/specs/tools.md",
-      "description_zh": "注册工具规格：从代码/对话/文档中提取流程，或从描述生成新工具定义，或优化现有工具步骤。长流程自动使用 ref 模式（knowhow 详文 + spec 索引）",
-      "workflow": "随时使用，积累可复用的工具定义",
-      "workflow_zh": "支持提取、生成、优化三种模式，输出到 tools.md",
+      "description_zh": "Codify reusable business processes as tool specs. Auto-discovered by agents via spec load and spec-injector",
+      "workflow": "Register during planning · after execution · before testing · during retrospective/harvest",
+      "workflow_zh": "plan → execute → test → retrospective, auto-discovered by agents via spec-injector",
       "prev_commands": [],
       "next_commands": ["maestro-tools-execute"],
       "flags": ["[description] (意图描述)"]

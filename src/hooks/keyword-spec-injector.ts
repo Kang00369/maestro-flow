@@ -121,7 +121,7 @@ function tokenizePrompt(prompt: string): string[] {
  */
 function formatInjectionContent(entries: IndexedEntry[]): string {
   const sections = entries.map(e =>
-    `--- ${e.file} (${e.category}) [${e.keywords.join(', ')}] ---\n\n${e.content}`,
+    `--- ${e.file} [${e.keywords.join(', ')}] ---\n\n${e.content}`,
   );
 
   return `<spec-keyword-match count="${entries.length}">\n\n${sections.join('\n\n---\n\n')}\n\n</spec-keyword-match>`;

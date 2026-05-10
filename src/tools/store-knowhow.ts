@@ -140,7 +140,6 @@ function executeAdd(params: Params): CcwToolResult {
   const fmLines = ['---'];
   fmLines.push(`title: ${escapeYamlValue(title)}`);
   fmLines.push(`type: ${type}`);
-  fmLines.push(`category: ${type}`);
   fmLines.push(`created: ${now}`);
   if (tags && tags.length > 0) {
     fmLines.push(`tags:`);

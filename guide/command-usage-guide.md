@@ -843,7 +843,7 @@ Wiki 系统是 Maestro 的知识索引核心，把 `.workflow/` 下的 markdown 
 # 列表 + 过滤
 maestro wiki list                                    # 全部条目
 maestro wiki list --type spec                        # 按类型
-maestro wiki list --category security                # 按分类
+maestro wiki list --tag security                     # 按标签
 maestro wiki list --created-by manage-harvest        # 按创建来源
 maestro wiki list --tag auth --status active          # 组合过滤
 maestro wiki list --group                            # 按类型分组
@@ -854,7 +854,7 @@ maestro wiki search "authentication token"
 # 创建（spec/memory/note）
 maestro wiki create --type spec --slug auth-patterns \
   --title "Auth Patterns" --body "# Auth\n..." \
-  --category security --created-by manual \
+  --created-by manual \
   --source-ref "session-001" --parent "spec-coding-conventions" \
   --frontmatter '{"tags":["auth"]}'
 
@@ -864,8 +864,8 @@ maestro wiki create --type memory --slug session-2026-04-25 \
   --created-by memory-capture --source-ref "WFS-debug-001"
 
 # Spec 条目级操作（统一写入路径）
-maestro wiki append spec-learnings --category bug --body "Cache invalidation issue"
-maestro wiki append spec-coding-conventions --category coding \
+maestro wiki append spec-learnings --body "Cache invalidation issue" --keywords "bug,cache"
+maestro wiki append spec-coding-conventions \
   --body "Use named exports for utility functions" --keywords "exports,module"
 maestro wiki remove-entry spec-learnings-003         # 按 ID 精确移除子条目
 
