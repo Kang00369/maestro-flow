@@ -221,6 +221,39 @@ Always rotate refresh tokens on use.
 
 WikiIndexer 解析 `ref` 属性时，自动在 spec 子条目与 knowhow 文档之间建立 `related` 链接，纳入知识图谱。
 
+**`spec load` 加载样式对比**：
+
+内联条目（完整内容直接展示）：
+```
+### JWT Token Rotation
+
+Always rotate refresh tokens on use. Revoked column must be set
+rather than deleting tokens. Refresh token generation must carry
+email from stored user data.
+```
+
+ref 引用条目（摘要 + 加载命令）：
+```
+### OAuth 2.0 PKCE 集成架构
+
+完整 OAuth PKCE 流程设计。详见引用文档。
+
+→ Detail: maestro wiki load knowhow-oauth-flow
+```
+
+Agent 看到 `→ Detail:` 提示后，可按需执行 `maestro wiki load knowhow-oauth-flow` 加载完整文档。
+
+**创建 ref 条目**：
+
+```bash
+# 引用已有 knowhow 文档
+maestro spec add learning "OAuth PKCE 集成" "摘要..." --ref knowhow/AST-oauth-flow.md
+
+# 同时创建 knowhow 文档 + spec 索引
+maestro spec add learning "API 设计规范" "完整内容..." \
+  --ref knowhow/DOC-api-design.md --knowhow-type document
+```
+
 **分工原则**：
 - **Spec**（`specs/`）= 索引 + 规则。条目简短，agent 自动加载
 - **Knowhow**（`knowhow/`）= 详文。完整文档，按需加载
