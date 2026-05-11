@@ -329,3 +329,177 @@ maestro-verify     → 质量发现 → review
 ```
 
 每个阶段执行完毕，产生的知识自动沉淀到对应 category 的 spec 文件中，下一阶段的 agent 即可通过 category 加载获取前序阶段的积累。`spec load` 同时扫描 knowhow/ 中匹配 category 的工具文档，将可执行流程一并注入。
+
+---
+
+## 实践场景：前后端 API 开发闭环
+
+以用户管理模块（注册、登录、JWT 鉴权、用户 CRUD）为例，演示知识系统如何贯穿前后端开发全周期。
+
+### 闭环全景
+
+```
+开发过程（产出产物）           知识回收            补充 & 注册              消费
+─────────────────           ─────────          ────────────            ──────
+/workflow-lite-plan  ─┐                    ┌→ AST-*  (API 契约)      code-developer
+/maestro-analyze     ─┼→ /manage-harvest ──┤  category: coding       自动注入
+/workflow-lite-execute┘   提取被动知识      │
+                          pattern/decision  ├→ RCP-*  (验证流程)      test-fix-agent
+                                           │  category: test         自动发现
+                          补充主动流程 ─────┤  tool: true
+                          /manage-knowhow-capture
+                          /maestro-tools-register
+                                           └→ specs/  (规范/决策)     keyword-injector
+                                              coding/arch             上下文匹配
+
+                                  反哺
+                          测试发现新边界 → /maestro-tools-register optimize
+                          测试失败根因   → /manage-learn → learnings.md
+```
+
+### 步骤详解
+
+**Step 1 — 规划，产出 API 设计产物**
+
+```bash
+/workflow-lite-plan 用户管理模块 API：注册、登录、JWT 鉴权、用户 CRUD
+```
+
+产物进入 `.workflow/.lite-plan/`，包含 API 端点列表、依赖关系、设计决策。
+
+**Step 2 — 分析（可选，产出更丰富产物）**
+
+```bash
+/maestro-analyze API 端点设计模式分析：路由结构、错误处理、响应格式
+```
+
+产物进入 `.workflow/.analysis/ANL-*/`，包含 findings、recommendations。
+
+**Step 3 — 实现前后端**
+
+```bash
+/workflow-lite-execute
+```
+
+**Step 4 — harvest 提取 API 知识**
+
+```bash
+/manage-harvest --source lite-plan --to auto
+```
+
+harvest 从 plan 产物中提取并自动路由：
+
+| 提取内容 | 分类 | 路由目标 | 示例 |
+|---|---|---|---|
+| API 命名规范 | pattern | spec → coding | "所有端点使用 `/api/v1/` 前缀 + RESTful 命名" |
+| 鉴权方案决策 | decision | spec → arch | "密码 bcrypt(12)，token RS256 签名" |
+| 响应格式知识 | knowhow | wiki → knowhow | "统一返回 `{ data, error, meta }` 结构" |
+| 缺失功能 | task | issue | "缺少 rate limiting 中间件" |
+
+> **关键认知**：harvest 提取的是**被动知识**（pattern/decision），不是可执行的 tool。要让 test agent 使用，需要后续步骤。
+
+**Step 5 — 捕获 API 契约资产**
+
+```bash
+/manage-knowhow-capture asset "User Management API Contract" \
+  --asset-type api-contract --code-paths "src/api/users/"
+```
+
+产出 `AST-user-api-contract.md`（`category: coding`），开发 agent 实现时自动注入：
+
+```yaml
+---
+title: User Management API Contract
+type: asset
+category: coding
+keywords: [user, api, auth, crud, jwt]
+codePaths: [src/api/users/]
+---
+
+## Endpoints
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | /api/v1/auth/register | No | 用户注册 |
+| POST | /api/v1/auth/login | No | 用户登录 |
+| POST | /api/v1/auth/refresh | Yes | 刷新 token |
+| GET | /api/v1/users/me | Yes | 获取当前用户 |
+| PUT | /api/v1/users/me | Yes | 更新资料 |
+| DELETE | /api/v1/users/me | Yes | 注销账号 |
+```
+
+**Step 6 — 注册 API 验证流程为 Tool**
+
+```bash
+/maestro-tools-register generate User API E2E 验证：注册 → 登录 → token 刷新 → CRUD → 异常
+```
+
+产出 `RCP-user-api-verify.md`（`category: test`, `tool: true`）：
+
+```yaml
+---
+title: User API E2E Verification
+type: recipe
+category: test
+keywords: [user, api, auth, e2e, verification]
+tool: true
+summary: "Use when verifying user management API after implementation or refactoring."
+---
+
+## Steps
+1. POST /api/v1/auth/register — 新用户 → assert 201
+2. POST /api/v1/auth/register — 重复邮箱 → assert 409
+3. POST /api/v1/auth/login — 正确凭证 → assert 200 + token
+4. POST /api/v1/auth/login — 错误密码 → assert 401
+5. GET /api/v1/users/me + Bearer token → assert 200
+6. PUT /api/v1/users/me — 更新 name → assert 200
+7. POST /api/v1/auth/refresh → assert new token pair
+8. GET /api/v1/users/me + expired token → assert 401
+9. DELETE /api/v1/users/me → assert 204
+10. GET /api/v1/users/me + deleted token → assert 401
+```
+
+也可以从已有 knowhow 文档原地提升：
+
+```bash
+/maestro-tools-register promote RCP-user-api-verify as test tool
+```
+
+**Step 7 — 验证发现链路**
+
+```bash
+maestro spec load --category test --keyword api
+```
+
+确认输出包含 tool 摘要和加载命令。
+
+**Step 8 — 测试 agent 消费**
+
+```bash
+/quality-auto-test --keyword user-api    # 自动测试：发现 tool → 生成测试代码
+/quality-test user management API        # 会话式 UAT：按 tool 步骤逐项验证
+```
+
+### 各命令职责边界
+
+| 命令 | 产出 | 性质 | category 归属 |
+|---|---|---|---|
+| `/manage-harvest` | spec 条目 + wiki 条目 + issue | 被动知识（pattern/decision） | auto 路由 |
+| `/manage-knowhow-capture` | AST-*.md（API 契约） | 被动资产（供参照） | `coding` |
+| `/maestro-tools-register` | RCP-*.md（验证流程） | **主动可执行**（tool: true） | `test` |
+| `/quality-auto-test` | 测试代码 | 消费 tool → 生成实现 | — |
+
+**核心洞察**：harvest 负责"知识回收"，但 API 测试文档需要"主动可执行流程"。二者之间需要 `knowhow-capture`（补充契约）+ `tools-register`（注册验证步骤）作为桥梁。harvest 不是起点也不是终点，它是闭环中的知识回收环节。
+
+### 反哺循环
+
+测试执行后发现新的边界条件或失败模式：
+
+```bash
+# 优化已有 tool，追加新发现的 edge case
+/maestro-tools-register optimize user-api-verify
+
+# 原子洞察写入 learnings
+/manage-learn "refresh token 过期后重试需要处理 race condition"
+```
+
+下次 `spec load --category test` 时，agent 自动获取更新后的验证步骤。

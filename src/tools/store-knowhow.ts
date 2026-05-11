@@ -57,7 +57,8 @@ const ParamsSchema = z.object({
   source: z.string().optional(),     // reference: original URL
   status: z.enum(DECISION_STATUSES).optional(), // decision: lifecycle status
   assetType: z.string().optional(),  // asset: asset subtype
-  codePaths: z.array(z.string()).optional(), // blueprint: related code paths
+  codePaths: z.array(z.string()).optional(), // asset/blueprint: related code paths
+  category: z.string().optional(),  // spec category for tool discovery (coding, arch, test, etc.)
   // search params
   query: z.string().optional(),
   limit: z.number().optional().default(20),
@@ -106,7 +107,7 @@ function parseFrontmatter(raw: string): { data: Record<string, unknown>; body: s
 // --- Operations ---
 
 function executeAdd(params: Params): CcwToolResult {
-  const { type, title, body, tags, lang, source, status, assetType, codePaths } = params;
+  const { type, title, body, tags, lang, source, status, assetType, codePaths, category } = params;
 
   if (!type) return { success: false, error: 'Parameter "type" is required for add operation' };
   if (!title) return { success: false, error: 'Parameter "title" is required for add operation' };
@@ -125,8 +126,8 @@ function executeAdd(params: Params): CcwToolResult {
   if (assetType && type !== 'asset') {
     return { success: false, error: 'Parameter "assetType" is only valid for type "asset"' };
   }
-  if (codePaths && type !== 'blueprint') {
-    return { success: false, error: 'Parameter "codePaths" is only valid for type "blueprint"' };
+  if (codePaths && type !== 'blueprint' && type !== 'asset') {
+    return { success: false, error: 'Parameter "codePaths" is only valid for type "asset" or "blueprint"' };
   }
 
   const dir = getKnowhowDir();
@@ -149,6 +150,7 @@ function executeAdd(params: Params): CcwToolResult {
   if (lang) fmLines.push(`lang: ${lang}`);
   if (source) fmLines.push(`source: ${escapeYamlValue(source)}`);
   if (status) fmLines.push(`status: ${status}`);
+  if (category) fmLines.push(`category: ${category}`);
   if (assetType) fmLines.push(`assetType: ${escapeYamlValue(assetType)}`);
   if (codePaths && codePaths.length > 0) {
     fmLines.push('codePaths:');
@@ -247,7 +249,9 @@ export const schema: ToolSchema = {
       template:  lang (programming language)
       reference: source (URL)
       decision:  status (proposed | accepted | superseded)
-    Optional: tags (string[])
+      asset:     assetType (e.g. api-contract, prompt), codePaths (related source paths)
+      blueprint: codePaths (related source paths)
+    Optional: tags (string[]), category (spec category for agent discovery)
 
 *   **search** — Full-text search knowhow entries.
     Required: query
@@ -312,7 +316,11 @@ Entries are automatically indexed by WikiIndexer (type=knowhow, category={type})
       codePaths: {
         type: 'array',
         items: { type: 'string' },
-        description: '[blueprint] Related code paths.',
+        description: '[asset/blueprint] Related code paths.',
+      },
+      category: {
+        type: 'string',
+        description: 'Spec category for agent auto-discovery (coding, arch, test, debug, review, learning).',
       },
       // search
       query: {

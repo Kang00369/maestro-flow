@@ -10,6 +10,7 @@
     "teams": "Agents 团队",
     "collab": "多用户协作",
     "requirement": "需求扩展",
+    "maestro_coordinate": "Maestro 协调",
     "supervisor": "调度中心",
     "rooms": "会议室",
     "views": "视图"
@@ -30,6 +31,7 @@
     "teams_tooltip": "Agents 团队",
     "collab_tooltip": "多用户协作",
     "requirement_tooltip": "需求",
+    "maestro_coordinate_tooltip": "Maestro 协调会话",
     "supervisor_tooltip": "调度管理中心",
     "rooms_tooltip": "会议室",
     "views_label": "视图",
@@ -51,12 +53,10 @@
   },
   "status": {
     "not_started": "未开始",
-    "pending": "待处理",
-    "exploring": "探索中",
     "planning": "规划中",
     "executing": "执行中",
     "verifying": "验证中",
-    "testing": "测试中",
+    "reviewing": "审查中",
     "completed": "已完成",
     "blocked": "已阻塞"
   },
@@ -286,6 +286,23 @@
       "minutes_ago": "{{count}} 分钟前",
       "hours_ago": "{{count}} 小时前"
     }
+  },
+  "maestro_coordinate": {
+    "title": "Maestro 协调",
+    "sessions": "会话列表",
+    "no_sessions": "暂无会话",
+    "no_sessions_desc": "运行 /maestro 或 /maestro-ralph 创建会话",
+    "select_session": "选择一个会话查看详情",
+    "steps": "步骤",
+    "context": "上下文",
+    "passed_gates": "已通过关卡",
+    "loading": "加载中...",
+    "refresh": "刷新",
+    "empty_title": "暂无 Maestro 会话",
+    "empty_desc": "来自 .workflow/.maestro/ 的会话数据将显示在此",
+    "source_ralph": "Ralph",
+    "source_maestro": "Maestro",
+    "source_coordinate": "Coordinate"
   },
   "settings": {
     "title": "设置",

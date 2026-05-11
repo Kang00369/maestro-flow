@@ -4,7 +4,7 @@ Shared reference for tool spec registration and execution commands.
 
 ## Storage
 
-Tool specs are stored as knowhow documents in `.workflow/knowhow/` with `tool: true` in YAML frontmatter. Tool registration creates knowhow files, not spec entries. The `category` field determines which `spec load --category` queries match this tool.
+Tool specs are stored as knowhow documents in `.workflow/knowhow/` with `tool: true` in YAML frontmatter. Tool registration creates new knowhow files or promotes existing ones (via frontmatter update). The `category` field determines which `spec load --category` queries match this tool.
 
 ## Entry Format
 
@@ -35,29 +35,36 @@ category: coding
 ## Discovery Path
 
 ```
-Register → tools.md → spec load --category <category> / spec-injector auto-inject → agent discovers tool
+Register (knowhow/ + tool: true) → spec load --category / spec-injector auto-inject → agent discovers tool
 ```
 
 Agents discover tool specs via:
-- `spec load --category <category>` — returns entries matching the category
-- `spec-injector` hook — auto-injects at Agent launch based on agent type
-- `spec load --keyword <word>` — keyword search across all entries
+- `spec load --category <category>` — scans knowhow/ for `category + tool: true` matches
+- `spec-injector` hook — auto-injects at Agent launch based on agent type → category mapping
+- `spec load --keyword <word>` — keyword search across all entries (cross-category)
 
 ## Category Reference
 
-| Category | Agent types | Tool examples |
-|----------|-------------|---------------|
-| coding | code-developer, workflow-executor | Build, deploy, integrate |
-| test | tdd-developer, test-fix-agent | Test flows, verification steps |
-| review | workflow-reviewer | Checklists, audit standards |
-| arch | workflow-planner | Design flows, analysis steps |
-| debug | debug-explore-agent | Diagnostic flows, investigation |
+`category` = **who consumes** (agent type), not what the content is about.
+
+| Category | Consumer Agent | Decision Question | Signal Words |
+|---|---|---|---|
+| coding | code-developer, workflow-executor | 开发者实现时需要？ | build, deploy, integrate, configure, api-contract |
+| test | tdd-developer, test-fix-agent | 测试者验证时需要？ | verify, validate, e2e, regression, idempotency |
+| review | workflow-reviewer | 审查者检查时需要？ | audit, checklist, compliance, quality-gate |
+| arch | workflow-planner | 规划者设计时需要？ | design, architecture, decompose, blueprint |
+| debug | debug-explore-agent | 调试者排查时需要？ | diagnose, trace, root-cause, reproduce |
+
+**Multi-consumer**: If tool serves multiple agents, split into separate docs with different categories.
 
 ## CLI Commands
 
 ```bash
-# Register tool as knowhow document
+# Register new tool as knowhow document
 maestro knowhow add "knowhow/RCP-<slug>.md" --type recipe --tool
+
+# Promote existing knowhow to tool (in place)
+maestro wiki update <id> --frontmatter '{"tool": true, "category": "<cat>", "summary": "..."}'
 
 # Load specs by category
 maestro spec load --category <category>

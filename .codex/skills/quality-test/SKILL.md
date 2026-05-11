@@ -163,7 +163,17 @@ Record in `uat.md` under `## Smoke Tests`. If any fails: **E003** — abort, sug
 
 Read from target directory: `verification.json`, `validation.json`, `index.json`, `plan.json`, `.summaries/TASK-*.md`. Build testable list from user-observable outcomes.
 
-### Step 4.5: Load Quality Context (Cross-Artifact Integration)
+### Step 4.5: Load Test Tools (Knowhow Discovery)
+
+Load registered test tools to supplement verification-based scenarios:
+
+```bash
+maestro spec load --category test --keyword <feature>
+```
+
+If tools are found, extract their steps as additional test scenarios marked `source: "tool"`. Tool steps map to UAT scenarios: each numbered step becomes a test with its assertion as `expected` behavior. This enables tools registered via `/maestro-tools-register` to drive UAT verification.
+
+### Step 4.6: Load Quality Context (Cross-Artifact Integration)
 
 Query `state.json.artifacts[]` for all artifacts matching current phase and milestone:
 

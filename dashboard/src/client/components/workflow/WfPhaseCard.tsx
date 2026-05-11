@@ -15,12 +15,10 @@ import { KanbanTaskRow } from '@/client/components/kanban/TaskRow.js';
 
 const TINT_VARS: Record<string, string> = {
   not_started: 'var(--color-tint-pending)',
-  pending: 'var(--color-tint-pending)',
-  exploring: 'var(--color-tint-exploring)',
   planning: 'var(--color-tint-planning)',
   executing: 'var(--color-tint-executing)',
   verifying: 'var(--color-tint-verifying)',
-  testing: 'var(--color-tint-testing)',
+  reviewing: 'var(--color-tint-reviewing)',
   completed: 'var(--color-tint-completed)',
   blocked: 'var(--color-tint-blocked)',
 };

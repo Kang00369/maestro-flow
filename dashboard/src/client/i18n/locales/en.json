@@ -10,7 +10,7 @@
     "teams": "Agents Team",
     "collab": "Multi-User Collab",
     "requirement": "Requirement",
-    "supervisor": "Supervisor",
+    "maestro_coordinate": "Maestro Coord",
     "rooms": "Meeting Room",
     "views": "Views"
   },
@@ -30,7 +30,7 @@
     "teams_tooltip": "Agents Team",
     "collab_tooltip": "Multi-User Collab",
     "requirement_tooltip": "Requirement",
-    "supervisor_tooltip": "Supervisor management",
+    "maestro_coordinate_tooltip": "Maestro Coordinate Sessions",
     "rooms_tooltip": "Meeting Room",
     "views_label": "Views",
     "phases_label": "Phases",
@@ -51,12 +51,10 @@
   },
   "status": {
     "not_started": "Not Started",
-    "pending": "Pending",
-    "exploring": "Exploring",
     "planning": "Planning",
     "executing": "Executing",
     "verifying": "Verifying",
-    "testing": "Testing",
+    "reviewing": "Reviewing",
     "completed": "Completed",
     "blocked": "Blocked"
   },
@@ -286,6 +284,23 @@
       "minutes_ago": "{{count}}m ago",
       "hours_ago": "{{count}}h ago"
     }
+  },
+  "maestro_coordinate": {
+    "title": "Maestro Coordinate",
+    "sessions": "Sessions",
+    "no_sessions": "No sessions found",
+    "no_sessions_desc": "Run /maestro or /maestro-ralph to create sessions",
+    "select_session": "Select a session to view details",
+    "steps": "Steps",
+    "context": "Context",
+    "passed_gates": "Passed Gates",
+    "loading": "Loading...",
+    "refresh": "Refresh",
+    "empty_title": "No Maestro Sessions",
+    "empty_desc": "Session data from .workflow/.maestro/ will appear here",
+    "source_ralph": "Ralph",
+    "source_maestro": "Maestro",
+    "source_coordinate": "Coordinate"
   },
   "settings": {
     "title": "Settings",

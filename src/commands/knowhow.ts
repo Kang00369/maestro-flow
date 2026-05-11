@@ -55,8 +55,9 @@ export function registerKnowhowCommand(program: Command): void {
     .option('--lang <lang>', '[template] Programming language')
     .option('--source <url>', '[reference] Original URL')
     .option('--status <status>', '[decision] proposed|accepted|superseded')
-    .option('--asset-type <type>', '[asset] Asset type (e.g. prompt, config, workflow)')
-    .option('--code-paths <paths>', '[blueprint] Comma-separated code paths')
+    .option('--asset-type <type>', '[asset] Asset type (e.g. api-contract, data-model, prompt, config)')
+    .option('--code-paths <paths>', '[asset/blueprint] Comma-separated code paths')
+    .option('--category <category>', 'Spec category for agent discovery (coding, arch, test, debug, review, learning)')
     .action(async (opts) => {
       const type = opts.type as string;
       if (!CATEGORIES.includes(type as any)) {
@@ -81,8 +82,8 @@ export function registerKnowhowCommand(program: Command): void {
         console.error('--asset-type is only valid for type "asset"');
         process.exit(1);
       }
-      if (opts.codePaths && type !== 'blueprint') {
-        console.error('--code-paths is only valid for type "blueprint"');
+      if (opts.codePaths && type !== 'blueprint' && type !== 'asset') {
+        console.error('--code-paths is only valid for type "asset" or "blueprint"');
         process.exit(1);
       }
 
@@ -107,6 +108,7 @@ export function registerKnowhowCommand(program: Command): void {
       if (opts.lang) fmLines.push(`lang: ${opts.lang}`);
       if (opts.source) fmLines.push(`source: ${opts.source}`);
       if (opts.status) fmLines.push(`status: ${opts.status}`);
+      if (opts.category) fmLines.push(`category: ${opts.category}`);
       if (opts.assetType) fmLines.push(`assetType: ${opts.assetType}`);
       if (opts.codePaths) {
         const paths = opts.codePaths.split(',').map((s: string) => s.trim()).filter(Boolean);

@@ -33,7 +33,7 @@ interface DockNavItem {
   labelKey: string;
   tooltipKey: string;
   path: string;
-  icon: 'kanban' | 'artifacts' | 'chat' | 'workflow' | 'mcp' | 'specs' | 'teams' | 'requirement' | 'supervisor' | 'collab' | 'rooms';
+  icon: 'kanban' | 'artifacts' | 'chat' | 'workflow' | 'mcp' | 'specs' | 'teams' | 'requirement' | 'maestro-coordinate' | 'collab' | 'rooms';
   shortcut?: string;
 }
 
@@ -47,7 +47,7 @@ const NAV_ITEMS: DockNavItem[] = [
   { labelKey: 'nav.teams', tooltipKey: 'dock.teams_tooltip', path: '/teams', icon: 'teams', shortcut: 'T' },
   { labelKey: 'nav.collab', tooltipKey: 'dock.collab_tooltip', path: '/collab', icon: 'collab', shortcut: 'L' },
   { labelKey: 'nav.requirement', tooltipKey: 'dock.requirement_tooltip', path: '/requirement', icon: 'requirement', shortcut: 'R' },
-  { labelKey: 'nav.supervisor', tooltipKey: 'dock.supervisor_tooltip', path: '/supervisor', icon: 'supervisor', shortcut: 'V' },
+  { labelKey: 'nav.maestro_coordinate', tooltipKey: 'dock.maestro_coordinate_tooltip', path: '/maestro-coordinate', icon: 'maestro-coordinate', shortcut: 'V' },
   { labelKey: 'nav.rooms', tooltipKey: 'dock.rooms_tooltip', path: '/rooms', icon: 'rooms', shortcut: 'O' },
 ];
 
@@ -376,7 +376,7 @@ const NAV_ICON_MAP = {
   specs: BookOpen,
   teams: Bot,
   requirement: ListChecks,
-  supervisor: Activity,
+  'maestro-coordinate': Activity,
   collab: UsersRound,
   rooms: Presentation,
 } as const;

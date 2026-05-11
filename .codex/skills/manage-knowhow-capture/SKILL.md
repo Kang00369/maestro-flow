@@ -6,7 +6,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---
 
 <purpose>
-Capture reusable knowledge into `.workflow/knowhow/`. Six content types: `session` (full session recovery), `template` (code/config pattern), `recipe` (step-by-step guide), `reference` (external doc summary), `decision` (ADR), `tip` (quick note). Auto-detects type or asks user.
+Capture reusable knowledge into `.workflow/knowhow/`. Nine content types: `session` (full session recovery), `template` (code/config pattern), `recipe` (step-by-step guide), `reference` (external doc summary), `decision` (ADR), `tip` (quick note), `asset` (API contract, data model, etc.), `blueprint` (architecture design with code paths), `document` (general long-form). Auto-detects type or asks user.
 </purpose>
 
 <context>
@@ -22,13 +22,16 @@ $manage-knowhow-capture "reference Stripe API --source https://docs.stripe.com/a
 $manage-knowhow-capture "decision Use PostgreSQL over MongoDB --status accepted"
 ```
 
-**Types**: `compact` | `template` | `recipe` | `reference` | `decision` | `tip`
+**Types**: `compact` | `template` | `recipe` | `reference` | `decision` | `tip` | `asset` | `blueprint` | `document`
 
 **Flags**:
 - `--lang <lang>` — Language for templates (typescript, python, bash, yaml, ...)
 - `--source <url>` — Source URL for references
 - `--tag tag1,tag2` — Categorization tags
 - `--title <title>` — Explicit title
+- `--asset-type <type>` — Asset subtype (api-contract, data-model, prompt, config, ...)
+- `--code-paths <paths>` — Related source paths for asset/blueprint (comma-separated)
+- `--category <cat>` — Spec category for agent discovery (coding, arch, test, debug, review, learning)
 </context>
 
 <execution>
@@ -49,6 +52,9 @@ Parse first token as type. If absent or ambiguous, ask user via AskUserQuestion.
 | `reference`, `ref`, `参考` | reference |
 | `decision`, `dcs`, `决策` | decision |
 | `tip`, `note`, `记录` | tip |
+| `asset`, `ast`, `资产`, `契约` | asset |
+| `blueprint`, `blp`, `蓝图` | blueprint |
+| `document`, `doc`, `文档` | document |
 
 ### Step 3: Capture Content by Type
 
@@ -70,6 +76,15 @@ Prompt for or extract: context, decision, alternatives (at least 2), rationale, 
 **tip** (TIP-{YYYYMMDD}-{HHMM}.md):
 Content from remaining arguments. Auto-detect context from recent conversation files. Sections: Content, Context, Tags, Timestamp.
 
+**asset** (AST-{YYYYMMDD}-{HHMM}.md):
+Prompt for or extract: asset subtype (`--asset-type`), related code paths (`--code-paths`), category (`--category`). Sections: Overview, Structure (tables/schemas), Usage, Related Code Paths. Common asset subtypes: `api-contract`, `data-model`, `prompt`, `config`, `ui-prototype`.
+
+**blueprint** (BLP-{YYYYMMDD}-{HHMM}.md):
+Prompt for or extract: system scope, code paths (`--code-paths`), category (`--category`). Sections: Overview, Components, Interactions, Code Paths, Constraints, Trade-offs.
+
+**document** (DOC-{YYYYMMDD}-{HHMM}.md):
+General long-form fallback. No specific structure enforced.
+
 ### Step 4: Write File
 
 Write to `.workflow/knowhow/{PREFIX}-{YYYYMMDD}-{HHMM}.md` with YAML frontmatter:
@@ -82,7 +97,7 @@ category: {type}
 created: {ISO timestamp}
 tags: [{tags}]
 ```
-Plus type-specific: `lang` (template), `source` (reference), `status` (decision).
+Plus type-specific: `lang` (template), `source` (reference), `status` (decision), `assetType` + `codePaths` (asset), `codePaths` (blueprint). `category` written when `--category` provided.
 
 ### Step 5: Confirm
 
