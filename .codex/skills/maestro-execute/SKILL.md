@@ -207,7 +207,7 @@ If exit code is 1, present warnings and ask whether to proceed.
 
 4. **Build tasks.csv**: For each pending task per wave, read `.task/TASK-{NNN}.json` and extract: title, description, scope (from files), convergence.criteria, hints, execution_directives. Set `deps` from task dependency, `context_from` = deps, `wave` from plan.json.
 
-5. **Load project specs**: Read `.workflow/specs/` for coding conventions and architecture constraints (passed to all agents)
+5. **Load project specs + tools**: Run `maestro spec load --category coding` to load coding conventions, architecture constraints, AND discoverable knowhow tools (passed to all agents)
 
 6. **Load codebase + wiki context** (optional, passed to all agents):
    - If `.workflow/codebase/ARCHITECTURE.md` exists: read and include as `codebase_context` in agent instructions

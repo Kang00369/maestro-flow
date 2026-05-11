@@ -184,7 +184,7 @@ Session folder: `.workflow/.csv-wave/{sessionId}/` — create via `mkdir -p`
 
 If `--dimensions` flag provided, override with explicit list.
 
-6. **Specs loading**: Read `.workflow/specs/` for project conventions (unless `--skip-specs`)
+6. **Specs loading**: Run `maestro spec load --category review` to load review standards, checklists, AND discoverable knowhow tools (unless `--skip-specs`)
 7. **CSV generation**: One row per dimension + one aggregation row
 
 **Wave computation**: Simple 2-wave -- all dimension tasks = wave 1, aggregation = wave 2.

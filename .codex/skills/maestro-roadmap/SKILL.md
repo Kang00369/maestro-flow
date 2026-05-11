@@ -220,7 +220,7 @@ Session folder: `.workflow/.csv-wave/{sessionId}/` — create via `mkdir -p`
 1. **Input parsing**: Parse `{requirementArg}` -- direct text or `@file` reference
 2. **Brainstorm import**: If `--from-brainstorm`, read `guidance-specification.md` for enriched context
 3. **Codebase detection**: Check for source files; if found, add context to analysis/research prompts
-4. **Load project specs**: Read `.workflow/specs/` for constraint awareness
+4. **Load project specs**: Run `maestro spec load --category arch` for constraint awareness and discoverable knowhow tools
 
 **Light mode specific**:
 5. **Uncertainty assessment**:

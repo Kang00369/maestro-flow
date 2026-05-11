@@ -192,7 +192,7 @@ mkdir -p {sessionFolder}/.brainstorming
 **Decomposition Rules**:
 
 1. **Mode detection**: Number = phase mode (resolve via state.json artifact registry to `.workflow/scratch/{YYYYMMDD}-{type}-{slug}/`), text = scratch mode
-2. **Project specs loading**: Read `.workflow/specs/` for architecture-aware analysis context
+2. **Project specs loading**: Run `maestro spec load --category arch` for architecture-aware analysis context and discoverable knowhow tools
 3. **Role selection**:
 
 | Condition | Action |
