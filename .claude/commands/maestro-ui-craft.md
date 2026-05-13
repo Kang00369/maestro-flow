@@ -1,6 +1,6 @@
 ---
 name: maestro-ui-craft
-description: Chain impeccable commands with intelligent routing and quality gate loops for automated UI production
+description: Chain maestro-impeccable commands with intelligent routing and quality gate loops for automated UI production
 argument-hint: "<intent|target> [--chain build|improve|enhance|harden|live] [--enhance <cmd>] [--threshold <score>] [--max-loops <n>] [-y]"
 allowed-tools:
   - Read
@@ -15,14 +15,14 @@ allowed-tools:
   - TodoWrite
 ---
 <purpose>
-Orchestrate impeccable skill commands via intelligent intent routing + quality gate auto-iteration.
+Orchestrate maestro-impeccable skill commands via intelligent intent routing + quality gate auto-iteration.
 Chain: Build → Evaluate → Auto-Refine → Re-evaluate → Verify.
 
 Core innovation: critique/audit scores drive automatic command selection and iteration loops.
 Impeccable has 23 commands across 6 categories — this command chains them into automated pipelines
 with quality gates that loop until design quality meets the threshold.
 
-Prerequisite: impeccable skill available (auto-discovered by harness).
+Prerequisite: maestro-impeccable skill available (auto-discovered by harness).
 </purpose>
 
 <context>
@@ -109,7 +109,7 @@ S_REPORT:
 
 ### A_LOAD_CONTEXT
 
-1. Trigger impeccable context loading by invoking: `Skill({ skill: "impeccable", args: "teach" })`
+1. Trigger impeccable context loading by invoking: `Skill({ skill: "maestro-impeccable", args: "teach" })`
    - Impeccable's own setup will auto-discover and load PRODUCT.md / DESIGN.md
    - If PRODUCT.md missing/placeholder, impeccable teach handles the interview
 2. If teach was not in the chain but PRODUCT.md is missing:
@@ -141,7 +141,7 @@ Create TodoWrite with chain steps.
 ## 2. Setup Context
 
 1. If chain starts with `teach` → execute it first, impeccable handles context loading internally
-2. Otherwise → invoke `Skill({ skill: "impeccable" })` with no args to trigger setup (context + register)
+2. Otherwise → invoke `Skill({ skill: "maestro-impeccable" })` with no args to trigger setup (context + register)
 3. If impeccable reports PRODUCT.md missing → prepend teach, execute, then resume
 
 ## 3. Execute Chain
@@ -149,10 +149,10 @@ Create TodoWrite with chain steps.
 For each step in chain, sequentially:
 
 ```
-▸ Step {n}/{total}: /impeccable {command} {target}
+▸ Step {n}/{total}: /maestro-impeccable {command} {target}
 ```
 
-Execute via: `Skill({ skill: "impeccable", args: "{command} {target}" })`
+Execute via: `Skill({ skill: "maestro-impeccable", args: "{command} {target}" })`
 
 **Rules:**
 - `teach`, `shape`, `craft` are interactive — do NOT suppress their user gates
@@ -167,11 +167,11 @@ When chain reaches a gate step (critique or audit):
 ### 5a. Execute Gate Command
 
 ```
-Skill({ skill: "impeccable", args: "critique {target}" })
+Skill({ skill: "maestro-impeccable", args: "critique {target}" })
 ```
 or
 ```
-Skill({ skill: "impeccable", args: "audit {target}" })
+Skill({ skill: "maestro-impeccable", args: "audit {target}" })
 ```
 
 ### 5b. Parse Score
@@ -180,7 +180,7 @@ From critique output, extract:
 - **score**: Nielsen's total (N/40) — from "**Total** | | **N/40**" row
 - **P0_count**: count of `[P0]` tagged findings
 - **P1_count**: count of `[P1]` tagged findings
-- **suggested_commands**: list of "/impeccable <cmd>" from "Suggested command" fields
+- **suggested_commands**: list of "/maestro-impeccable <cmd>" from "Suggested command" fields
 
 From audit output, extract:
 - **score**: dimension total (N/20) — from "**Total** | | **N/20**" row
@@ -211,7 +211,7 @@ audit_pass    = (score >= threshold * 0.5) AND (P0_count == 0)
 2. If no suggestions found → use fallback mapping (see quality_gate_routing)
 3. De-duplicate, cap at 3 commands per iteration
 4. Sort: P0-suggested first
-5. Execute each: `Skill({ skill: "impeccable", args: "{cmd} {target}" })`
+5. Execute each: `Skill({ skill: "maestro-impeccable", args: "{cmd} {target}" })`
    - Pass issue context: the specific findings that triggered this command are already in conversation
 6. Re-run gate command (critique/audit)
 7. Increment loop_count
