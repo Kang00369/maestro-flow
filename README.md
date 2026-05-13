@@ -194,6 +194,7 @@ maestro/
 
 - **[GET SHIT DONE](https://github.com/gsd-build/get-shit-done)** by TACHES — The spec-driven development model and context engineering philosophy.
 - **[Claude-Code-Workflow](https://github.com/catlog22/Claude-Code-Workflow)** — The predecessor that pioneered multi-CLI orchestration and skill-based workflow routing.
+- **[Impeccable](https://github.com/pbakaus/impeccable)** by [@pbakaus](https://github.com/pbakaus) — The UI design skill integrated as `maestro-impeccable`. Live variant mode, critique storage, design parser, and CSP detection modules are derived from this project. Licensed under [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
 
 ## Contributors
 

@@ -43,19 +43,6 @@ export const HARNESS_DIRS: Record<HarnessType, string> = {
 
 export const ADDON_REGISTRY: AddonDef[] = [
   {
-    id: 'impeccable',
-    name: 'Impeccable',
-    description: 'Production-grade frontend design — 23 commands for UI craft, critique, polish, and iteration',
-    repo: 'pbakaus/impeccable',
-    branch: 'main',
-    targets: [
-      { harness: 'claude', srcPath: '.claude/skills/impeccable', destPath: '.claude/skills/impeccable' },
-      { harness: 'codex', srcPath: '.codex/agents', destPath: '.codex/agents' },
-    ],
-    homepage: 'https://impeccable.style',
-    tags: ['design', 'frontend', 'ui', 'ux'],
-  },
-  {
     id: 'ui-ux-pro-max',
     name: 'UI/UX Pro Max',
     description: 'Design intelligence — 50+ styles, 97 palettes, 57 font pairings, 99 UX guidelines across 9 stacks',

@@ -1,3 +1,7 @@
+// Copyright 2024 Paul Bakaus (https://github.com/pbakaus/impeccable)
+// Licensed under the Apache License, Version 2.0
+// Modifications: Converted to TypeScript, adapted for maestro CLI architecture.
+
 /**
  * CLI helper: find an element in source and wrap it in a variant container.
  *
