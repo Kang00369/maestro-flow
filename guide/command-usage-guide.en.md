@@ -1,6 +1,6 @@
 # Maestro-Flow Command Usage Guide
 
-The Maestro-Flow command system includes 49 slash commands, organized into 6 major categories. This document covers the main pipeline command sequencing, quick channels, the Issue closed-loop workflow, learning toolkit, and the usage scenarios for each command.
+The Maestro-Flow command system includes 53 slash commands, organized into 9 major categories. This document covers the main pipeline command sequencing, quick channels, the Issue closed-loop workflow, learning toolkit, and the usage scenarios for each command.
 
 ## Command Overview
 
