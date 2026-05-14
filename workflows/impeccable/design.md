@@ -19,7 +19,7 @@ Generate a design system recommendation using the local ui-search tooling, then 
 
 - `.workflow/impeccable/PRODUCT.md` exists (from teach step)
 - Python 3 available
-- `workflows/impeccable/ui-search/search.py` exists
+- `~/.maestro/workflows/impeccable/ui-search/search.py` exists (or project-local fallback)
 
 ### A1. Extract Query Context from PRODUCT.md
 
@@ -50,17 +50,17 @@ Adjust keywords to ensure variants diverge meaningfully. If register is `brand`,
 Resolve the script path relative to the maestro installation:
 
 ```bash
-# Find the script — prefer project-local, fallback to installed
-SCRIPT_PATH="workflows/impeccable/ui-search/search.py"
+# Find the script — prefer installed, fallback to project-local (dev)
+SCRIPT_PATH="$HOME/.maestro/workflows/impeccable/ui-search/search.py"
 if [ ! -f "$SCRIPT_PATH" ]; then
-  SCRIPT_PATH="$HOME/.maestro/workflows/impeccable/ui-search/search.py"
+  SCRIPT_PATH="workflows/impeccable/ui-search/search.py"
 fi
 ```
 
 For each variant, call:
 
 ```bash
-python search.py "${variant_keywords}" --design-system -p "${project_name}" -f markdown
+python "$SCRIPT_PATH" "${variant_keywords}" --design-system -p "${project_name}" -f markdown
 ```
 
 Save each output to a temporary directory as `MASTER_A.md`, `MASTER_B.md`, `MASTER_C.md` etc.
@@ -69,11 +69,11 @@ Optionally gather supplementary context:
 
 ```bash
 # Stack guidelines (if --stack flag provided)
-python search.py "layout responsive component" --stack ${stack}
+python "$SCRIPT_PATH" "layout responsive component" --stack ${stack}
 
 # Domain supplements
-python search.py "${industry}" --domain color
-python search.py "${personality}" --domain typography
+python "$SCRIPT_PATH" "${industry}" --domain color
+python "$SCRIPT_PATH" "${personality}" --domain typography
 ```
 
 ### A3.1. Render HTML Prototypes
@@ -82,9 +82,9 @@ For each generated `MASTER_{N}.md`, render a visual HTML prototype using the ren
 
 ```bash
 # Resolve render script — same search order as search.py
-RENDER_PATH="workflows/impeccable/ui-search/render-prototype.js"
+RENDER_PATH="$HOME/.maestro/workflows/impeccable/ui-search/render-prototype.js"
 if [ ! -f "$RENDER_PATH" ]; then
-  RENDER_PATH="$HOME/.maestro/workflows/impeccable/ui-search/render-prototype.js"
+  RENDER_PATH="workflows/impeccable/ui-search/render-prototype.js"
 fi
 
 # Render all variants at once
@@ -195,7 +195,7 @@ After selection, archive rejected variants for knowledge accumulation:
 ### A5. Persist Selected Variant
 
 ```bash
-python search.py "${selected_keywords}" --design-system --persist \
+python "$SCRIPT_PATH" "${selected_keywords}" --design-system --persist \
   -p "${project_name}" --output-dir ".workflow/impeccable"
 ```
 

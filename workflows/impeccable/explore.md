@@ -43,8 +43,8 @@ Adjust keywords to ensure variants diverge meaningfully. If register is `brand`,
 Resolve script path (project-local → installed fallback):
 
 ```bash
-SCRIPT_PATH="workflows/impeccable/ui-search/search.py"
-[ ! -f "$SCRIPT_PATH" ] && SCRIPT_PATH="$HOME/.maestro/workflows/impeccable/ui-search/search.py"
+SCRIPT_PATH="$HOME/.maestro/workflows/impeccable/ui-search/search.py"
+[ ! -f "$SCRIPT_PATH" ] && SCRIPT_PATH="workflows/impeccable/ui-search/search.py"
 ```
 
 For each variant:
@@ -60,8 +60,8 @@ Save output as `MASTER_A.md`, `MASTER_B.md`, `MASTER_C.md` in a temp directory.
 Resolve render script:
 
 ```bash
-RENDER_PATH="workflows/impeccable/ui-search/render-prototype.js"
-[ ! -f "$RENDER_PATH" ] && RENDER_PATH="$HOME/.maestro/workflows/impeccable/ui-search/render-prototype.js"
+RENDER_PATH="$HOME/.maestro/workflows/impeccable/ui-search/render-prototype.js"
+[ ! -f "$RENDER_PATH" ] && RENDER_PATH="workflows/impeccable/ui-search/render-prototype.js"
 ```
 
 ```bash
