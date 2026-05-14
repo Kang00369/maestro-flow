@@ -396,7 +396,7 @@ Extract a design system from an existing codebase:
 
 **Single command** is suitable for:
 - Quick exploration of design direction (`ui-design` scratch mode)
-- Targeted optimization of a specific aspect (`ui-craft --chain enhance`)
+- Targeted optimization of a specific aspect (`maestro-impeccable --chain enhance`)
 - Extracting design assets from existing code (`ui-codify`)
 
 **Pipeline mode** is suitable for:

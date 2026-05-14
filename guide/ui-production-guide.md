@@ -396,7 +396,7 @@ ui-design -> plan -> execute -> verify -> check_verify
 
 **单命令**适合：
 - 快速探索设计方向（`ui-design` scratch 模式）
-- 针对性优化某个方面（`ui-craft --chain enhance`）
+- 针对性优化某个方面（`maestro-impeccable --chain enhance`）
 - 从现有代码提取设计资产（`ui-codify`）
 
 **管线模式**适合：

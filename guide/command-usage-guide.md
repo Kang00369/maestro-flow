@@ -399,7 +399,7 @@ execute --dir scratch/plan-xxx   ← 直接执行
 | `spec-driven` | init→spec-generate→... | 需要完整规范 |
 | `roadmap-driven` | init→roadmap→... | 轻量路线图 |
 | `brainstorm-driven` | brainstorm→init→roadmap→... | 从头脑风暴开始 |
-| `ui-craft-build` | ui-craft --chain build→plan→execute→verify | UI 设计驱动 |
+| `ui-craft-build` | impeccable --chain build→plan→execute→verify | UI 设计驱动 |
 | `analyze-plan-execute` | analyze→plan→execute | 快速分析-规划-执行 |
 | `execute-verify` | execute→verify | 已有计划，直接执行 |
 | `quality-loop` | review→test→debug | 质量流水线 |

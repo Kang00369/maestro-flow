@@ -425,7 +425,7 @@ All of the above sequencing can be orchestrated automatically via `/maestro`:
 | `spec-driven` | init→spec-generate→... | Requires full specification |
 | `roadmap-driven` | init→roadmap→... | Lightweight roadmap |
 | `brainstorm-driven` | brainstorm→init→roadmap→... | Start from brainstorming |
-| `ui-craft-build` | ui-craft --chain build→plan→execute→verify | UI design driven |
+| `ui-craft-build` | impeccable --chain build→plan→execute→verify | UI design driven |
 | `analyze-plan-execute` | analyze→plan→execute | Quick analyze-plan-execute |
 | `execute-verify` | execute→verify | Plan already exists, execute directly |
 | `quality-loop` | review→test→debug | Quality pipeline |

@@ -114,7 +114,7 @@
       "name_zh": "UI 生产管线",
       "description": "Chain maestro-impeccable commands with intelligent routing and quality gate loops for automated UI production",
       "description_zh": "通过 critique/audit 评分驱动循环，将 impeccable skill 的命令编排为自动化质量门控管线，涵盖设计原型生成到生产加固",
-      "workflow": "init/roadmap → **ui-craft --chain build** → plan → execute",
+      "workflow": "init/roadmap → **maestro-impeccable --chain build** → plan → execute",
       "workflow_zh": "可在规划前插入 UI 设计阶段（--chain build），为后续实现提供视觉参考",
       "prev_commands": ["maestro-init", "maestro-roadmap"],
       "next_commands": ["maestro-plan"],

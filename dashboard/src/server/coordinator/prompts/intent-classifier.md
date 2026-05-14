@@ -41,7 +41,7 @@ Given a user intent string and the current workflow state snapshot, classify the
 |-----------|-------|-------------|
 | spec-driven | init → roadmap --mode full → plan → execute → verify | New project from specifications |
 | brainstorm-driven | brainstorm → plan → execute → verify | Start from brainstorming |
-| ui-craft-build | ui-craft --chain build → plan → execute → verify | Start from UI design |
+| ui-craft-build | maestro-impeccable --chain build → plan → execute → verify | Start from UI design |
 | full-lifecycle | plan → execute → verify → review → test → phase-transition | Complete phase lifecycle |
 | execute-verify | execute → verify | Quick execute then verify |
 | quality-loop | verify → review → test → debug → plan-gaps → execute | Full quality cycle |
