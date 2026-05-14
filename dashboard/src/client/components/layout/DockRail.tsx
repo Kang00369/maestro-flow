@@ -295,13 +295,13 @@ export function DockRail({ isPinned, onTogglePin }: DockRailProps) {
               </span>
               <span className="flex items-center gap-2 text-[10px]">
                 {issueCounts.open > 0 && (
-                  <span style={{ color: '#5B8DB8' }}>{issueCounts.open} open</span>
+                  <span style={{ color: 'var(--color-accent-blue)' }}>{issueCounts.open} open</span>
                 )}
                 {issueCounts.in_progress > 0 && (
-                  <span style={{ color: '#B89540' }}>{issueCounts.in_progress} active</span>
+                  <span style={{ color: 'var(--color-accent-yellow)' }}>{issueCounts.in_progress} active</span>
                 )}
                 {issueCounts.resolved > 0 && (
-                  <span style={{ color: '#5A9E78' }}>{issueCounts.resolved} done</span>
+                  <span style={{ color: 'var(--color-accent-green)' }}>{issueCounts.resolved} done</span>
                 )}
               </span>
             </button>
@@ -359,7 +359,7 @@ function RailButton({
       aria-label={t(item.tooltipKey)}
       aria-current={isActive ? 'page' : undefined}
       className={[
-        'group relative flex items-center justify-center w-9 h-9 rounded-[8px]',
+        'relative flex items-center justify-center w-9 h-9 rounded-[8px]',
         'transition-colors duration-150',
         'focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus-ring)]',
         isActive
@@ -368,10 +368,6 @@ function RailButton({
       ].join(' ')}
     >
       <NavIcon icon={item.icon} />
-      {/* Tooltip */}
-      <span className="absolute left-[calc(100%+8px)] top-1/2 -translate-y-1/2 bg-text-primary text-[11px] font-medium text-white px-2 py-0.5 rounded-[6px] whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-[200]">
-        {t(item.tooltipKey)}
-      </span>
     </button>
   );
 }

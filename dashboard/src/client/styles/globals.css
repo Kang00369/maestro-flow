@@ -65,6 +65,7 @@
 
   /* Status */
   --color-status-not-started: #A09D97;
+  --color-status-pending: #A09D97;
   --color-status-planning: #9178B5;
   --color-status-executing: #B89540;
   --color-status-verifying: #C8863A;
@@ -73,6 +74,7 @@
   --color-status-blocked: #C46555;
 
   /* Status Backgrounds */
+  --color-status-bg-not-started: rgba(160, 157, 151, 0.12);
   --color-status-bg-pending: rgba(160, 157, 151, 0.12);
   --color-status-bg-exploring: rgba(91, 141, 184, 0.12);
   --color-status-bg-planning: rgba(145, 120, 181, 0.12);
@@ -125,6 +127,22 @@
     --color-bg-active: rgba(255, 255, 255, 0.08);
     --color-bg-tertiary: #2A2A2A;
 
+    /* Status tint backgrounds (dark palette) */
+    --color-tint-completed: rgba(58, 134, 96, 0.12);
+    --color-tint-executing: rgba(196, 150, 58, 0.12);
+    --color-tint-verifying: rgba(196, 117, 57, 0.12);
+    --color-tint-planning: rgba(142, 111, 191, 0.12);
+    --color-tint-pending: rgba(120, 119, 116, 0.12);
+    --color-tint-blocked: rgba(196, 85, 77, 0.12);
+    --color-tint-reviewing: rgba(82, 156, 202, 0.12);
+
+    /* Code block colors */
+    --code-bg: #1E1E1E;
+    --code-bg2: #252525;
+    --code-border: #333333;
+    --code-t1: #D4D4D4;
+    --code-t2: #6A6A6A;
+
     --color-text-primary: rgba(255, 255, 255, 0.9);
     --color-text-secondary: rgba(255, 255, 255, 0.6);
     --color-text-tertiary: rgba(255, 255, 255, 0.4);
@@ -146,6 +164,7 @@
     --color-accent-gray: #787774;
 
     --color-status-not-started: #787774;
+    --color-status-pending: #787774;
     --color-status-planning: #8E6FBF;
     --color-status-executing: #C4963A;
     --color-status-verifying: #C47539;
@@ -153,6 +172,7 @@
     --color-status-completed: #3A8660;
     --color-status-blocked: #C4554D;
 
+    --color-status-bg-not-started: rgba(120, 119, 116, 0.15);
     --color-status-bg-pending: rgba(120, 119, 116, 0.15);
     --color-status-bg-exploring: rgba(35, 131, 226, 0.15);
     --color-status-bg-planning: rgba(142, 111, 191, 0.15);
@@ -201,6 +221,22 @@
   --color-bg-active: rgba(255, 255, 255, 0.08);
   --color-bg-tertiary: #2A2A2A;
 
+  /* Status tint backgrounds (dark palette) */
+  --color-tint-completed: rgba(58, 134, 96, 0.12);
+  --color-tint-executing: rgba(196, 150, 58, 0.12);
+  --color-tint-verifying: rgba(196, 117, 57, 0.12);
+  --color-tint-planning: rgba(142, 111, 191, 0.12);
+  --color-tint-pending: rgba(120, 119, 116, 0.12);
+  --color-tint-blocked: rgba(196, 85, 77, 0.12);
+  --color-tint-reviewing: rgba(82, 156, 202, 0.12);
+
+  /* Code block colors */
+  --code-bg: #1E1E1E;
+  --code-bg2: #252525;
+  --code-border: #333333;
+  --code-t1: #D4D4D4;
+  --code-t2: #6A6A6A;
+
   --color-text-primary: rgba(255, 255, 255, 0.9);
   --color-text-secondary: rgba(255, 255, 255, 0.6);
   --color-text-tertiary: rgba(255, 255, 255, 0.4);
@@ -222,6 +258,7 @@
   --color-accent-gray: #787774;
 
   --color-status-not-started: #787774;
+  --color-status-pending: #787774;
   --color-status-planning: #8E6FBF;
   --color-status-executing: #C4963A;
   --color-status-verifying: #C47539;
@@ -230,10 +267,13 @@
   --color-status-blocked: #C4554D;
 
   --color-status-bg-not-started: rgba(120, 119, 116, 0.15);
+  --color-status-bg-pending: rgba(120, 119, 116, 0.15);
+  --color-status-bg-exploring: rgba(35, 131, 226, 0.15);
   --color-status-bg-planning: rgba(142, 111, 191, 0.15);
   --color-status-bg-executing: rgba(196, 150, 58, 0.15);
   --color-status-bg-verifying: rgba(196, 117, 57, 0.15);
   --color-status-bg-reviewing: rgba(82, 156, 202, 0.15);
+  --color-status-bg-testing: rgba(82, 156, 202, 0.15);
   --color-status-bg-completed: rgba(58, 134, 96, 0.15);
   --color-status-bg-blocked: rgba(196, 85, 77, 0.15);
 
@@ -389,6 +429,7 @@
 
   /* Colors — workflow status */
   --color-status-not-started: var(--color-status-not-started);
+  --color-status-pending: var(--color-status-pending);
   --color-status-planning: var(--color-status-planning);
   --color-status-executing: var(--color-status-executing);
   --color-status-verifying: var(--color-status-verifying);
@@ -398,10 +439,13 @@
 
   /* Colors — status badge backgrounds */
   --color-status-bg-not-started: var(--color-status-bg-not-started);
+  --color-status-bg-pending: var(--color-status-bg-pending);
+  --color-status-bg-exploring: var(--color-status-bg-exploring);
   --color-status-bg-planning: var(--color-status-bg-planning);
   --color-status-bg-executing: var(--color-status-bg-executing);
   --color-status-bg-verifying: var(--color-status-bg-verifying);
   --color-status-bg-reviewing: var(--color-status-bg-reviewing);
+  --color-status-bg-testing: var(--color-status-bg-testing);
   --color-status-bg-completed: var(--color-status-bg-completed);
   --color-status-bg-blocked: var(--color-status-bg-blocked);
 

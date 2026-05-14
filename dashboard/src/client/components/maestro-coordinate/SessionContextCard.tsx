@@ -36,7 +36,7 @@ function RalphContextCard({ data }: { data: RalphStatusJson }) {
               <span
                 key={idx}
                 className="text-[9px] font-semibold px-2 py-0.5 rounded-full"
-                style={{ background: 'rgba(90,158,120,0.12)', color: '#5A9E78' }}
+                style={{ background: 'var(--color-status-bg-completed)', color: 'var(--color-status-completed)' }}
               >
                 {gate}
               </span>
