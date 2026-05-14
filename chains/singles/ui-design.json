@@ -2,7 +2,7 @@
   "$schema": "../chain-graph.schema.json",
   "id": "singles/ui-design",
   "name": "UI Design",
-  "description": "UI design-driven production via maestro-ui-craft build chain",
+  "description": "UI design-driven production via maestro-impeccable build chain",
   "version": "1.0.0",
   "tags": [
     "maestro",
@@ -18,11 +18,11 @@
   "nodes": {
     "ui_design": {
       "type": "command",
-      "cmd": "maestro-ui-craft",
+      "cmd": "maestro-impeccable",
       "next": "done",
       "analyze": false,
       "args": "\"{phase}\" --chain build",
-      "description": "UI design-driven production via maestro-ui-craft build chain"
+      "description": "UI design-driven production via maestro-impeccable build chain"
     },
     "done": {
       "type": "terminal",

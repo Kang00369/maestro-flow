@@ -146,10 +146,10 @@ Route priority:
   2. object == 'team' → route by action: review→team_review, test→team_test, debug/analyze→team_qa, refactor→team_tech_debt, execute→team_lifecycle; default→team_coordinate
   3. action × object matrix lookup (fallback per action via '_default', global fallback 'quick'):
 
-  fix:        bug/code/performance/security/test→debug, issue→issue, ui→ui_craft_improve; default→debug
-  create:     feature→quick, issue→issue, test→test_gen, spec→spec_generate, ui→ui_craft_build, config→init; default→quick
+  fix:        bug/code/performance/security/test→debug, issue→issue, ui→impeccable_improve; default→debug
+  create:     feature→quick, issue→issue, test→test_gen, spec→spec_generate, ui→impeccable_build, config→init; default→quick
   analyze:    bug/code/performance/security/feature→analyze, issue→issue_analyze, codebase→spec_map; default→analyze
-  explore:    issue→issue_discover, feature→brainstorm, ui→ui_craft; default→brainstorm
+  explore:    issue→issue_discover, feature→brainstorm, ui→impeccable_chain; default→brainstorm
   plan:       issue→issue_plan, spec→spec_generate, phase/milestone→plan; default→plan
   execute:    issue→issue_execute; default→execute
   verify:     default→verify
@@ -233,7 +233,7 @@ Step type is selected **per step**, not per chain. Pre-compute and write to each
 ```
 If execMode is 'cli' or 'internal' → force that type for all steps ("cli" or "skill").
 In 'auto' mode, select per step:
-  CLI steps (heavy, context-isolated): maestro-plan, maestro-execute, maestro-analyze, maestro-brainstorm, maestro-roadmap, maestro-ui-craft, quality-refactor → type: "cli"
+  CLI steps (heavy, context-isolated): maestro-plan, maestro-execute, maestro-analyze, maestro-brainstorm, maestro-roadmap, maestro-impeccable, quality-refactor → type: "cli"
   Skill steps (everything else): current-session Skill() call — verify, review, test, debug, milestone-*, manage-*, spec-*, quick, etc. → type: "skill"
 ```
 
@@ -318,10 +318,10 @@ const chainMap = {
   'init':               [{ cmd: 'maestro-init' }],
   'analyze':            [{ cmd: 'maestro-analyze', args: '{phase}' }],
   'analyze-quick':      [{ cmd: 'maestro-analyze', args: '{phase} -q' }],
-  'ui_design':          [{ cmd: 'maestro-ui-craft', args: '"{description}" --chain build' }],
-  'ui_craft':           [{ cmd: 'maestro-ui-craft', args: '"{description}"' }],
-  'ui_craft_build':     [{ cmd: 'maestro-ui-craft', args: '"{description}" --chain build' }],
-  'ui_craft_improve':   [{ cmd: 'maestro-ui-craft', args: '"{description}" --chain improve' }],
+  'ui_design':          [{ cmd: 'maestro-impeccable', args: '"{description}" --chain build' }],
+  'impeccable_chain':           [{ cmd: 'maestro-impeccable', args: '"{description}"' }],
+  'impeccable_build':     [{ cmd: 'maestro-impeccable', args: '"{description}" --chain build' }],
+  'impeccable_improve':   [{ cmd: 'maestro-impeccable', args: '"{description}" --chain improve' }],
   'plan':               [{ cmd: 'maestro-plan', args: '{phase}' }],
   'execute':            [{ cmd: 'maestro-execute', args: '{phase}' }],
   'verify':             [{ cmd: 'maestro-verify', args: '{phase}' }],
@@ -370,8 +370,8 @@ const chainMap = {
   'spec-driven':          [{ cmd: 'maestro-init' }, { cmd: 'maestro-roadmap', args: '--mode full "{description}"' }, { cmd: 'maestro-plan', args: '{phase}' }, { cmd: 'maestro-execute', args: '{phase}' }, { cmd: 'maestro-verify', args: '{phase}' }],
   'roadmap-driven':       [{ cmd: 'maestro-init' }, { cmd: 'maestro-roadmap', args: '"{description}"' }, { cmd: 'maestro-plan', args: '{phase}' }, { cmd: 'maestro-execute', args: '{phase}' }, { cmd: 'maestro-verify', args: '{phase}' }],
   'brainstorm-driven':    [{ cmd: 'maestro-brainstorm', args: '"{description}"' }, { cmd: 'maestro-plan', args: '{phase}' }, { cmd: 'maestro-execute', args: '{phase}' }, { cmd: 'maestro-verify', args: '{phase}' }],
-  'ui-craft-build':       [{ cmd: 'maestro-ui-craft', args: '"{description}" --chain build' }, { cmd: 'maestro-plan', args: '{phase}' }, { cmd: 'maestro-execute', args: '{phase}' }, { cmd: 'maestro-verify', args: '{phase}' }],
-  'ui-craft-driven':      [{ cmd: 'maestro-ui-craft', args: '"{description}" --chain build' }, { cmd: 'maestro-verify', args: '{phase}' }],
+  'impeccable-build':       [{ cmd: 'maestro-impeccable', args: '"{description}" --chain build' }, { cmd: 'maestro-plan', args: '{phase}' }, { cmd: 'maestro-execute', args: '{phase}' }, { cmd: 'maestro-verify', args: '{phase}' }],
+  'impeccable-driven':      [{ cmd: 'maestro-impeccable', args: '"{description}" --chain build' }, { cmd: 'maestro-verify', args: '{phase}' }],
   'analyze-plan-execute': [{ cmd: 'maestro-analyze', args: '"{description}" -q' }, { cmd: 'maestro-plan', args: '--dir {scratch_dir}' }, { cmd: 'maestro-execute', args: '--dir {scratch_dir}' }],
   'execute-verify':       [{ cmd: 'maestro-execute', args: '{phase}' }, { cmd: 'maestro-verify', args: '{phase}' }],
   'quality-loop':         [{ cmd: 'maestro-verify', args: '{phase}' }, { cmd: 'quality-review', args: '{phase}' }, { cmd: 'quality-auto-test', args: '{phase}' }, { cmd: 'quality-test', args: '{phase}' }, { cmd: 'quality-debug', args: '--from-uat {phase}' }, { cmd: 'maestro-plan', args: '{phase} --gaps' }, { cmd: 'maestro-execute', args: '{phase}' }],
@@ -440,7 +440,7 @@ detectNextAction(state):
 | `spec-driven` | init → spec-generate → plan → execute → verify | From idea/requirements (heavy) |
 | `roadmap-driven` | init → roadmap → plan → execute → verify | From requirements (light) |
 | `brainstorm-driven` | brainstorm → plan → execute → verify | From exploration |
-| `ui-craft-build` | ui-craft --chain build → plan → execute → verify | From design system generation |
+| `impeccable-build` | impeccable --chain build → plan → execute → verify | From design system generation |
 | `analyze-plan-execute` | analyze -q → plan --dir → execute --dir | Fast track (scratch mode) |
 | `execute-verify` | execute → verify | Resume after planning |
 | `review-fix` | plan --gaps → execute → review | Fix review-blocked issues |
@@ -470,7 +470,7 @@ detectNextAction(state):
 | `"discover issues"` | `{explore, issue}` | issue_discover | manage-issue-discover |
 | `"brainstorm notifications"` | `{explore, feature}` | brainstorm | brainstorm-driven |
 | `"spec generate auth"` | `{create, spec}` | spec_generate | spec-driven |
-| `"ui design landing"` | `{create, ui}` | ui_design | ui-craft-build |
+| `"ui design landing"` | `{create, ui}` | ui_design | impeccable-build |
 | `"refactor auth module"` | `{refactor, code}` | refactor | quality-refactor |
 | `"复盘 phase 2"` | `{retrospect, phase}` | retrospective | quality-retrospective |
 | `"team review code"` | `{review, team}` | team_review | team-review |

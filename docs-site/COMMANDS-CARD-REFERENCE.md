@@ -107,9 +107,9 @@
 
 ---
 
-### `maestro-ui-craft` — UI 生产管线
+### `maestro-impeccable` — UI 生产管线
 
-**Usage:** `/maestro-ui-craft <intent|target> [--chain build|improve|enhance|harden|live] [--enhance <cmd>] [--threshold <score>] [--max-loops <n>] [-y]`
+**Usage:** `/maestro-impeccable <intent|target> [--chain build|improve|enhance|harden|live] [--enhance <cmd>] [--threshold <score>] [--max-loops <n>] [-y]`
 
 通过 ui-ux-pro-max 生成多种风格的 UI 设计原型，用户选择最佳方案，固化为代码参考文档
 

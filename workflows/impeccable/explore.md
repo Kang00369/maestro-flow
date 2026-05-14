@@ -4,7 +4,7 @@ Generate multiple design system variants, render HTML prototypes for visual comp
 
 **Output**: `.workflow/impeccable/design-system/{project}/MASTER.md` (selected variant) + `.workflow/impeccable/DESIGN.md` (bridged, if bridge succeeds)
 
-**Position in pipeline**: After `teach` (PRODUCT.md exists), before `shape` (visual direction locked). Can be called standalone or as part of `ui-craft` build chain.
+**Position in pipeline**: After `teach` (PRODUCT.md exists), before `shape` (visual direction locked). Can be called standalone or as part of `impeccable` build chain.
 
 ## Prerequisites
 

@@ -14,7 +14,7 @@ Given a user intent string and the current workflow state snapshot, classify the
 | status | manage-status | Check project dashboard |
 | init | maestro-init | Initialize new project |
 | analyze | maestro-analyze {phase} | Analyze/evaluate/discuss |
-| ui_design | maestro-ui-craft "{phase}" --chain build | UI design prototyping |
+| ui_design | maestro-impeccable "{phase}" --chain build | UI design prototyping |
 | plan | maestro-plan {phase} | Plan phase execution |
 | execute | maestro-execute {phase} | Implement/build/develop |
 | verify | maestro-verify {phase} | Verify phase results |

@@ -1,29 +1,29 @@
 ---
 name: maestro-impeccable
-description: Production-grade UI design with knowhow accumulation -- 24 commands for build, evaluate, refine, enhance, fix
-argument-hint: "[craft|shape|explore · audit|critique · animate|bolder|colorize|delight|layout|overdrive|quieter|typeset · adapt|clarify|distill · harden|onboard|optimize|polish · teach|document|extract|live] [target] [--skip-harvest] [-y] [--styles N]"
+description: Production-grade UI design with knowhow accumulation -- 24 commands + chain orchestration with quality gates + integrated design search
+argument-hint: "<command|intent> [target] [--chain build|improve|enhance|harden|live] [--enhance <cmd>] [--threshold <score>] [--max-loops <n>] [--skip-harvest] [--skip-design-explore] [--styles <N>] [--stack <stack>] [-y] [-c]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 <purpose>
-Designs and iterates production-grade frontend interfaces. Real working code, committed design choices, exceptional craft.
-After each command, automatically harvests design knowledge to `.workflow/knowhow/` (category: ui) for cross-session accumulation.
+Production-grade UI design system with two execution modes:
 
-Replaces the standalone impeccable skill. 24 commands covering the full design lifecycle.
+**Direct Mode** — Execute any of 24 sub-commands for the full design lifecycle.
+**Chain Mode** — Orchestrate sub-commands via intelligent intent routing + quality gate auto-iteration.
+5 chains: build, improve, enhance, harden, live. Critique/audit scores drive automatic command selection and iteration loops.
+
+After each command, automatically harvests design knowledge to `.workflow/knowhow/` (category: ui) for cross-session accumulation.
 
 Includes integrated `search` subcommand for querying UI/UX design knowledge base (BM25 + CSV):
 ```bash
 maestro impeccable search "<query>" -d <domain>          # domain search
 maestro impeccable search "<query>" --design-system      # generate design system
-maestro impeccable search "<query>" --design-system --persist -p "Project"  # save MASTER.md
 ```
 Domains: style, color, chart, landing, product, ux, typography, icons, react, web, google-fonts.
 Stacks: react, nextjs, vue, svelte, astro, swiftui, react-native, flutter, html-tailwind, shadcn.
 </purpose>
 
-<context>
-$ARGUMENTS -- sub-command + target + optional flags.
-
-**Sub-commands** (24):
+<sub_commands>
+All sub-command workflows: `~/.maestro/workflows/impeccable/{command}.md`
 
 | Category | Commands |
 |----------|----------|
@@ -34,9 +34,29 @@ $ARGUMENTS -- sub-command + target + optional flags.
 | Fix | clarify, adapt, optimize |
 | Iterate | live |
 
-**Flags:**
+Reference workflows: brand.md, product.md, design.md, codex.md, heuristics-scoring.md, cognitive-load.md,
+color-and-contrast.md, interaction-design.md, motion-design.md, personas.md, responsive-design.md,
+spatial-design.md, typography.md, ux-writing.md
+
+Search engine: `workflows/impeccable/ui-search/`
+</sub_commands>
+
+<context>
+$ARGUMENTS -- sub-command, intent text, or special keywords, with optional flags.
+
+**Flags (direct mode):**
 - `--skip-harvest` -- Execute command without knowhow capture
 - `-y` -- Auto-confirm where the skill allows
+
+**Flags (chain mode):**
+- `--chain <type>` -- Force chain type: build, improve, enhance, harden, live
+- `--enhance <cmd>` -- Specific enhance command
+- `--threshold <score>` -- Critique pass threshold (default: 26/40)
+- `--max-loops <n>` -- Maximum quality gate iterations (default: 3)
+- `-c` / `--continue` -- Resume previous chain session
+- `--skip-design-explore` / `--skip-design` -- Skip design-explore
+- `--styles <N>` -- Number of design system variants (2-5, default 3)
+- `--stack <stack>` -- Tech stack for supplementary guidelines (default: html-tailwind)
 
 </context>
 

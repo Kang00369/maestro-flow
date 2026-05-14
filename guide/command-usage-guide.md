@@ -28,7 +28,7 @@ graph TB
         INIT["/maestro-init"]
         RM["/maestro-roadmap"]
         SG["/maestro-spec-generate"]
-        UID["/maestro-ui-craft"]
+        UID["/maestro-impeccable"]
     end
 
     subgraph pipeline["Milestone 管线"]
@@ -266,7 +266,7 @@ stateDiagram-v2
 | 1 | `/maestro-init` | 初始化 .workflow/ 目录 | state.json, project.md, specs/ |
 | 2a | `/maestro-roadmap` | 轻量路线图（交互式） | roadmap.md (phases 为标签) |
 | 2b | `/maestro-spec-generate` | 完整规范链（7 阶段） | PRD + 架构文档 + roadmap.md |
-| (可选) | `/maestro-ui-craft --chain build` | UI 设计原型 | design-ref/ tokens |
+| (可选) | `/maestro-impeccable --chain build` | UI 设计原型 | design-ref/ tokens |
 
 **选择 2a 还是 2b**：小型项目或需求明确时用 roadmap；大型项目或需要完整规范文档时用 spec-generate。
 

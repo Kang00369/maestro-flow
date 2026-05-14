@@ -9,7 +9,7 @@ The Maestro UI production pipeline covers the full lifecycle from design prototy
 ### Pipeline Architecture
 
 ```
-maestro-ui-craft --chain build   maestro-ui-craft         maestro-ui-codify
+maestro-impeccable --chain build   maestro-impeccable         maestro-ui-codify
   Design prototype gen            Automated production      Design system codification
        |                               |                        |
        v                               v                        v
@@ -32,24 +32,24 @@ analyze -> ui-design -> plan -> execute -> verify
                   Design precedes planning
 ```
 
-The `design-ref/` directory produced by `maestro-ui-craft --chain build` is automatically detected by `maestro-plan`, which injects design tokens and specifications into the execution tasks' `read_first[]` list, ensuring implementations strictly follow design intent.
+The `design-ref/` directory produced by `maestro-impeccable --chain build` is automatically detected by `maestro-plan`, which injects design tokens and specifications into the execution tasks' `read_first[]` list, ensuring implementations strictly follow design intent.
 
 ### Integration with impeccable skill
 
-`maestro-ui-craft` is an orchestration layer for the impeccable skill. Impeccable provides 23 commands across 6 categories (build, evaluate, enhance, harden, live, setup). `maestro-ui-craft` chains these commands together, driving an automated iteration loop through critique/audit scoring.
+`maestro-impeccable` is an orchestration layer for the impeccable skill. Impeccable provides 23 commands across 6 categories (build, evaluate, enhance, harden, live, setup). `maestro-impeccable` chains these commands together, driving an automated iteration loop through critique/audit scoring.
 
 ---
 
 ## 2. Command Reference
 
-### 2.1 maestro-ui-craft --chain build — UI Design Prototypes
+### 2.1 maestro-impeccable --chain build — UI Design Prototypes
 
-**Purpose**: Generate design prototypes with multiple style variants. After user selection, codify them into a consumable design system. (Formerly `maestro-ui-design`, now part of `maestro-ui-craft`.)
+**Purpose**: Generate design prototypes with multiple style variants. After user selection, codify them into a consumable design system. (Formerly `maestro-ui-design`, now part of `maestro-impeccable`.)
 
 **Command Syntax**:
 
 ```
-/maestro-ui-craft "<phase|topic>" --chain build [--styles N] [--stack <stack>] [--targets <pages>] [--layouts N] [--refine] [--persist] [--full] [-y]
+/maestro-impeccable "<phase|topic>" --chain build [--styles N] [--stack <stack>] [--targets <pages>] [--layouts N] [--refine] [--persist] [--full] [-y]
 ```
 
 **Parameter Reference**:
@@ -110,19 +110,19 @@ design-ref/
 | Next Step | Command |
 |-----------|---------|
 | Plan based on design | `/maestro-plan {phase}` |
-| Refine selected design | `/maestro-ui-craft "{phase}" --chain improve` |
+| Refine selected design | `/maestro-impeccable "{phase}" --chain improve` |
 | Analyze before planning | `/maestro-analyze {phase}` |
 
 ---
 
-### 2.2 maestro-ui-craft — UI Automated Production Pipeline
+### 2.2 maestro-impeccable — UI Automated Production Pipeline
 
 **Purpose**: Orchestrate the impeccable skill's 23 commands into an automated quality-gated pipeline, driven by critique/audit scoring loops.
 
 **Command Syntax**:
 
 ```
-/maestro-ui-craft <intent|target> [--chain build|improve|enhance|harden|live] [--enhance <cmd>] [--threshold <score>] [--max-loops <n>] [-y]
+/maestro-impeccable <intent|target> [--chain build|improve|enhance|harden|live] [--enhance <cmd>] [--threshold <score>] [--max-loops <n>] [-y]
 ```
 
 **Parameter Reference**:
@@ -315,10 +315,10 @@ This is the standard UI production pipeline, with three commands executed in seq
 
 ```bash
 # Step 1: Design prototypes
-/maestro-ui-craft "1" --chain build --styles 3 --targets home,dashboard,settings
+/maestro-impeccable "1" --chain build --styles 3 --targets home,dashboard,settings
 
 # Step 2: Automated production based on design-ref (build chain)
-/maestro-ui-craft "新建 landing page" --chain build --threshold 28
+/maestro-impeccable "新建 landing page" --chain build --threshold 28
 
 # Step 3: Extract design system from implementation code as reference
 /maestro-ui-codify src/components --package-name my-design-system
@@ -341,7 +341,7 @@ Corresponding command sequence:
 
 ```bash
 # Design-driven full Phase pipeline
-/maestro-ui-craft "1" --chain build  # Design first
+/maestro-impeccable "1" --chain build  # Design first
 /maestro-plan 1                # Plan based on design
 /maestro-execute 1             # Execute implementation
 /maestro-verify 1              # Verify goal completion
@@ -355,13 +355,13 @@ If the design is already ready or the design phase is not needed:
 
 ```bash
 # Improve existing UI
-/maestro-ui-craft "优化首页布局和色彩" --chain improve
+/maestro-impeccable "优化首页布局和色彩" --chain improve
 
 # Enhance motion
-/maestro-ui-craft "添加交互动画" --chain enhance --enhance animate
+/maestro-impeccable "添加交互动画" --chain enhance --enhance animate
 
 # Production hardening
-/maestro-ui-craft "准备上线" --chain harden --threshold 30
+/maestro-impeccable "准备上线" --chain harden --threshold 30
 ```
 
 ### Codify-Only Mode (Reverse Engineering)
@@ -384,11 +384,11 @@ Extract a design system from an existing codebase:
 
 | Scenario | Command | Description |
 |----------|---------|-------------|
-| New project needs UI design from scratch | `maestro-ui-craft --chain build` | Generate multiple style proposals, codify after selection |
-| Have design, need high-quality implementation | `maestro-ui-craft --chain build` | Fully automated from teach to polish |
-| Existing page needs optimization | `maestro-ui-craft --chain improve` | Critique-driven iterative improvement |
-| Need to enhance motion/typography/color | `maestro-ui-craft --chain enhance` | Single-dimension enhancement + critique validation |
-| Pre-launch hardening | `maestro-ui-craft --chain harden` | Audit-driven edge case handling |
+| New project needs UI design from scratch | `maestro-impeccable --chain build` | Generate multiple style proposals, codify after selection |
+| Have design, need high-quality implementation | `maestro-impeccable --chain build` | Fully automated from teach to polish |
+| Existing page needs optimization | `maestro-impeccable --chain improve` | Critique-driven iterative improvement |
+| Need to enhance motion/typography/color | `maestro-impeccable --chain enhance` | Single-dimension enhancement + critique validation |
+| Pre-launch hardening | `maestro-impeccable --chain harden` | Audit-driven edge case handling |
 | Existing code needs design spec extraction | `maestro-ui-codify` | Reverse-engineer and persist as knowledge assets |
 | Need cross-project design system reuse | `maestro-ui-codify` + knowhow | Extract and share via knowledge system |
 
@@ -408,17 +408,17 @@ Extract a design system from an existing codebase:
 
 ```bash
 # Quick prototype validation (shortest path)
-/maestro-ui-craft "Landing Page" --chain build -y --styles 2
+/maestro-impeccable "Landing Page" --chain build -y --styles 2
 
 # Complete new page production
-/maestro-ui-craft "2" --chain build --targets home,profile,settings
-/maestro-ui-craft "新建用户中心" --chain build -y
+/maestro-impeccable "2" --chain build --targets home,profile,settings
+/maestro-impeccable "新建用户中心" --chain build -y
 
 # Iterative optimization of existing page
-/maestro-ui-craft "优化 dashboard 布局" --chain improve --threshold 30 --max-loops 5
+/maestro-impeccable "优化 dashboard 布局" --chain improve --threshold 30 --max-loops 5
 
 # Motion enhancement
-/maestro-ui-craft "丰富交互体验" --chain enhance --enhance animate
+/maestro-impeccable "丰富交互体验" --chain enhance --enhance animate
 
 # Design knowledge consolidation
 /maestro-ui-codify src --package-name project-design-v1

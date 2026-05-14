@@ -13,8 +13,8 @@
   "nodes": {
     "ui_design": {
       "type": "command",
-      "cmd": "maestro-ui-craft",
-      "description": "UI design-driven production via maestro-ui-craft build chain",
+      "cmd": "maestro-impeccable",
+      "description": "UI design-driven production via maestro-impeccable build chain",
       "args": "\"{phase}\" --chain build",
       "auto_flag": "-y",
       "next": "plan"

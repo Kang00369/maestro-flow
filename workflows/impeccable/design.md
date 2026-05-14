@@ -1,6 +1,6 @@
 # Design Stage + Bridge
 
-Design system generation via ui-search (BM25 search engine + CSV knowledge base), **visual prototype comparison**, and bridge conversion to Google Stitch DESIGN.md format. Loaded as deferred reading by maestro-ui-craft when build chain enters S_DESIGN_EXPLORE or S_BRIDGE states.
+Design system generation via ui-search (BM25 search engine + CSV knowledge base), **visual prototype comparison**, and bridge conversion to Google Stitch DESIGN.md format. Loaded as deferred reading by maestro-impeccable when build chain enters S_DESIGN_EXPLORE or S_BRIDGE states.
 
 ## Architecture
 

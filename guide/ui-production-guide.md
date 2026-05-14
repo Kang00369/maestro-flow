@@ -9,7 +9,7 @@ Maestro UI 生产管线覆盖从设计原型到代码实现的全生命周期，
 ### 管线架构
 
 ```
-maestro-ui-craft --chain build   maestro-ui-craft         maestro-ui-codify
+maestro-impeccable --chain build   maestro-impeccable         maestro-ui-codify
   设计原型生成                    自动化生产管线              设计系统代码化
        │                        │                        │
        ▼                        ▼                        ▼
@@ -32,24 +32,24 @@ analyze -> ui-design -> plan -> execute -> verify
                     设计先于规划
 ```
 
-`maestro-ui-craft --chain build` 产出的 `design-ref/` 目录会被 `maestro-plan` 自动检测，将设计 token 和规范注入执行任务的 `read_first[]` 列表，确保实现严格遵循设计意图。
+`maestro-impeccable --chain build` 产出的 `design-ref/` 目录会被 `maestro-plan` 自动检测，将设计 token 和规范注入执行任务的 `read_first[]` 列表，确保实现严格遵循设计意图。
 
 ### 与 impeccable skill 的集成
 
-`maestro-ui-craft` 是 impeccable skill 的编排层。Impeccable 提供 23 个命令横跨 6 个分类（build、evaluate、enhance、harden、live、setup），`maestro-ui-craft` 将这些命令链式串联，通过 critique/audit 评分驱动自动迭代循环。
+`maestro-impeccable` 是 impeccable skill 的编排层。Impeccable 提供 23 个命令横跨 6 个分类（build、evaluate、enhance、harden、live、setup），`maestro-impeccable` 将这些命令链式串联，通过 critique/audit 评分驱动自动迭代循环。
 
 ---
 
 ## 二、命令详解
 
-### 2.1 maestro-ui-craft --chain build — UI 设计原型
+### 2.1 maestro-impeccable --chain build — UI 设计原型
 
-**定位**：生成多个风格变体的设计原型，用户选择后固化为可消费的设计系统。（原 `maestro-ui-design`，现已合并入 `maestro-ui-craft`。）
+**定位**：生成多个风格变体的设计原型，用户选择后固化为可消费的设计系统。（原 `maestro-ui-design`，现已合并入 `maestro-impeccable`。）
 
 **命令语法**：
 
 ```
-/maestro-ui-craft "<phase|topic>" --chain build [--styles N] [--stack <stack>] [--targets <pages>] [--layouts N] [--refine] [--persist] [--full] [-y]
+/maestro-impeccable "<phase|topic>" --chain build [--styles N] [--stack <stack>] [--targets <pages>] [--layouts N] [--refine] [--persist] [--full] [-y]
 ```
 
 **参数说明**：
@@ -110,19 +110,19 @@ design-ref/
 | 下一步 | 命令 |
 |--------|------|
 | 基于设计规划 | `/maestro-plan {phase}` |
-| 精调已选设计 | `/maestro-ui-craft "{phase}" --chain improve` |
+| 精调已选设计 | `/maestro-impeccable "{phase}" --chain improve` |
 | 先分析再规划 | `/maestro-analyze {phase}` |
 
 ---
 
-### 2.2 maestro-ui-craft — UI 自动化生产管线
+### 2.2 maestro-impeccable — UI 自动化生产管线
 
 **定位**：通过 critique/audit 评分驱动循环，将 impeccable skill 的 23 个命令编排为自动化质量门控管线。
 
 **命令语法**：
 
 ```
-/maestro-ui-craft <intent|target> [--chain build|improve|enhance|harden|live] [--enhance <cmd>] [--threshold <score>] [--max-loops <n>] [-y]
+/maestro-impeccable <intent|target> [--chain build|improve|enhance|harden|live] [--enhance <cmd>] [--threshold <score>] [--max-loops <n>] [-y]
 ```
 
 **参数说明**：
@@ -315,10 +315,10 @@ Phase 1 (inline)        Phase 2 (3 个并行 Agent)   Phase 3 (Agent)         Ph
 
 ```bash
 # Step 1: 设计原型
-/maestro-ui-craft "1" --chain build --styles 3 --targets home,dashboard,settings
+/maestro-impeccable "1" --chain build --styles 3 --targets home,dashboard,settings
 
 # Step 2: 基于 design-ref 自动生产（build chain）
-/maestro-ui-craft "新建 landing page" --chain build --threshold 28
+/maestro-impeccable "新建 landing page" --chain build --threshold 28
 
 # Step 3: 从实现代码中提取设计系统作为参考
 /maestro-ui-codify src/components --package-name my-design-system
@@ -341,7 +341,7 @@ ui-design -> plan -> execute -> verify -> check_verify
 
 ```bash
 # 设计驱动的完整 Phase 管线
-/maestro-ui-craft "1" --chain build  # 先设计
+/maestro-impeccable "1" --chain build  # 先设计
 /maestro-plan 1                # 基于设计规划
 /maestro-execute 1             # 执行实现
 /maestro-verify 1              # 验证目标达成
@@ -355,13 +355,13 @@ ui-design -> plan -> execute -> verify -> check_verify
 
 ```bash
 # 改进现有 UI
-/maestro-ui-craft "优化首页布局和色彩" --chain improve
+/maestro-impeccable "优化首页布局和色彩" --chain improve
 
 # 增强动效
-/maestro-ui-craft "添加交互动画" --chain enhance --enhance animate
+/maestro-impeccable "添加交互动画" --chain enhance --enhance animate
 
 # 生产加固
-/maestro-ui-craft "准备上线" --chain harden --threshold 30
+/maestro-impeccable "准备上线" --chain harden --threshold 30
 ```
 
 ### 仅 codify 模式（逆向工程）
@@ -384,11 +384,11 @@ ui-design -> plan -> execute -> verify -> check_verify
 
 | 场景 | 命令 | 说明 |
 |------|------|------|
-| 新项目需要从零设计 UI | `maestro-ui-craft --chain build` | 生成多个风格方案，选择后固化 |
-| 已有设计，需要高质量实现 | `maestro-ui-craft --chain build` | 从 teach 到 polish 全自动 |
-| 现有页面需要优化 | `maestro-ui-craft --chain improve` | critique 驱动迭代改进 |
-| 需要增强动效/排版/色彩 | `maestro-ui-craft --chain enhance` | 单维度增强 + critique 验证 |
-| 准备上线前的加固 | `maestro-ui-craft --chain harden` | audit 驱动边界情况处理 |
+| 新项目需要从零设计 UI | `maestro-impeccable --chain build` | 生成多个风格方案，选择后固化 |
+| 已有设计，需要高质量实现 | `maestro-impeccable --chain build` | 从 teach 到 polish 全自动 |
+| 现有页面需要优化 | `maestro-impeccable --chain improve` | critique 驱动迭代改进 |
+| 需要增强动效/排版/色彩 | `maestro-impeccable --chain enhance` | 单维度增强 + critique 验证 |
+| 准备上线前的加固 | `maestro-impeccable --chain harden` | audit 驱动边界情况处理 |
 | 已有代码需要提取设计规范 | `maestro-ui-codify` | 逆向提取并固化为知识资产 |
 | 需要跨项目复用设计系统 | `maestro-ui-codify` + knowhow | 提取后通过知识系统共享 |
 
@@ -408,17 +408,17 @@ ui-design -> plan -> execute -> verify -> check_verify
 
 ```bash
 # 快速原型验证（最短路径）
-/maestro-ui-craft "Landing Page" --chain build -y --styles 2
+/maestro-impeccable "Landing Page" --chain build -y --styles 2
 
 # 完整新页面生产
-/maestro-ui-craft "2" --chain build --targets home,profile,settings
-/maestro-ui-craft "新建用户中心" --chain build -y
+/maestro-impeccable "2" --chain build --targets home,profile,settings
+/maestro-impeccable "新建用户中心" --chain build -y
 
 # 迭代优化现有页面
-/maestro-ui-craft "优化 dashboard 布局" --chain improve --threshold 30 --max-loops 5
+/maestro-impeccable "优化 dashboard 布局" --chain improve --threshold 30 --max-loops 5
 
 # 动效增强
-/maestro-ui-craft "丰富交互体验" --chain enhance --enhance animate
+/maestro-impeccable "丰富交互体验" --chain enhance --enhance animate
 
 # 设计知识沉淀
 /maestro-ui-codify src --package-name project-design-v1

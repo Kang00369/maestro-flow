@@ -28,7 +28,7 @@ graph TB
         INIT["/maestro-init"]
         RM["/maestro-roadmap"]
         SG["/maestro-spec-generate"]
-        UID["/maestro-ui-craft"]
+        UID["/maestro-impeccable"]
     end
 
     subgraph pipeline["Milestone Pipeline"]
@@ -293,7 +293,7 @@ The main workflow progresses the project in units of **Phase**, with each Phase 
 | 1 | `/maestro-init` | Initialize .workflow/ directory | state.json, project.md, specs/ |
 | 2a | `/maestro-roadmap` | Lightweight roadmap (interactive) | roadmap.md (phases as labels) |
 | 2b | `/maestro-spec-generate` | Full specification chain (7 stages) | PRD + architecture docs + roadmap.md |
-| (optional) | `/maestro-ui-craft --chain build` | UI design prototype | design-ref/ tokens |
+| (optional) | `/maestro-impeccable --chain build` | UI design prototype | design-ref/ tokens |
 
 **Choosing 2a vs 2b**: Use roadmap for small projects or when requirements are clear; use spec-generate for large projects or when complete specification documents are needed.
 

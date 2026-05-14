@@ -62,7 +62,7 @@ const knownCommands = [
   "brainstorm", "quick", "overlay", "amend", "fork", "merge", "collab",
   "milestone-audit", "milestone-complete", "milestone-release",
   "composer", "player", "ralph", "ralph-execute", "learn",
-  "ui-craft", "ui-codify", "update",
+  "impeccable", "ui-codify", "update",
   "tools-register", "tools-execute",
   "issue", "issue-discover", "knowhow", "knowhow-capture",
   "status", "wiki", "harvest", "codebase-refresh", "codebase-rebuild",
