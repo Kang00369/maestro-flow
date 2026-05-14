@@ -86,6 +86,10 @@ maestro install mcp                       # 注册 MCP 服务器
 | `--global` | 仅安装全局资源 |
 | `--path <dir>` | 安装到指定项目目录 |
 | `--hooks <level>` | Hook 级别：none / minimal / standard / full |
+| `--codex-hooks <level>` | Codex Hook 级别：none / minimal / standard / full |
+| `--codex-mcp` | 注册 Codex MCP 服务器（maestro-tools） |
+
+> 交互式模式下，安装流程新增 **Codex Hooks** 和 **Codex MCP** 配置步骤。
 
 ---
 
@@ -359,17 +363,36 @@ maestro wiki graph                                   # 完整图谱 JSON
 
 ### maestro hooks
 
-Hook 管理与评估器运行。
+Hook 管理与评估器运行。支持 Claude Code 和 Codex 双平台。
 
 ```bash
-maestro hooks install --level full     # 安装 Hook
-maestro hooks status                   # 安装状态
-maestro hooks list                     # 列出所有 Hook
+# Claude Code
+maestro hooks install --level full                       # 安装 Hook
+maestro hooks uninstall                                  # 卸载 Hook
+
+# Codex
+maestro hooks install --target codex --level standard    # 安装到 Codex
+maestro hooks uninstall --target codex                   # 卸载 Codex Hook
+
+# 通用
+maestro hooks status                   # 安装状态（同时显示 Claude Code 和 Codex）
+maestro hooks list                     # 列出所有 Hook（含 Codex）
 maestro hooks toggle spec-injector on  # 开关 Hook
 maestro hooks run spec-injector        # 运行评估器
 ```
 
-可用 Hook: `context-monitor`, `spec-injector`, `delegate-monitor`, `team-monitor`, `telemetry`, `session-context`, `skill-context`, `coordinator-tracker`, `preflight-guard`, `spec-validator`, `keyword-spec-injector`, `workflow-guard`
+| 选项 | 说明 |
+|------|------|
+| `--target <target>` | 目标平台：`claude`（默认）或 `codex` |
+| `--level <level>` | Hook 级别：minimal / standard / full |
+| `--global` | 安装到全局设置（默认） |
+| `--project` | 安装到项目级设置 |
+
+Claude Code Hook: `spec-injector`, `delegate-monitor`, `team-monitor`, `telemetry`, `session-context`, `skill-context`, `coordinator-tracker`, `preflight-guard`, `spec-validator`, `keyword-spec-injector`, `workflow-guard`
+
+Codex Hook: `session-context`, `spec-injector`, `skill-context`, `keyword-spec-injector`, `delegate-monitor`, `coordinator-tracker`, `team-monitor`, `telemetry`, `workflow-guard`
+
+> Codex hooks 需要在 `~/.codex/config.toml` 中启用 `codex_hooks = true`。Windows 暂不支持。
 
 ---
 

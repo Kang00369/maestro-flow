@@ -1,6 +1,6 @@
 ---
 name: maestro-execute
-description: Execute plan with parallel waves and atomic commits
+description: Use when a confirmed plan is ready for implementation
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"<phase> [--auto-commit] [--method agent|cli] [--dir <path>]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
@@ -9,6 +9,15 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 Wave-based parallel task execution using `spawn_agents_on_csv`. Reads plan.json to build a CSV where waves are pre-computed from the plan. Each wave runs tasks in parallel, with cross-wave context propagation via `prev_context`. This is the core execution engine of the maestro pipeline.
 
 **Core workflow**: Load Plan -> Build CSV from Tasks -> Wave-by-Wave Parallel Execution -> Aggregate Results
+
+## Iron Law
+
+**VERIFY EACH TASK OUTPUT BEFORE MARKING COMPLETE.** Every task needs convergence criteria checks — no task may be marked "completed" based on agent self-report alone.
+
+## Red Flags — These Thoughts Mean STOP
+- "The agent said it's done, so it must be done" / "I'll batch-verify all tasks at the end"
+- "This task is too simple to need verification" / "Let me mark it complete and fix later"
+All mean: **run convergence criteria check NOW**.
 
 **Topology**: Custom (waves inherited from plan.json -- no Kahn's algorithm needed)
 
@@ -217,6 +226,11 @@ If exit code is 1, present warnings and ask whether to proceed.
    - Both are optional — proceed without if unavailable
 
 7. **User validation**: Display task/wave breakdown. Skip if AUTO_YES.
+
+8. **TDD plan detection**: If `plan.json.tdd_mode == true`, enable TDD execution enforcement:
+   - RED tasks (meta.tdd_phase=red): after completion, verify test exists AND fails. If test passes → mark BLOCKED "Test passes before implementation — wrong test".
+   - GREEN tasks (meta.tdd_phase=green): after completion, verify ALL tests pass. If RED test still fails → mark BLOCKED.
+   - REFACTOR tasks (meta.tdd_phase=refactor): after completion, verify ALL tests still pass. If any fails → undo, mark BLOCKED.
 
 ### Phase 2: Wave Execution Engine
 

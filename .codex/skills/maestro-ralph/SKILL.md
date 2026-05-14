@@ -1,6 +1,6 @@
 ---
 name: maestro-ralph
-description: Adaptive lifecycle engine -- infer state, build command chain
+description: Use when the optimal command sequence is unclear and needs automated state-based determination
 argument-hint: "\"intent\" [-y] | status | continue | execute"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---

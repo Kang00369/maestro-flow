@@ -1,6 +1,6 @@
 ---
 name: maestro-verify
-description: Verify goals with must-have checks and test coverage validation
+description: Use after execution to verify goals are actually achieved with evidence-based structural checks
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"<phase> [--skip-tests] [--skip-antipattern]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
@@ -10,6 +10,18 @@ Wave-based 3-layer Goal-Backward verification using `spawn_agents_on_csv`.
 Wave 1 (truth + artifact existence) -> Wave 2 (substance + wiring) -> Wave 3 (anti-pattern + Nyquist audit).
 
 **Core principle**: Task completion != Goal achievement. A task marked complete may contain stubs/placeholders. This verifier checks that goals are actually achieved.
+
+## Iron Law
+
+**NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE IN THIS MESSAGE.** Before any success claim: IDENTIFY what command proves it → RUN it fresh → READ full output → VERIFY it confirms the claim → ONLY THEN make the claim.
+
+## Forbidden Wording
+BANNED: "Should work now", "Probably passes", "Seems correct", "Looks good", "I'm confident that...", any satisfaction BEFORE running verification. Replace with evidence: `"Tests pass: 42/42 green (exit 0)"`.
+
+## Red Flags — These Thoughts Mean STOP
+- "I just wrote this code, it definitely works" / "The changes are too small to break anything"
+- "I already verified this earlier" / "The agent said it's done"
+All mean: **run verification command NOW, read output, then report**.
 </purpose>
 
 <context>

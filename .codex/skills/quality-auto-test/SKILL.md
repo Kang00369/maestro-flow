@@ -1,6 +1,6 @@
 ---
 name: quality-auto-test
-description: Auto-generate and run tests from specs or coverage gaps
+description: Use when test coverage needs automated expansion or existing tests need iterative convergence
 argument-hint: "<phase> [-y] [-c N] [--max-iter N] [--layer L0-L3] [--dry-run] [--re-run]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---
@@ -94,10 +94,14 @@ S_PARSE:
   -> S_SOURCE       DO: resolve phase dir, detect route (resume/re-run/spec/gap/code)
 
 S_SOURCE:
-  -> S_INFRA        DO: extract scenarios per route, normalize to unified format
+  -> S_INFRA        DO: extract scenarios per route, normalize to unified format, integrate quality artifacts
   Route A (spec): Parse REQ-*.md acceptance criteria, classify layers, generate fixtures
   Route B (gap): Read verification/coverage gaps, classify files by type
   Route C (code): Explore module boundaries, API endpoints, integration points
+
+  **Cross-artifact integration** (all routes, after primary extraction):
+  - **Review findings**: Query state.json for type=review artifacts on same phase. Extract critical/high findings → additional scenarios marked `source: "review_finding"`. If review verdict=="BLOCK" and these tests fail, suggest quality-debug.
+  - **Debug root causes**: Query state.json for type=debug artifacts on same phase. Generate regression test scenarios from confirmed root causes → marked `source: "debug_root_cause"`.
 
 S_INFRA:
   -> S_CSV_GEN      DO: detect framework, read 2-3 existing tests, build infrastructure_hints

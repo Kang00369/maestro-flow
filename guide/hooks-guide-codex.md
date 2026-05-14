@@ -1,8 +1,8 @@
 # Maestro Codex Hooks 集成设计
 
-> **状态**: 设计文档（未实现）| Codex hooks 当前不支持 Windows，等官方支持后实施
+> **状态**: v0.4.2 已实现基础集成 | Windows 暂不支持 Codex hooks
 
-为 OpenAI Codex CLI 设计与 Maestro hooks 系统对等的集成方案，使上下文管理、规范注入和工作流感知能力在 Codex 环境中运行。
+为 OpenAI Codex CLI 实现与 Maestro hooks 系统对等的集成方案，使上下文管理、规范注入和工作流感知能力在 Codex 环境中运行。
 
 ## 目录
 
@@ -572,9 +572,9 @@ resolveWorkspace({ cwd }) ──→ null → 不输出（正常停止）
 
 ---
 
-## 安装命令设计
+## 安装命令 ✅
 
-### 命令扩展
+### 命令
 
 ```bash
 # 安装到 Codex（全局）
@@ -583,13 +583,13 @@ maestro hooks install --target codex --level standard
 # 安装到 Codex（项目级）
 maestro hooks install --target codex --level standard --project
 
-# 查看状态（含 Codex）
+# 查看状态（同时显示 Claude Code 和 Codex）
 maestro hooks status
 
 # 卸载 Codex hooks
 maestro hooks uninstall --target codex
 
-# 列出所有 hook（含 Codex 支持）
+# 列出所有 hook（含 Codex）
 maestro hooks list
 ```
 
@@ -639,39 +639,41 @@ Codex hooks.json 不支持元数据字段，通过命令字符串中的 `maestro
 
 ### 前置条件
 
-1. **Codex hooks 支持 Windows** — 跟踪 [openai/codex](https://github.com/openai/codex) 进展
+1. ~~**Codex hooks 支持 Windows**~~ — 仍在等待，Windows 下安装时显示警告
 2. **PreToolUse 支持更多工具类型** — 当前仅 Bash，影响 workflow-guard 覆盖率
 3. **PreToolUse 支持 `updatedInput`** — 目前仅支持 `permissionDecision`，影响 spec-injector 精细注入
 
 ### 实施步骤
 
-#### Phase 1: 基础集成（无新代码，仅复用）
+#### Phase 1: 基础集成 ✅ (v0.4.2)
 
-**改动文件**:
-- `src/commands/hooks.ts` — 增加 `--target codex` 安装逻辑
-- `bin/maestro-hook-runner.js` — 注册 Codex 适配的 hook runner
+**已实现**:
+- `src/commands/hooks.ts` — `CODEX_HOOK_DEFS` 定义 + `installCodexHooksByLevel()` 安装逻辑
+- `--target codex` 选项支持 install / uninstall / status / list 命令
+- Codex hooks.json 生成器 + 幂等安装/卸载
+- `checkCodexHooksFeatureFlag()` 检测 config.toml 特性开关
+- Windows 平台警告
 
-**复用**:
-- `evaluateSessionContext()` — 直接调用
-- `evaluateSkillContext()` — 直接调用（已兼容 prompt 字段）
-- `evaluateContext()` — 直接调用
-- `evaluateWorkflowGuard()` — 直接调用
+**已安装的 Codex hooks**:
+- `session-context` (SessionStart, minimal)
+- `spec-injector` (SessionStart, standard)
+- `skill-context` (UserPromptSubmit, standard)
+- `keyword-spec-injector` (UserPromptSubmit, standard)
+- `delegate-monitor` (PostToolUse/Bash, standard)
+- `coordinator-tracker` (Stop, standard)
+- `team-monitor` (Stop, standard)
+- `telemetry` (Stop, standard)
+- `workflow-guard` (PreToolUse/Bash, full)
 
-**工作量**: ~200 行代码（主要是 hooks.json 生成器 + 安装/卸载逻辑）
+#### Phase 2: Codex MCP 服务器注册 ✅ (v0.4.2)
 
-#### Phase 2: Spec 注入适配
+**已实现**:
+- `src/commands/install-backend.ts` — Codex MCP 配置的 TOML 读写
+- `addCodexMcpServer()` / `removeCodexMcpServer()` — 注册/注销 maestro-tools MCP 服务器到 Codex config.toml
+- 交互式安装 UI 新增 Codex Hooks 和 Codex MCP 配置步骤
+- `maestro install --codex-hooks <level>` 和 `--codex-mcp` 批量安装选项
 
-**改动文件**:
-- `src/hooks/session-context.ts` — 扩展 SessionStart 时的规范注入
-
-**改动**:
-- `evaluateSessionContext()` 增加 `source` 参数
-- `source=startup` 时注入规范摘要（调用 `evaluateSpecInjection` 的底层 spec-loader）
-- `source=resume` 时仅注入工作流状态（跳过规范）
-
-**工作量**: ~100 行代码
-
-#### Phase 3: task-continue Hook
+#### Phase 3: task-continue Hook（待实现）
 
 **新文件**:
 - `src/hooks/task-continue.ts` — Stop 事件续行逻辑
@@ -680,13 +682,11 @@ Codex hooks.json 不支持元数据字段，通过命令字符串中的 `maestro
 - `resolveWorkspace()`
 - `state.json` + `index.json` 读取逻辑
 
-**工作量**: ~150 行代码
-
-#### Phase 4: 测试 + 文档
+#### Phase 4: 测试 + 文档（进行中）
 
 - 端到端测试：init → plan → execute → verify，验证 hook 注入正确
-- 更新 `guide/hooks-guide.md` 添加 Codex 章节
-- 更新 README 添加 Codex 集成说明
+- ✅ `guide/hooks-guide.md` 已添加 Codex 章节
+- ✅ 本文档已更新实现状态
 
 ---
 

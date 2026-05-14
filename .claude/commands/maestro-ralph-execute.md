@@ -180,8 +180,15 @@ Write enriched args back to status.json (resume-safe).
    - `PHASE: N` → session.phase
    - `scratch_dir: path` → context.scratch_dir
    - `SPEC-xxx` → context.spec_session_id
-3. Write status.json
-4. Display: `[{index}/{total}] ✓ {skill} completed`
+3. Scan output for `--- COMPLETION STATUS ---` block. If found, parse and map:
+   - `STATUS: DONE` → `step.status = "completed"`
+   - `STATUS: DONE_WITH_CONCERNS` → `step.status = "completed"`, `step.concerns = CONCERNS value`
+   - `STATUS: NEEDS_RETRY` → trigger retry: set `step.status = "pending"`, `step.retried = true` → S_HANDLE_FAIL
+   - `STATUS: BLOCKED` → `session.status = "paused"`, display blocker reason from CONCERNS
+   - `STATUS: NEEDS_CONTEXT` → `session.status = "paused"`, display context gap from CONCERNS
+   - If no `--- COMPLETION STATUS ---` block found → fall back to existing heuristic (backward compatible)
+4. Write status.json
+5. Display: `[{index}/{total}] ✓ {skill} completed`
 
 ### A_RETRY
 

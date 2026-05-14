@@ -1,6 +1,6 @@
 ---
 name: maestro-brainstorm
-description: Brainstorm with auto pipeline or single-role analysis
+description: Use when exploring ideas, evaluating approaches, or needing multi-perspective analysis before implementation
 argument-hint: "[topic] [-y|--yes] [-c|--concurrency N] [--continue] [--count N] [--skip-questions]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---

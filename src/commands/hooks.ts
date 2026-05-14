@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { paths } from '../config/paths.js';
 import { loadConfig, saveConfig, loadHooksConfig } from '../config/index.js';
-import { evaluateWorkflowGuard } from '../hooks/guards/workflow-guard.js';
+import { evaluateWorkflowGuard, evaluatePathGuard, loadPathGuardConfig } from '../hooks/guards/workflow-guard.js';
 import { evaluatePreflightGuard, loadPreflightConfig } from '../hooks/guards/preflight-guard.js';
 import { evaluatePromptGuard } from '../hooks/guards/prompt-guard.js';
 import { evaluateSpecValidator } from '../hooks/guards/spec-validator.js';
@@ -528,6 +528,25 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
         reason: result.reason,
       }));
       process.exit(2);
+    }
+
+    // PathGuard: check Write/Edit file paths against directory boundaries
+    if (toolName === 'Write' || toolName === 'Edit') {
+      const filePath: string = data.tool_input?.file_path ?? data.tool_input?.path ?? '';
+      if (filePath) {
+        const workspace = resolveWorkspace(data);
+        if (workspace) {
+          const guardConfig = loadPathGuardConfig(workspace);
+          const pathResult = evaluatePathGuard(toolName, filePath, workspace, guardConfig);
+          if (pathResult.blocked) {
+            process.stdout.write(JSON.stringify({
+              decision: 'block',
+              reason: pathResult.reason,
+            }));
+            process.exit(2);
+          }
+        }
+      }
     }
   },
 

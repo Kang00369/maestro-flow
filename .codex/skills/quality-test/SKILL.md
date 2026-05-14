@@ -1,6 +1,6 @@
 ---
 name: quality-test
-description: Conversational UAT with auto-diagnosis and gap closure
+description: Use when implementation needs user acceptance testing with interactive verification and gap closure
 argument-hint: "<phase> [-y] [--smoke] [--auto-fix] [--session ID]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

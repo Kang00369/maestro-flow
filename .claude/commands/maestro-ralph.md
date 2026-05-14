@@ -1,6 +1,6 @@
 ---
 name: maestro-ralph
-description: Adaptive lifecycle engine — infer state, build command chain
+description: Use when the optimal command sequence is unclear and needs automated state-based determination
 argument-hint: "[-y] \"intent\" | status | continue"
 allowed-tools:
   - Read
@@ -238,6 +238,13 @@ Build rules: start from position, skip completed, insert decision nodes with `{ 
    ```
 6. On callback: parse verdict; if parse fails → fallback STATUS="fix"
 7. Confidence adjustment: <60 + proceed → fix; >95 + fix + retry>0 → suggest proceed
+8. **Decision log**: Append to `{session_dir}/decisions.ndjson`:
+   ```json
+   { "id": "DEC-{timestamp}", "timestamp": "{ISO}", "source": "ralph",
+     "node_id": "{step.decision}", "type": "quality-gate",
+     "verdict": "{adjusted_verdict}", "confidence_score": {N},
+     "close_call": {N>=50 && N<=70}, "summary": "{REASON}" }
+   ```
 
 ### A_STRUCTURAL_EVALUATE
 

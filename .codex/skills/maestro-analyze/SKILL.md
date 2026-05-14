@@ -1,6 +1,6 @@
 ---
 name: maestro-analyze
-description: Multi-angle analysis with CLI-assisted exploration
+description: Use when a topic needs structured multi-dimensional investigation before planning or decision-making
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"<phase|topic> [-q|--quick] [--gaps [ISS-ID]]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

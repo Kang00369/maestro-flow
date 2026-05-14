@@ -88,6 +88,10 @@ maestro install mcp                       # Register MCP server
 | `--global` | Install global assets only |
 | `--path <dir>` | Install to specified project directory |
 | `--hooks <level>` | Hook level: none / minimal / standard / full |
+| `--codex-hooks <level>` | Codex hook level: none / minimal / standard / full |
+| `--codex-mcp` | Register Codex MCP server (maestro-tools) |
+
+> In interactive mode, the install flow now includes **Codex Hooks** and **Codex MCP** configuration steps.
 
 ---
 
@@ -363,17 +367,36 @@ maestro wiki graph                                   # Full graph JSON
 
 ### maestro hooks
 
-Hook management and evaluator execution.
+Hook management and evaluator execution. Supports both Claude Code and Codex platforms.
 
 ```bash
-maestro hooks install --level full     # Install hooks
-maestro hooks status                   # Installation status
-maestro hooks list                     # List all hooks
+# Claude Code
+maestro hooks install --level full                       # Install hooks
+maestro hooks uninstall                                  # Remove hooks
+
+# Codex
+maestro hooks install --target codex --level standard    # Install to Codex
+maestro hooks uninstall --target codex                   # Remove Codex hooks
+
+# General
+maestro hooks status                   # Installation status (shows both Claude Code and Codex)
+maestro hooks list                     # List all hooks (including Codex)
 maestro hooks toggle spec-injector on  # Toggle hook
 maestro hooks run spec-injector        # Run evaluator
 ```
 
-Available hooks: `context-monitor`, `spec-injector`, `delegate-monitor`, `team-monitor`, `telemetry`, `session-context`, `skill-context`, `coordinator-tracker`, `preflight-guard`, `spec-validator`, `keyword-spec-injector`, `workflow-guard`
+| Option | Description |
+|--------|-------------|
+| `--target <target>` | Target platform: `claude` (default) or `codex` |
+| `--level <level>` | Hook level: minimal / standard / full |
+| `--global` | Install to global settings (default) |
+| `--project` | Install to project-level settings |
+
+Claude Code hooks: `spec-injector`, `delegate-monitor`, `team-monitor`, `telemetry`, `session-context`, `skill-context`, `coordinator-tracker`, `preflight-guard`, `spec-validator`, `keyword-spec-injector`, `workflow-guard`
+
+Codex hooks: `session-context`, `spec-injector`, `skill-context`, `keyword-spec-injector`, `delegate-monitor`, `coordinator-tracker`, `team-monitor`, `telemetry`, `workflow-guard`
+
+> Codex hooks require `codex_hooks = true` in `~/.codex/config.toml`. Not supported on Windows.
 
 ---
 

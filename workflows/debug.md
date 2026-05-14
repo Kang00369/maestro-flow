@@ -11,6 +11,79 @@ When root causes found, auto-updates originating uat.md with diagnosis.
 
 ---
 
+## Iron Law
+
+**NO FIX PROPOSALS WITHOUT ROOT CAUSE EVIDENCE.**
+
+Before proposing any fix, you MUST have:
+1. Reproduced or confirmed the symptom
+2. Gathered evidence (logs, code traces, test output)
+3. Identified the specific root cause with file:line references
+
+Fix proposals without root cause evidence are forbidden — even "obvious" fixes.
+
+---
+
+## Red Flags — These Thoughts Mean STOP
+
+If you catch yourself thinking any of these, STOP and return to evidence gathering:
+
+- "Quick fix for now, investigate later"
+- "I don't fully understand but this might work"
+- "This is just a simple case, no need for full investigation"
+- "Let me just try changing X and see if it works"
+- "The fix is obvious, I don't need to reproduce it"
+- "I'll skip the reproduction step to save time"
+- "Multiple changes at once will be faster"
+- "I already know what the problem is" (without evidence)
+
+All of these mean: **return to Step 3/6 evidence gathering**.
+
+---
+
+## Rationalization Table
+
+| Excuse | Why It's Wrong |
+|--------|----------------|
+| "It's probably just a typo" | Typos cause cascading failures; verify before assuming |
+| "The error message says X so it must be X" | Error messages often point to symptoms, not causes |
+| "I fixed something similar before" | Similar symptoms can have completely different root causes |
+| "The fix works in my test" | One passing test doesn't prove root cause was found |
+| "We don't have time for full investigation" | Quick fixes under pressure create more bugs than they solve |
+| "The code looks correct so it must be something else" | Reading code is not the same as tracing execution |
+| "Let me just add a try-catch/null check" | Suppressing errors hides the real problem |
+| "3 failed hypotheses, let me try a 4th guess" | After 3 failures, stop guessing — escalate (see Escalation Rule) |
+
+---
+
+## Escalation Rule — 3-Strike Architecture Check
+
+After **3 failed hypotheses** (refuted with evidence), STOP proposing more fixes:
+
+1. **Summarize** all failed hypotheses and their evidence
+2. **Question architecture**: "Is the problem at a deeper level than individual code?"
+3. **Present to user** via AskUserQuestion with the summary and ask:
+   - Continue investigating with different approach?
+   - Re-examine architecture assumptions?
+   - Bring in additional context/expertise?
+
+Do NOT propose a 4th hypothesis without user confirmation.
+
+---
+
+## Backward Tracing Method
+
+When investigating root cause, trace **backward** from symptom to source:
+
+1. **Find** where the incorrect value/behavior first appears
+2. **Trace backward** through the call chain — what called this? What value was passed?
+3. **Continue backward** until you find where correct data becomes incorrect
+4. **Fix at the source**, not at the symptom location
+
+Example: UI shows wrong data → API returns wrong data → service queries wrong table → fix the query, NOT the UI rendering.
+
+---
+
 ### Step 1: Check Active Sessions
 
 ```bash

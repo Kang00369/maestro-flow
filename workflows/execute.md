@@ -6,6 +6,33 @@ Core principle: **Execute per-plan, not per-phase.** Each plan's wave DAG runs i
 
 ---
 
+## Iron Law
+
+**VERIFY EACH TASK OUTPUT BEFORE MARKING COMPLETE.**
+
+Every task completion requires:
+1. Run convergence criteria checks (not just code review)
+2. Confirm output matches task definition expectations
+3. Evidence of verification in the task summary
+
+No task may be marked "completed" based on agent self-report alone.
+
+---
+
+## Red Flags — These Thoughts Mean STOP
+
+If you catch yourself thinking any of these, STOP and verify:
+
+- "The agent said it's done, so it must be done"
+- "I'll batch-verify all tasks at the end instead of per-task"
+- "This task is too simple to need verification"
+- "The warning isn't relevant, I'll ignore it"
+- "Let me mark it complete and fix the issue later"
+
+All of these mean: **run convergence criteria check NOW before marking the task complete**.
+
+---
+
 ## Prerequisites
 
 - Plan exists in scratch directory: `plan.json` + `.task/TASK-*.json`

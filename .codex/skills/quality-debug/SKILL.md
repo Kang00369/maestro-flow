@@ -1,6 +1,6 @@
 ---
 name: quality-debug
-description: Debug with parallel hypotheses and root cause analysis
+description: Use when bugs, test failures, or unexpected behavior need systematic root cause investigation
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"[bug description] [--from-uat <phase>] [--parallel]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---
@@ -9,6 +9,22 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUser
 Wave-based hypothesis-driven debugging using `spawn_agents_on_csv`. Wave 1 explores hypotheses in parallel, Wave 2 attempts fixes on confirmed hypotheses in parallel.
 
 **Core workflow**: Gather Symptoms -> Generate Hypotheses -> Parallel Investigation -> Parallel Fix Attempts -> Unify Results
+
+## Iron Law
+
+**NO FIX PROPOSALS WITHOUT ROOT CAUSE EVIDENCE.** Before proposing any fix, you MUST have reproduced/confirmed the symptom, gathered evidence, and identified the root cause with file:line references.
+
+## Red Flags — These Thoughts Mean STOP
+- "Quick fix for now, investigate later" / "I don't fully understand but this might work"
+- "The fix is obvious, I don't need to reproduce it" / "Multiple changes at once will be faster"
+- "I already know what the problem is" (without evidence)
+All mean: **return to evidence gathering**.
+
+## Escalation Rule
+After **3 failed hypotheses**, STOP. Summarize failures, question architecture, present to user.
+
+## Backward Tracing
+Find where incorrect value appears → trace backward through call chain → fix at source, not symptom.
 
 ```
 +---------------------------------------------------------------------------+

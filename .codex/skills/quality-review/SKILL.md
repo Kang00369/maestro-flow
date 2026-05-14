@@ -1,6 +1,6 @@
 ---
 name: quality-review
-description: Tiered code review with severity classification
+description: Use after execution to evaluate code quality across correctness, security, performance, and architecture
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"<phase> [--level quick|standard|deep] [--dimensions list]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---
@@ -8,7 +8,13 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUser
 <purpose>
 Wave-based multi-dimensional code review using `spawn_agents_on_csv`. Decomposes review into independent dimension agents (Wave 1), then aggregates findings into a unified report with verdict (Wave 2).
 
-**Core workflow**: Collect Files -> Decompose Dimensions -> Parallel Review -> Aggregate + Verdict
+**Core workflow**: Collect Files -> Spec Compliance Check -> Decompose Dimensions -> Parallel Review -> Aggregate + Verdict
+
+## Spec Compliance Pre-Check
+Before dimensional review, verify each task's `convergence.criteria[]` are actually met in the code. UNMET criteria = critical spec-compliance finding that blocks quality review.
+
+## Receiving Review Feedback
+When external feedback is received: verify before implementing (reviewer may lack context), technical acknowledgment only (no performative "Great point!"), push back when wrong with evidence, YAGNI check on suggested additions, implement one at a time with testing.
 
 ```
 +---------------------------------------------------------------------------+

@@ -1,6 +1,6 @@
 ---
 name: quality-refactor
-description: Reduce tech debt with reflection-driven iteration
+description: Use when accumulated tech debt needs systematic identification and safe reduction
 argument-hint: "<phase|--dir path> [--max-iterations N]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---

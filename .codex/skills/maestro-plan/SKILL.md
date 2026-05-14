@@ -1,6 +1,6 @@
 ---
 name: maestro-plan
-description: Plan phase execution with exploration and verification
+description: Use when creating, revising, or verifying an execution plan for a phase or task
 argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"<phase> [--dir <path>] [--gaps] [--spec SPEC-xxx] [--collab]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
@@ -8,13 +8,64 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 <purpose>
 Wave-based planning via `spawn_agents_on_csv`. Wave 1 explores codebase in parallel across multiple angles, Wave 2 generates verified execution plan consuming all exploration findings.
 
-Supports: Create (default), Revise (`--revise`), Check (`--check`), Gaps (`--gaps`).
+Supports: Create (default), Revise (`--revise`), Check (`--check`), Gaps (`--gaps`), TDD (`--tdd`).
 </purpose>
+
+<tdd_mode>
+
+## TDD Mode (`--tdd`)
+
+When `--tdd` is active, the planning agent in Wave 2 decomposes each behavior into RED-GREEN-REFACTOR triplets.
+
+### Iron Law
+
+**NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST.** Write code before the test? Delete it. Start over.
+
+### Task Chain Structure
+
+For each behavior B:
+- **TASK-{N}a (RED)**: Write failing test. Verify it FAILS (not errors). type=test, tdd_phase=red.
+- **TASK-{N}b (GREEN)**: Write minimal code to pass. Verify ALL tests pass. type=feature, tdd_phase=green, depends_on=[TASK-{N}a].
+- **TASK-{N}c (REFACTOR)**: Clean up. Keep tests green. No new behavior. type=refactor, tdd_phase=refactor, depends_on=[TASK-{N}b]. Skip if GREEN code already clean.
+
+### Wave Assignment
+```
+Wave 1: TASK-1a, TASK-2a (RED — parallel if independent)
+Wave 2: TASK-1b, TASK-2b (GREEN — parallel)
+Wave 3: TASK-1c, TASK-2c (REFACTOR — parallel)
+```
+Within a group: `{N}a → {N}b → {N}c` (strict dependency).
+
+### plan.json Output
+```json
+{ "tdd_mode": true, "tdd_groups": [{ "group": 1, "behavior": "...", "tasks": ["TASK-1a","TASK-1b","TASK-1c"] }] }
+```
+Standard plan.json + .task/TASK-*.json — consumable by maestro-execute without modification.
+
+### Execution Enforcement
+- RED task: verify test exists AND fails. If passes → BLOCKED "wrong test".
+- GREEN task: verify ALL tests pass. If RED test still fails → BLOCKED.
+- REFACTOR task: verify ALL tests still pass. If fails → undo.
+
+### Red Flags — These Thoughts Mean STOP
+- "Too simple to need TDD" / "I'll write tests after" / "Let me explore first, then add tests"
+- "Tests after achieve the same goals" / "TDD will slow me down"
+All mean: **follow the cycle anyway**.
+
+### Rationalization Table
+| Excuse | Reality |
+|--------|---------|
+| "Too simple to test" | Simple code breaks. Test takes 30 seconds. |
+| "I'll test after" | Tests passing immediately prove nothing. |
+| "Need to explore first" | Fine. Throw away exploration, start fresh with TDD. |
+| "Test hard = design unclear" | Listen to the test. Hard to test = hard to use. |
+
+</tdd_mode>
 
 <context>
 $ARGUMENTS — phase number/text and optional flags.
 
-**Flags**: `-y` (auto), `-c N` (concurrency, default 4), `--continue` (resume), `--dir <path>`, `--gaps` (issue-linked), `--spec SPEC-xxx`, `--collab`, `--revise`, `--check`
+**Flags**: `-y` (auto), `-c N` (concurrency, default 4), `--continue` (resume), `--dir <path>`, `--gaps` (issue-linked), `--spec SPEC-xxx`, `--collab`, `--revise`, `--check`, `--tdd` (RED-GREEN-REFACTOR task chains)
 
 **Scope routing** (priority): --dir → from parent artifact; no args → milestone; digit → phase; text → adhoc/standalone.
 
@@ -68,7 +119,7 @@ S_RESUME → S_CHECK     WHEN: W2 done, check pending
 
 S_CONTEXT → S_CSV_GEN  DO: load context.md, conclusions.json, specs, wiki, codebase docs
 
-S_CSV_GEN → S_WAVE_1   DO: determine exploration angles, generate tasks.csv, user validates (skip -y)
+S_CSV_GEN → S_WAVE_1   DO: pre-flight (`maestro collab preflight --phase N`; exit 1 → warn + ask), determine exploration angles, generate tasks.csv, user validates (skip -y)
 
 S_WAVE_1 → S_WAVE_2    DO: spawn parallel explorations, merge results, build prev_context
 

@@ -47,6 +47,7 @@ OUTPUT_DIR = .workflow/scratch/plan-{PHASE_SLUG or milestone_slug}-{date}/
 | `--dir <path>` | Use arbitrary directory instead of phase resolution (skip roadmap validation) |
 | `--revise [instructions]` | Revise existing plan (skip P1-P3, load → modify → P4). Auto-discovers latest plan or use `--dir` |
 | `--check <plan-dir>` | Standalone plan verification (P4 only, read-only) |
+| `--tdd` | Generate TDD task chains (RED-GREEN-REFACTOR triplets). Load `@~/.maestro/workflows/tdd.md` for discipline and task structure |
 
 ---
 
@@ -55,8 +56,18 @@ OUTPUT_DIR = .workflow/scratch/plan-{PHASE_SLUG or milestone_slug}-{date}/
 ```
 --check <plan-dir>  → Check Mode (P4 only, read-only)
 --revise            → Revise Mode (load → modify → P4)
+--tdd               → TDD Mode: P1 → P2 → P3 (with TDD task chain generation) → P4 → P4.5 → P5
 default             → Create Mode: P1 → P2 → P3 → P4 → P4.5 → P5
 ```
+
+### TDD Mode
+
+When `--tdd` is active:
+1. Read `@~/.maestro/workflows/tdd.md` for TDD discipline, Iron Law, and task chain structure
+2. In P3 (Planning), decompose each behavior into RED-GREEN-REFACTOR triplets per `tdd.md § Task Chain Generation`
+3. Set `plan.json.tdd_mode = true` and include `tdd_groups[]`
+4. Wave assignment follows TDD dependency rules: `{N}a → {N}b → {N}c`
+5. Output is standard plan.json + .task/TASK-*.json — consumable by `maestro-execute` without modification
 
 ---
 
