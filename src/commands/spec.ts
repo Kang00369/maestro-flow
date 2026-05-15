@@ -413,6 +413,271 @@ export function registerSpecCommand(program: Command): void {
         process.exit(1);
       }
     });
+
+  // ── injection ──────────────────────────────────────────────────────────
+  const injection = spec
+    .command('injection')
+    .alias('inj')
+    .description('Manage spec injection configuration (.workflow/config.json → specInjection)');
+
+  // spec injection show
+  injection
+    .command('show')
+    .description('Show current spec injection config')
+    .option('--json', 'Output raw JSON')
+    .action(async (opts: { json?: boolean }) => {
+      const { loadSpecInjectionConfig } = await import('../config/index.js');
+      const config = loadSpecInjectionConfig(process.cwd());
+
+      if (opts.json) {
+        console.log(JSON.stringify(config, null, 2));
+        return;
+      }
+
+      if (Object.keys(config).length === 0) {
+        console.log('No spec injection config. Use "maestro spec injection set" to configure.');
+        return;
+      }
+
+      // Agent mappings
+      if (config.mapping) {
+        console.log('\nAgent Mappings:');
+        for (const [agent, mapping] of Object.entries(config.mapping)) {
+          console.log(`  ${agent}:`);
+          console.log(`    categories: ${mapping.categories.join(', ')}`);
+          if (mapping.includeKeywords?.length) console.log(`    include: ${mapping.includeKeywords.join(', ')}`);
+          if (mapping.excludeKeywords?.length) console.log(`    exclude: ${mapping.excludeKeywords.join(', ')}`);
+          if (mapping.extras?.length) console.log(`    extras: ${mapping.extras.join(', ')}`);
+        }
+      }
+
+      // Category docs
+      if (config.categoryDocs) {
+        console.log('\nCategory Documents:');
+        for (const [cat, docConfig] of Object.entries(config.categoryDocs)) {
+          console.log(`  ${cat}:`);
+          if (docConfig.specFiles?.length) console.log(`    specFiles: ${docConfig.specFiles.join(', ')}`);
+          if (docConfig.docs?.length) console.log(`    docs: ${docConfig.docs.join(', ')}`);
+        }
+      }
+
+      // Always
+      if (config.always?.length) {
+        console.log(`\nAlways Inject: ${config.always.join(', ')}`);
+      }
+
+      // Keyword filters
+      if (config.keywordFilters) {
+        console.log('\nGlobal Keyword Filters:');
+        if (config.keywordFilters.include?.length) console.log(`  include: ${config.keywordFilters.include.join(', ')}`);
+        if (config.keywordFilters.exclude?.length) console.log(`  exclude: ${config.keywordFilters.exclude.join(', ')}`);
+      }
+
+      if (config.maxContentLength) {
+        console.log(`\nMax Content Length: ${config.maxContentLength}`);
+      }
+    });
+
+  // spec injection set agent
+  injection
+    .command('agent')
+    .description('Configure agent-type spec mapping')
+    .argument('<agent>', 'Agent type (e.g. code-developer, tdd-developer)')
+    .option('--categories <cats>', 'Comma-separated categories (e.g. coding,test,ui)')
+    .option('--include <keywords>', 'Comma-separated include keywords')
+    .option('--exclude <keywords>', 'Comma-separated exclude keywords')
+    .option('--extras <paths>', 'Comma-separated extra doc paths')
+    .option('--remove', 'Remove this agent mapping')
+    .action(async (agent: string, opts: { categories?: string; include?: string; exclude?: string; extras?: string; remove?: boolean }) => {
+      const { loadSpecInjectionConfig, saveSpecInjectionConfig } = await import('../config/index.js');
+      const config = loadSpecInjectionConfig(process.cwd());
+
+      if (opts.remove) {
+        if (config.mapping) {
+          delete config.mapping[agent];
+          if (Object.keys(config.mapping).length === 0) delete config.mapping;
+        }
+        saveSpecInjectionConfig(process.cwd(), config);
+        console.log(`\u2713 Removed agent mapping: ${agent}`);
+        return;
+      }
+
+      if (!opts.categories) {
+        console.error('Error: --categories is required (e.g. --categories coding,test)');
+        process.exit(1);
+      }
+
+      const { VALID_CATEGORIES } = await import('../tools/spec-entry-parser.js');
+      const categories = opts.categories.split(',').map(s => s.trim()).filter(Boolean);
+      for (const cat of categories) {
+        if (!(VALID_CATEGORIES as readonly string[]).includes(cat)) {
+          console.error(`Error: invalid category "${cat}". Valid: ${VALID_CATEGORIES.join(', ')}`);
+          process.exit(1);
+        }
+      }
+
+      if (!config.mapping) config.mapping = {};
+      const existing = config.mapping[agent] || { categories: [] };
+      existing.categories = categories;
+      if (opts.include) existing.includeKeywords = opts.include.split(',').map(s => s.trim()).filter(Boolean);
+      if (opts.exclude) existing.excludeKeywords = opts.exclude.split(',').map(s => s.trim()).filter(Boolean);
+      if (opts.extras) existing.extras = opts.extras.split(',').map(s => s.trim()).filter(Boolean);
+      config.mapping[agent] = existing;
+
+      saveSpecInjectionConfig(process.cwd(), config);
+      console.log(`\u2713 Agent mapping set: ${agent} → [${categories.join(', ')}]`);
+      if (existing.includeKeywords?.length) console.log(`  include: ${existing.includeKeywords.join(', ')}`);
+      if (existing.excludeKeywords?.length) console.log(`  exclude: ${existing.excludeKeywords.join(', ')}`);
+      if (existing.extras?.length) console.log(`  extras: ${existing.extras.join(', ')}`);
+    });
+
+  // spec injection category
+  injection
+    .command('category')
+    .description('Associate extra documents with a category')
+    .argument('<category>', 'Category name (coding|arch|debug|test|review|learning|ui)')
+    .option('--spec-files <files>', 'Comma-separated extra spec filenames in .workflow/specs/')
+    .option('--docs <paths>', 'Comma-separated doc paths (relative to project or knowhow/ prefix)')
+    .option('--remove', 'Remove this category doc config')
+    .action(async (category: string, opts: { specFiles?: string; docs?: string; remove?: boolean }) => {
+      const { VALID_CATEGORIES } = await import('../tools/spec-entry-parser.js');
+      if (!(VALID_CATEGORIES as readonly string[]).includes(category)) {
+        console.error(`Error: invalid category "${category}". Valid: ${VALID_CATEGORIES.join(', ')}`);
+        process.exit(1);
+      }
+
+      const { loadSpecInjectionConfig, saveSpecInjectionConfig } = await import('../config/index.js');
+      const config = loadSpecInjectionConfig(process.cwd());
+
+      if (opts.remove) {
+        if (config.categoryDocs) {
+          delete config.categoryDocs[category];
+          if (Object.keys(config.categoryDocs).length === 0) delete config.categoryDocs;
+        }
+        saveSpecInjectionConfig(process.cwd(), config);
+        console.log(`\u2713 Removed category docs: ${category}`);
+        return;
+      }
+
+      if (!opts.specFiles && !opts.docs) {
+        console.error('Error: provide --spec-files and/or --docs');
+        process.exit(1);
+      }
+
+      if (!config.categoryDocs) config.categoryDocs = {};
+      const existing = config.categoryDocs[category] || {};
+      if (opts.specFiles) existing.specFiles = opts.specFiles.split(',').map(s => s.trim()).filter(Boolean);
+      if (opts.docs) existing.docs = opts.docs.split(',').map(s => s.trim()).filter(Boolean);
+      config.categoryDocs[category] = existing;
+
+      saveSpecInjectionConfig(process.cwd(), config);
+      console.log(`\u2713 Category docs set: ${category}`);
+      if (existing.specFiles?.length) console.log(`  specFiles: ${existing.specFiles.join(', ')}`);
+      if (existing.docs?.length) console.log(`  docs: ${existing.docs.join(', ')}`);
+    });
+
+  // spec injection always
+  injection
+    .command('always')
+    .description('Manage always-inject document paths')
+    .option('--add <paths>', 'Comma-separated paths to add')
+    .option('--remove <paths>', 'Comma-separated paths to remove')
+    .option('--clear', 'Clear all always-inject paths')
+    .action(async (opts: { add?: string; remove?: string; clear?: boolean }) => {
+      const { loadSpecInjectionConfig, saveSpecInjectionConfig } = await import('../config/index.js');
+      const config = loadSpecInjectionConfig(process.cwd());
+
+      if (opts.clear) {
+        delete config.always;
+        saveSpecInjectionConfig(process.cwd(), config);
+        console.log('\u2713 Cleared all always-inject paths');
+        return;
+      }
+
+      const current = new Set(config.always ?? []);
+
+      if (opts.add) {
+        for (const p of opts.add.split(',').map(s => s.trim()).filter(Boolean)) {
+          current.add(p);
+        }
+      }
+      if (opts.remove) {
+        for (const p of opts.remove.split(',').map(s => s.trim()).filter(Boolean)) {
+          current.delete(p);
+        }
+      }
+
+      config.always = current.size > 0 ? [...current] : undefined;
+      if (!config.always) delete config.always;
+      saveSpecInjectionConfig(process.cwd(), config);
+      console.log(`\u2713 Always-inject: ${config.always?.join(', ') ?? '(empty)'}`);
+    });
+
+  // spec injection filter
+  injection
+    .command('filter')
+    .description('Set global keyword filters')
+    .option('--include <keywords>', 'Comma-separated include keywords (replaces)')
+    .option('--exclude <keywords>', 'Comma-separated exclude keywords (replaces)')
+    .option('--clear', 'Clear all keyword filters')
+    .action(async (opts: { include?: string; exclude?: string; clear?: boolean }) => {
+      const { loadSpecInjectionConfig, saveSpecInjectionConfig } = await import('../config/index.js');
+      const config = loadSpecInjectionConfig(process.cwd());
+
+      if (opts.clear) {
+        delete config.keywordFilters;
+        saveSpecInjectionConfig(process.cwd(), config);
+        console.log('\u2713 Cleared all keyword filters');
+        return;
+      }
+
+      if (!config.keywordFilters) config.keywordFilters = {};
+      if (opts.include) config.keywordFilters.include = opts.include.split(',').map(s => s.trim()).filter(Boolean);
+      if (opts.exclude) config.keywordFilters.exclude = opts.exclude.split(',').map(s => s.trim()).filter(Boolean);
+
+      saveSpecInjectionConfig(process.cwd(), config);
+      if (config.keywordFilters.include?.length) console.log(`\u2713 Include: ${config.keywordFilters.include.join(', ')}`);
+      if (config.keywordFilters.exclude?.length) console.log(`\u2713 Exclude: ${config.keywordFilters.exclude.join(', ')}`);
+    });
+
+  // spec injection preview
+  injection
+    .command('preview')
+    .description('Preview what would be injected for an agent type')
+    .argument('<agent>', 'Agent type (e.g. code-developer, general)')
+    .option('--json', 'Output as JSON')
+    .action(async (agent: string, opts: { json?: boolean }) => {
+      const { evaluateSpecInjection } = await import('../hooks/spec-injector.js');
+      const { loadSpecInjectionConfig } = await import('../config/index.js');
+
+      const cwd = process.cwd();
+      const config = loadSpecInjectionConfig(cwd);
+      const result = evaluateSpecInjection(agent, cwd, undefined, config);
+
+      if (opts.json) {
+        console.log(JSON.stringify({
+          agent,
+          inject: result.inject,
+          categories: result.categories,
+          specCount: result.specCount,
+          budgetAction: result.budgetAction,
+          contentLength: result.content?.length ?? 0,
+        }, null, 2));
+        return;
+      }
+
+      console.log(`\nInjection Preview: ${agent}`);
+      console.log(`  Inject: ${result.inject ? 'yes' : 'no'}`);
+      if (result.categories?.length) console.log(`  Categories: ${result.categories.join(', ')}`);
+      if (result.specCount) console.log(`  Entries: ${result.specCount}`);
+      if (result.budgetAction) console.log(`  Budget: ${result.budgetAction}`);
+      if (result.content) {
+        console.log(`  Content: ${result.content.length} chars`);
+        console.log('\n--- Preview (first 500 chars) ---');
+        console.log(result.content.slice(0, 500));
+        if (result.content.length > 500) console.log('\n... (truncated)');
+      }
+    });
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
