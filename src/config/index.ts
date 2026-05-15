@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { paths } from './paths.js';
-import type { MaestroConfig, HooksConfig, SpecInjectionConfig } from '../types/index.js';
+import type { MaestroConfig, HooksConfig, SpecInjectionConfig, SpecAnalyticsConfig } from '../types/index.js';
 
 const DEFAULT_CONFIG: MaestroConfig = {
   version: '0.1.0',
@@ -60,6 +60,21 @@ export function saveSpecInjectionConfig(projectPath: string, config: SpecInjecti
   }
   existing['specInjection'] = config;
   writeFileSync(configPath, JSON.stringify(existing, null, 2), 'utf-8');
+}
+
+// ---------------------------------------------------------------------------
+// Spec Analytics Config — nested under specInjection.analytics
+// ---------------------------------------------------------------------------
+
+export function loadAnalyticsConfig(projectPath: string): SpecAnalyticsConfig {
+  const injConfig = loadSpecInjectionConfig(projectPath);
+  return injConfig.analytics ?? { enabled: true };
+}
+
+export function saveAnalyticsConfig(projectPath: string, config: SpecAnalyticsConfig): void {
+  const injConfig = loadSpecInjectionConfig(projectPath);
+  injConfig.analytics = config;
+  saveSpecInjectionConfig(projectPath, injConfig);
 }
 
 // ---------------------------------------------------------------------------

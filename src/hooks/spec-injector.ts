@@ -15,6 +15,7 @@ import { resolveSelf } from '../tools/team-members.js';
 import { evaluateKeywordInjection } from './keyword-spec-injector.js';
 import { loadWikiByCategory } from './wiki-role-loader.js';
 import type { SpecInjectionConfig } from '../types/index.js';
+import { logInjectionEvent } from './spec-analytics.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -77,7 +78,18 @@ export function evaluateSpecInjection(
   uid?: string,
 ): SpecInjectionResult {
   const categories = resolveCategories(agentType, config);
-  if (!categories || categories.length === 0) return { inject: false };
+  if (!categories || categories.length === 0) {
+    logInjectionEvent(projectPath, {
+      source: 'spec-injector',
+      agentType,
+      categories: [],
+      specCount: 0,
+      contentLength: 0,
+      inject: false,
+      reason: 'no-categories',
+    }, config?.analytics);
+    return { inject: false };
+  }
 
   const resolvedUid = uid ?? resolveUidSafe();
   const kwFilters = resolveKeywordFilters(agentType, config);
@@ -166,7 +178,18 @@ export function evaluateSpecInjection(
     }
   }
 
-  if (sections.length === 0) return { inject: false };
+  if (sections.length === 0) {
+    logInjectionEvent(projectPath, {
+      source: 'spec-injector',
+      agentType,
+      categories: allCategories,
+      specCount: totalCount,
+      contentLength: 0,
+      inject: false,
+      reason: 'no-content',
+    }, config?.analytics);
+    return { inject: false };
+  }
 
   let rawContent = sections.join('\n\n---\n\n');
 
@@ -178,8 +201,28 @@ export function evaluateSpecInjection(
   const budget = evaluateContextBudget(rawContent, sessionId);
 
   if (budget.action === 'skip') {
+    logInjectionEvent(projectPath, {
+      source: 'spec-injector',
+      agentType,
+      categories: allCategories,
+      specCount: totalCount,
+      budgetAction: 'skip',
+      contentLength: rawContent.length,
+      inject: false,
+      reason: 'budget-skip',
+    }, config?.analytics);
     return { inject: false, budgetAction: 'skip' };
   }
+
+  logInjectionEvent(projectPath, {
+    source: 'spec-injector',
+    agentType,
+    categories: allCategories,
+    specCount: totalCount,
+    budgetAction: budget.action,
+    contentLength: budget.content?.length ?? 0,
+    inject: true,
+  }, config?.analytics);
 
   return {
     inject: true,

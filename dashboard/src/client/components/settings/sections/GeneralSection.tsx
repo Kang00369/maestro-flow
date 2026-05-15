@@ -229,6 +229,7 @@ export function GeneralSection() {
 // ---------------------------------------------------------------------------
 
 const TOGGLABLE_NAV_ITEMS = [
+  { path: '/maestro-coordinate', label: 'Dispatch Center' },
   { path: '/requirement', label: 'Requirement' },
   { path: '/rooms', label: 'Meeting Room' },
 ];
@@ -240,7 +241,7 @@ function NavVisibilityField({
   draft: GeneralSettings;
   update: (patch: Partial<GeneralSettings>) => void;
 }) {
-  const hidden = draft.hiddenNavItems ?? ['/requirement', '/rooms'];
+  const hidden = draft.hiddenNavItems ?? ['/maestro-coordinate', '/requirement', '/rooms'];
 
   const toggle = (path: string) => {
     const next = hidden.includes(path)

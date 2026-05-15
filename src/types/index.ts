@@ -15,6 +15,8 @@ export interface SpecInjectionConfig {
   keywordFilters?: KeywordFilterConfig;
   /** Max chars before truncation kicks in */
   maxContentLength?: number;
+  /** Analytics/logging configuration */
+  analytics?: SpecAnalyticsConfig;
 }
 
 export interface AlwaysInjectConfig {
@@ -48,6 +50,17 @@ export interface KeywordFilterConfig {
   include?: string[];
   /** Global keyword blacklist */
   exclude?: string[];
+}
+
+export interface SpecAnalyticsConfig {
+  /** Enable/disable analytics logging (default: true) */
+  enabled: boolean;
+  /** Log file path relative to project root (default: .workflow/analytics/spec-analytics.jsonl) */
+  logPath?: string;
+  /** Max file size in bytes before rotation (default: 5MB) */
+  maxFileSize?: number;
+  /** Retention in weeks for archived logs (default: 4) */
+  retentionWeeks?: number;
 }
 
 export interface StatuslineConfig {

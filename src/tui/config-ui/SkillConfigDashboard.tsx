@@ -12,6 +12,7 @@ import { checkSkillContextHook } from '../../commands/config.js';
 import { SkillsList } from './SkillsList.js';
 import { SkillParamEditor } from './SkillParamEditor.js';
 import { ConfigSourcesView } from './ConfigSourcesView.js';
+import { C, SP, BORDER, SYM, pad, KeyHints, SectionHeader, StatusBadge } from '../shared/index.js';
 
 type View = 'dashboard' | 'skills' | 'editor' | 'sources';
 

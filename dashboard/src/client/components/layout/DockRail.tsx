@@ -104,7 +104,7 @@ export function DockRail({ isPinned, onTogglePin }: DockRailProps) {
     const items = s.draft?.general?.hiddenNavItems ?? s.config?.general?.hiddenNavItems;
     return items;
   });
-  const DEFAULT_HIDDEN = useMemo(() => ['/requirement', '/rooms'], []);
+  const DEFAULT_HIDDEN = useMemo(() => ['/maestro-coordinate', '/requirement', '/rooms'], []);
   const hidden = hiddenNavItems ?? DEFAULT_HIDDEN;
   const visibleNavItems = useMemo(
     () => NAV_ITEMS.filter((item) => !hidden.includes(item.path)),
@@ -171,7 +171,7 @@ export function DockRail({ isPinned, onTogglePin }: DockRailProps) {
           aria-label={t('dock.phases_label')}
         >
           {processList.length > 0
-            ? processList.map((proc) => (
+            ? processList.slice(0, SESSION_COLLAPSE_LIMIT).map((proc) => (
                 <SessionDot
                   key={proc.id}
                   process={proc}

@@ -51,7 +51,9 @@ export function registerSpecCommand(program: Command): void {
     .option('--stdin', 'Read input from stdin (Hook mode)')
     .option('--json', 'Output as JSON')
     .action(async (opts) => {
+      const { logCliEndpoint } = await import('../hooks/spec-analytics.js');
       const { loadSpecs } = await import('../tools/spec-loader.js');
+      logCliEndpoint(process.cwd(), 'spec load', { category: opts.category, scope: opts.scope, keyword: opts.keyword, stdin: !!opts.stdin });
 
       let projectPath = process.cwd();
       let keyword = opts.keyword as string | undefined;
@@ -113,6 +115,8 @@ export function registerSpecCommand(program: Command): void {
     .option('--scope <scope>', 'Spec scope: project|global|team|personal (default: project)')
     .option('--uid <uid>', 'User id for personal scope')
     .action(async (opts) => {
+      const { logCliEndpoint } = await import('../hooks/spec-analytics.js');
+      logCliEndpoint(process.cwd(), 'spec list', { scope: opts.scope });
       const { existsSync, readdirSync } = await import('node:fs');
       const { resolveSpecDir } = await import('../tools/spec-loader.js');
 
@@ -151,6 +155,8 @@ export function registerSpecCommand(program: Command): void {
     .option('--scope <scope>', 'Spec scope: project|global|team|personal (default: project)')
     .option('--uid <uid>', 'User id for personal scope')
     .action(async (opts) => {
+      const { logCliEndpoint } = await import('../hooks/spec-analytics.js');
+      logCliEndpoint(process.cwd(), 'spec init', { scope: opts.scope });
       const { initSpecSystem } = await import('../tools/spec-init.js');
 
       const scope = validateScope(opts.scope);
@@ -192,6 +198,8 @@ export function registerSpecCommand(program: Command): void {
     .option('--scope <scope>', 'Spec scope: project|global|team|personal (default: project)')
     .option('--uid <uid>', 'User id for personal scope')
     .action(async (opts) => {
+      const { logCliEndpoint } = await import('../hooks/spec-analytics.js');
+      logCliEndpoint(process.cwd(), 'spec status', { scope: opts.scope });
       const { existsSync, readdirSync, readFileSync } = await import('node:fs');
       const { join } = await import('node:path');
       const { resolveSpecDir } = await import('../tools/spec-loader.js');
@@ -241,6 +249,8 @@ export function registerSpecCommand(program: Command): void {
     .option('--stdin', 'Read JSON array from stdin: [{category,title,content,keywords}]')
     .option('--json', 'Output result as JSON')
     .action(async (category: string, title: string, content: string | undefined, opts: Record<string, unknown>) => {
+      const { logCliEndpoint } = await import('../hooks/spec-analytics.js');
+      logCliEndpoint(process.cwd(), 'spec add', { category, scope: opts.scope, keywords: opts.keywords, stdin: !!opts.stdin });
       const { appendSpecEntry } = await import('../tools/spec-writer.js');
       const { VALID_CATEGORIES } = await import('../tools/spec-entry-parser.js');
 
@@ -426,6 +436,8 @@ export function registerSpecCommand(program: Command): void {
     .description('Show current spec injection config')
     .option('--json', 'Output raw JSON')
     .action(async (opts: { json?: boolean }) => {
+      const { logCliEndpoint } = await import('../hooks/spec-analytics.js');
+      logCliEndpoint(process.cwd(), 'spec injection show', {});
       const { loadSpecInjectionConfig } = await import('../config/index.js');
       const config = loadSpecInjectionConfig(process.cwd());
 
@@ -492,6 +504,8 @@ export function registerSpecCommand(program: Command): void {
     .option('--extras <paths>', 'Comma-separated extra doc paths')
     .option('--remove', 'Remove this agent mapping')
     .action(async (agent: string, opts: { categories?: string; include?: string; exclude?: string; extras?: string; remove?: boolean }) => {
+      const { logCliEndpoint } = await import('../hooks/spec-analytics.js');
+      logCliEndpoint(process.cwd(), 'spec injection agent', { agentType: agent, remove: !!opts.remove });
       const { loadSpecInjectionConfig, saveSpecInjectionConfig } = await import('../config/index.js');
       const config = loadSpecInjectionConfig(process.cwd());
 
@@ -543,6 +557,8 @@ export function registerSpecCommand(program: Command): void {
     .option('--docs <paths>', 'Comma-separated doc paths (relative to project or knowhow/ prefix)')
     .option('--remove', 'Remove this category doc config')
     .action(async (category: string, opts: { specFiles?: string; docs?: string; remove?: boolean }) => {
+      const { logCliEndpoint } = await import('../hooks/spec-analytics.js');
+      logCliEndpoint(process.cwd(), 'spec injection category', { category, remove: !!opts.remove });
       const { VALID_CATEGORIES } = await import('../tools/spec-entry-parser.js');
       if (!(VALID_CATEGORIES as readonly string[]).includes(category)) {
         console.error(`Error: invalid category "${category}". Valid: ${VALID_CATEGORIES.join(', ')}`);
@@ -595,6 +611,8 @@ export function registerSpecCommand(program: Command): void {
       removeDocs?: string; removeKeywords?: string; removeCategories?: string;
       clear?: boolean;
     }) => {
+      const { logCliEndpoint } = await import('../hooks/spec-analytics.js');
+      logCliEndpoint(process.cwd(), 'spec injection always', { clear: !!opts.clear });
       const { loadSpecInjectionConfig, saveSpecInjectionConfig } = await import('../config/index.js');
       const config = loadSpecInjectionConfig(process.cwd());
 
@@ -668,6 +686,8 @@ export function registerSpecCommand(program: Command): void {
     .option('--exclude <keywords>', 'Comma-separated exclude keywords (replaces)')
     .option('--clear', 'Clear all keyword filters')
     .action(async (opts: { include?: string; exclude?: string; clear?: boolean }) => {
+      const { logCliEndpoint } = await import('../hooks/spec-analytics.js');
+      logCliEndpoint(process.cwd(), 'spec injection filter', { clear: !!opts.clear });
       const { loadSpecInjectionConfig, saveSpecInjectionConfig } = await import('../config/index.js');
       const config = loadSpecInjectionConfig(process.cwd());
 
@@ -694,6 +714,8 @@ export function registerSpecCommand(program: Command): void {
     .argument('<agent>', 'Agent type (e.g. code-developer, general)')
     .option('--json', 'Output as JSON')
     .action(async (agent: string, opts: { json?: boolean }) => {
+      const { logCliEndpoint } = await import('../hooks/spec-analytics.js');
+      logCliEndpoint(process.cwd(), 'spec injection preview', { agentType: agent });
       const { evaluateSpecInjection } = await import('../hooks/spec-injector.js');
       const { loadSpecInjectionConfig } = await import('../config/index.js');
 
@@ -724,6 +746,150 @@ export function registerSpecCommand(program: Command): void {
         console.log(result.content.slice(0, 500));
         if (result.content.length > 500) console.log('\n... (truncated)');
       }
+    });
+  // ── analytics ────────────────────────────────────────────────────────
+  spec
+    .command('analytics')
+    .alias('stats')
+    .description('View spec injection analytics and statistics')
+    .option('--json', 'Output as JSON')
+    .option('--recent <n>', 'Show last N events')
+    .option('--summary', 'Show summary statistics only (default)')
+    .option('--clear', 'Archive current log and start fresh')
+    .option('--tui', 'Open TUI analytics panel')
+    .action(async (opts: { json?: boolean; recent?: string; summary?: boolean; clear?: boolean; tui?: boolean }) => {
+      const { logCliEndpoint } = await import('../hooks/spec-analytics.js');
+      logCliEndpoint(process.cwd(), 'spec analytics', { json: !!opts.json, recent: opts.recent, clear: !!opts.clear, tui: !!opts.tui });
+
+      if (opts.tui) {
+        const { runSpecAnalyticsTui } = await import('../tui/config-ui/index.js');
+        await runSpecAnalyticsTui();
+        return;
+      }
+
+      const { readAnalytics, readRecentAnalytics, computeStats, getLogFileSize, clearAnalyticsLog } = await import('../hooks/spec-analytics.js');
+      const cwd = process.cwd();
+
+      if (opts.clear) {
+        const archived = clearAnalyticsLog(cwd);
+        if (archived) {
+          console.log(`\u2713 Log archived to: ${archived}`);
+        } else {
+          console.log('No log file to archive.');
+        }
+        return;
+      }
+
+      if (opts.recent) {
+        const n = parseInt(opts.recent, 10) || 20;
+        const recent = readRecentAnalytics(cwd, n);
+        if (recent.length === 0) {
+          console.log('No analytics data. Spec injection events will be recorded automatically.');
+          return;
+        }
+
+        if (opts.json) {
+          console.log(JSON.stringify(recent, null, 2));
+          return;
+        }
+
+        console.log(`\nRecent Events (last ${recent.length}):\n`);
+        for (const entry of recent) {
+          const ts = entry.timestamp.slice(0, 19).replace('T', ' ');
+          if (entry.type === 'injection') {
+            const status = entry.inject ? '\x1b[32m\u2713\x1b[0m' : '\x1b[31m\u2717\x1b[0m';
+            const src = entry.source.replace('spec-', '').padEnd(20);
+            const agent = (entry.agentType ?? entry.inferredCategory ?? '').padEnd(22);
+            const kw = entry.matchedKeywords?.length ? ` kw:[${entry.matchedKeywords.join(',')}]` : '';
+            const reason = entry.reason ? ` (${entry.reason})` : '';
+            console.log(`  ${ts}  ${status} ${src} ${agent} ${entry.specCount} specs${kw}${reason}`);
+          } else if (entry.type === 'cli') {
+            console.log(`  ${ts}  \x1b[36mCLI\x1b[0m  ${entry.command.padEnd(25)} ${JSON.stringify(entry.args)}`);
+          } else if (entry.type === 'hook') {
+            console.log(`  ${ts}  \x1b[33mHOOK\x1b[0m ${entry.hookName.padEnd(20)} ${entry.nodeId ?? ''}`);
+          }
+        }
+        return;
+      }
+
+      // Default: summary
+      const entries = readAnalytics(cwd);
+      if (entries.length === 0) {
+        console.log('No analytics data. Spec injection events will be recorded automatically.');
+        return;
+      }
+
+      const fileSize = getLogFileSize(cwd);
+      const stats = computeStats(entries, fileSize);
+
+      if (opts.json) {
+        console.log(JSON.stringify(stats, null, 2));
+        return;
+      }
+
+      console.log('\nSpec Injection Analytics');
+      console.log('========================\n');
+      console.log(`  Total injections:    ${stats.totalInjections}`);
+      console.log(`  Successful:          ${stats.successfulInjections} (${stats.hitRate.toFixed(1)}%)`);
+      console.log(`  Failed:              ${stats.failedInjections} (${(100 - stats.hitRate).toFixed(1)}%)`);
+
+      // By source
+      const sources = Object.entries(stats.bySource);
+      if (sources.length > 0) {
+        console.log('\n  By Source:');
+        for (const [src, s] of sources) {
+          const rate = s.total > 0 ? ((s.injected / s.total) * 100).toFixed(1) : '0.0';
+          console.log(`    ${src.padEnd(28)} ${String(s.total).padStart(4)} (${rate}% hit)`);
+        }
+      }
+
+      // By agent type
+      const agents = Object.entries(stats.byAgentType).sort((a, b) => b[1].total - a[1].total);
+      if (agents.length > 0) {
+        console.log('\n  By Agent/Category:');
+        for (const [agent, s] of agents.slice(0, 10)) {
+          const rate = s.total > 0 ? ((s.injected / s.total) * 100).toFixed(1) : '0.0';
+          console.log(`    ${agent.padEnd(28)} ${String(s.total).padStart(4)} (${rate}% hit)`);
+        }
+        if (agents.length > 10) console.log(`    ... and ${agents.length - 10} more`);
+      }
+
+      // Budget actions
+      const budgets = Object.entries(stats.byBudgetAction);
+      if (budgets.length > 0) {
+        console.log('\n  Budget Actions:');
+        console.log(`    ${budgets.map(([k, v]) => `${k}: ${v}`).join('  ')}`);
+      }
+
+      // Top keywords
+      if (stats.keywordStats.topKeywords.length > 0) {
+        console.log('\n  Top Keywords:');
+        console.log(`    ${stats.keywordStats.topKeywords.slice(0, 10).map(k => `${k.keyword} (${k.count})`).join('  ')}`);
+        console.log(`    Avg matched/prompt: ${stats.keywordStats.avgMatchedPerPrompt.toFixed(1)}  Dedup filtered: ${stats.keywordStats.dedupFilteredTotal}`);
+      }
+
+      // Hook stats
+      if (stats.hookStats.totalInvocations > 0) {
+        console.log('\n  Hook Invocations:');
+        const hooks = Object.entries(stats.hookStats.byHook).sort((a, b) => b[1] - a[1]);
+        console.log(`    ${hooks.map(([k, v]) => `${k}: ${v}`).join('  ')}`);
+        if (stats.hookStats.avgDurationMs > 0) {
+          console.log(`    Avg duration: ${stats.hookStats.avgDurationMs.toFixed(1)}ms`);
+        }
+      }
+
+      // CLI stats
+      const cliEntries = Object.entries(stats.cliStats).sort((a, b) => b[1] - a[1]);
+      if (cliEntries.length > 0) {
+        console.log('\n  CLI Endpoints:');
+        console.log(`    ${cliEntries.map(([k, v]) => `${k}: ${v}`).join('  ')}`);
+      }
+
+      // Log info
+      const sizeKB = (stats.logFileSize / 1024).toFixed(1);
+      const earliest = stats.timeRange.earliest ? stats.timeRange.earliest.slice(0, 10) : '—';
+      const latest = stats.timeRange.latest ? stats.timeRange.latest.slice(0, 10) : '—';
+      console.log(`\n  Log: ${sizeKB} KB | ${stats.totalEntries} entries | ${earliest} ~ ${latest}`);
     });
 }
 

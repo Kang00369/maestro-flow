@@ -738,18 +738,39 @@ export function registerHooksCommand(program: Command): void {
       // when no Maestro workspace (.workflow/ + valid state.json) is found.
       // This avoids stdin parsing + evaluator overhead for non-workflow projects.
       const def = HOOK_DEFS[name] ?? CODEX_HOOK_DEFS[name];
+      const cwd = process.cwd();
       if (def?.requiresWorkspace) {
-        const cwd = process.cwd();
         if (!resolveWorkspace({ cwd })) {
           process.exit(0);
         }
       }
 
+      // Track subprocess hook invocation
+      const startMs = Date.now();
+      let outcome = 'success';
       try {
         await runner();
       } catch {
+        outcome = 'error';
         // Silent fail — never block tool execution
       }
+      const durationMs = Date.now() - startMs;
+
+      // Log hook call (best-effort, never block exit)
+      try {
+        const workspace = resolveWorkspace({ cwd });
+        if (workspace) {
+          const { logHookInvocation } = await import('../hooks/spec-analytics.js');
+          logHookInvocation(workspace, {
+            hookName: name,
+            pluginName: 'subprocess',
+            outcome,
+            durationMs,
+            data: { event: def?.event, matcher: def?.matcher, level: def?.level },
+          });
+        }
+      } catch { /* swallow */ }
+
       process.exit(0);
     });
 
@@ -910,6 +931,146 @@ export function registerHooksCommand(program: Command): void {
       config.hooks.toggles[name] = state === 'on';
       saveConfig(config);
       console.log(`Hook "${name}" toggled ${state}.`);
+    });
+
+  // --- maestro hooks analytics ---
+  hooks
+    .command('analytics')
+    .alias('stats')
+    .description('View hook invocation analytics and statistics')
+    .option('--json', 'Output as JSON')
+    .option('--recent <n>', 'Show last N hook events')
+    .option('--hook <name>', 'Filter by hook name')
+    .option('--clear', 'Archive current log and start fresh')
+    .action(async (opts: { json?: boolean; recent?: string; hook?: string; clear?: boolean }) => {
+      const { readAnalytics, readRecentAnalytics, getLogFileSize, clearAnalyticsLog } = await import('../hooks/spec-analytics.js');
+      const cwd = process.cwd();
+      const workspace = resolveWorkspace({ cwd }) ?? cwd;
+
+      if (opts.clear) {
+        const archived = clearAnalyticsLog(workspace);
+        console.log(archived ? `\u2713 Log archived to: ${archived}` : 'No log file to archive.');
+        return;
+      }
+
+      // Read and filter hook entries
+      const filterHookEntries = (entries: import('../hooks/spec-analytics.js').AnalyticsLogEntry[]) => {
+        let hooks = entries.filter(e => e.type === 'hook') as Array<{ type: 'hook' } & import('../hooks/spec-analytics.js').HookInvocationLogEntry>;
+        if (opts.hook) {
+          hooks = hooks.filter(e => e.hookName === opts.hook);
+        }
+        return hooks;
+      };
+
+      if (opts.recent) {
+        const n = parseInt(opts.recent, 10) || 30;
+        const all = readRecentAnalytics(workspace, n * 5); // over-read then filter
+        const hooks = filterHookEntries(all).slice(-n);
+
+        if (hooks.length === 0) {
+          console.log('No hook events recorded yet.');
+          return;
+        }
+        if (opts.json) {
+          console.log(JSON.stringify(hooks, null, 2));
+          return;
+        }
+
+        console.log(`\nRecent Hook Events (last ${hooks.length}):\n`);
+        for (const e of hooks) {
+          const ts = e.timestamp.slice(11, 19);
+          const dur = e.durationMs != null ? `${e.durationMs}ms` : '';
+          const outcomeColor = e.outcome === 'error' ? '\x1b[31m' : '\x1b[32m';
+          const plugin = e.pluginName === 'subprocess' ? 'SUB' : 'CRD';
+          const nodeStr = e.nodeId ? ` node:${e.nodeId}` : '';
+          const dataStr = e.data ? ` ${JSON.stringify(e.data)}` : '';
+          console.log(`  ${ts}  ${outcomeColor}${(e.outcome ?? 'ok').padEnd(7)}\x1b[0m [${plugin}] ${e.hookName.padEnd(24)} ${dur.padStart(6)}${nodeStr}${dataStr}`);
+        }
+        return;
+      }
+
+      // Default: summary
+      const all = readAnalytics(workspace);
+      const hooks = filterHookEntries(all);
+
+      if (hooks.length === 0) {
+        console.log('No hook events recorded yet. Hook events are tracked automatically when hooks run.');
+        return;
+      }
+
+      // Compute hook-specific stats
+      const byName: Record<string, { total: number; errors: number; totalMs: number; durCount: number }> = {};
+      const byPlugin: Record<string, number> = {};
+      let totalDurMs = 0;
+      let durCount = 0;
+
+      for (const e of hooks) {
+        const n = e.hookName;
+        if (!byName[n]) byName[n] = { total: 0, errors: 0, totalMs: 0, durCount: 0 };
+        byName[n].total++;
+        if (e.outcome === 'error') byName[n].errors++;
+        if (e.durationMs != null) {
+          byName[n].totalMs += e.durationMs;
+          byName[n].durCount++;
+          totalDurMs += e.durationMs;
+          durCount++;
+        }
+        const p = e.pluginName ?? '(unknown)';
+        byPlugin[p] = (byPlugin[p] ?? 0) + 1;
+      }
+
+      if (opts.json) {
+        const stats = {
+          totalInvocations: hooks.length,
+          avgDurationMs: durCount > 0 ? totalDurMs / durCount : 0,
+          byHook: Object.fromEntries(Object.entries(byName).map(([k, v]) => [k, {
+            total: v.total,
+            errors: v.errors,
+            errorRate: v.total > 0 ? (v.errors / v.total * 100) : 0,
+            avgDurationMs: v.durCount > 0 ? v.totalMs / v.durCount : 0,
+          }])),
+          byPlugin,
+          timeRange: {
+            earliest: hooks[0]?.timestamp ?? '',
+            latest: hooks[hooks.length - 1]?.timestamp ?? '',
+          },
+        };
+        console.log(JSON.stringify(stats, null, 2));
+        return;
+      }
+
+      // Formatted output
+      const fileSize = getLogFileSize(workspace);
+      const earliest = hooks[0]?.timestamp?.slice(0, 10) ?? '\u2014';
+      const latest = hooks[hooks.length - 1]?.timestamp?.slice(0, 10) ?? '\u2014';
+
+      console.log('\nHook Analytics');
+      console.log('==============\n');
+      console.log(`  Total invocations:   ${hooks.length}`);
+      if (durCount > 0) console.log(`  Avg duration:        ${(totalDurMs / durCount).toFixed(1)}ms`);
+
+      // By type (subprocess vs coordinator)
+      console.log('\n  By Type:');
+      for (const [p, count] of Object.entries(byPlugin).sort((a, b) => b[1] - a[1])) {
+        const label = p === 'subprocess' ? 'Subprocess (Claude Code / Codex)' : p === 'specAnalytics' ? 'Coordinator (in-process)' : p;
+        console.log(`    ${label.padEnd(36)} ${count}`);
+      }
+
+      // By hook name
+      const sorted = Object.entries(byName).sort((a, b) => b[1].total - a[1].total);
+      console.log('\n  By Hook:');
+      console.log(`    ${'Hook'.padEnd(28)} ${'Total'.padStart(6)} ${'Errors'.padStart(7)} ${'Err%'.padStart(6)} ${'Avg ms'.padStart(8)}`);
+      console.log(`    ${'─'.repeat(28)} ${'─'.repeat(6)} ${'─'.repeat(7)} ${'─'.repeat(6)} ${'─'.repeat(8)}`);
+      for (const [name, s] of sorted) {
+        const errRate = s.total > 0 ? (s.errors / s.total * 100).toFixed(1) : '0.0';
+        const avgMs = s.durCount > 0 ? (s.totalMs / s.durCount).toFixed(1) : '\u2014';
+        const errColor = s.errors > 0 ? '\x1b[31m' : '';
+        const reset = s.errors > 0 ? '\x1b[0m' : '';
+        console.log(`    ${name.padEnd(28)} ${String(s.total).padStart(6)} ${errColor}${String(s.errors).padStart(7)}${reset} ${(errRate + '%').padStart(6)} ${String(avgMs).padStart(8)}`);
+      }
+
+      console.log(`\n  Log: ${(fileSize / 1024).toFixed(1)} KB | ${earliest} ~ ${latest}`);
+      if (opts.hook) console.log(`  Filter: --hook ${opts.hook}`);
     });
 
   // --- maestro hooks list ---

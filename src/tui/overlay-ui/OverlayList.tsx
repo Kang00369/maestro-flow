@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Box, Text, useInput, useApp, useStdout } from 'ink';
 import type { OverlayFile } from '../../core/overlay/types.js';
+import { C, SYM, SP, truncate as sharedTruncate, wrapCursor, KeyHints, SectionHeader, CursorMarker } from '../shared/index.js';
 
 export interface LoadError {
   path: string;
@@ -226,9 +227,9 @@ export function OverlayList({
       }
     } else if (mode === 'select') {
       if (key.upArrow) {
-        setCursor((c) => (c <= 0 ? overlayNames.length - 1 : c - 1));
+        setCursor((c) => wrapCursor(c, -1, overlayNames.length));
       } else if (key.downArrow) {
-        setCursor((c) => (c >= overlayNames.length - 1 ? 0 : c + 1));
+        setCursor((c) => wrapCursor(c, 1, overlayNames.length));
       } else if (key.return) {
         const name = overlayNames[cursor];
         if (name) {
@@ -269,7 +270,7 @@ export function OverlayList({
   return (
     <Box flexDirection="column">
       {/* Header */}
-      <Text bold color="cyan">Overlays</Text>
+      <SectionHeader title="Overlays" />
 
       {/* Overlay list */}
       <Box flexDirection="column" marginTop={1}>
@@ -310,31 +311,27 @@ export function OverlayList({
 
       {/* Delete selection mode */}
       {mode === 'select' ? (
-        <Box flexDirection="column" marginTop={1}>
-          <Text bold color="yellow">Select overlay to delete:</Text>
+        <Box flexDirection="column" marginTop={SP.sectionGap}>
+          <Text bold color={C.warning}>Select overlay to delete:</Text>
           {overlayNames.map((name, i) => {
             const hl = i === cursor;
             const ov = overlays.find((o) => o.meta.name === name);
             const desc = ov?.meta.description ?? ov?.meta.targets.join(', ') ?? '';
             return (
               <Box key={name}>
-                <Text color={hl ? 'cyan' : 'gray'}>{hl ? '>' : ' '} </Text>
-                <Text color={hl ? 'cyan' : undefined} bold={hl}>{name}</Text>
+                <CursorMarker active={hl} />
+                <Text color={hl ? C.primary : undefined} bold={hl}>{name}</Text>
                 <Text dimColor> {'\u2014'} {truncate(desc, maxWidth - name.length - 6)}</Text>
               </Box>
             );
           })}
-          <Box marginTop={1}><Text dimColor>[Enter] Delete  [Esc] Cancel</Text></Box>
+          <KeyHints hints="[Enter] Delete  [Esc] Cancel" />
         </Box>
       ) : null}
 
       {/* Footer hints */}
       {interactive && mode === 'view' ? (
-        <Box marginTop={1}>
-          <Text dimColor>
-            {overlays.length > 0 ? '[d] Delete  ' : ''}[q] Quit
-          </Text>
-        </Box>
+        <KeyHints hints={`${overlays.length > 0 ? '[d] Delete  ' : ''}[q] Quit`} />
       ) : null}
     </Box>
   );

@@ -7,6 +7,7 @@
 
 import { buildKeywordIndex, lookupKeywords, type IndexedEntry } from '../tools/spec-keyword-index.js';
 import { readSpecBridge, markInjected, filterUnjected } from './spec-bridge.js';
+import { logInjectionEvent } from './spec-analytics.js';
 
 // ============================================================================
 // Types
@@ -62,19 +63,68 @@ export function evaluateKeywordInjection(
 ): KeywordInjectionResult {
   // 1. Tokenize prompt into candidate keywords
   const promptKeywords = tokenizePrompt(prompt);
-  if (promptKeywords.length === 0) return { inject: false };
+  if (promptKeywords.length === 0) {
+    logInjectionEvent(projectPath, {
+      source: 'keyword-spec-injector',
+      promptSnippet: prompt.slice(0, 300),
+      categories: [],
+      specCount: 0,
+      contentLength: 0,
+      inject: false,
+      reason: 'no-prompt-keywords',
+      totalPromptKeywords: 0,
+    });
+    return { inject: false };
+  }
 
   // 2. Build keyword index from spec files
   const index = buildKeywordIndex(projectPath);
-  if (index.size === 0) return { inject: false };
+  if (index.size === 0) {
+    logInjectionEvent(projectPath, {
+      source: 'keyword-spec-injector',
+      promptSnippet: prompt.slice(0, 300),
+      categories: [],
+      specCount: 0,
+      contentLength: 0,
+      inject: false,
+      reason: 'empty-keyword-index',
+      totalPromptKeywords: promptKeywords.length,
+    });
+    return { inject: false };
+  }
 
   // 3. Look up matching entries
   const matchedAll = lookupKeywords(index, promptKeywords);
-  if (matchedAll.length === 0) return { inject: false };
+  if (matchedAll.length === 0) {
+    logInjectionEvent(projectPath, {
+      source: 'keyword-spec-injector',
+      promptSnippet: prompt.slice(0, 300),
+      categories: [],
+      specCount: 0,
+      contentLength: 0,
+      inject: false,
+      reason: 'no-keyword-match',
+      totalPromptKeywords: promptKeywords.length,
+    });
+    return { inject: false };
+  }
 
   // 4. Filter out already-injected entries (session dedup)
   const unjected = filterUnjected(sessionId, matchedAll);
-  if (unjected.length === 0) return { inject: false };
+  if (unjected.length === 0) {
+    logInjectionEvent(projectPath, {
+      source: 'keyword-spec-injector',
+      promptSnippet: prompt.slice(0, 300),
+      categories: [],
+      specCount: 0,
+      contentLength: 0,
+      inject: false,
+      reason: 'all-deduped',
+      totalPromptKeywords: promptKeywords.length,
+      dedupFilteredCount: matchedAll.length,
+    });
+    return { inject: false };
+  }
 
   // 5. Limit to avoid context bloat
   const toInject = unjected.slice(0, MAX_ENTRIES_PER_INJECTION);
@@ -89,6 +139,20 @@ export function evaluateKeywordInjection(
 
   // 8. Determine which prompt keywords actually matched
   const matchedKws = promptKeywords.filter(kw => index.has(kw));
+
+  logInjectionEvent(projectPath, {
+    source: 'keyword-spec-injector',
+    promptSnippet: prompt.slice(0, 300),
+    categories: [],
+    specCount: toInject.length,
+    contentLength: content.length,
+    inject: true,
+    matchedKeywords: matchedKws,
+    matchedEntryIds: injectedIds,
+    matchedEntries: toInject.length,
+    totalPromptKeywords: promptKeywords.length,
+    dedupFilteredCount: matchedAll.length - unjected.length,
+  });
 
   return {
     inject: true,

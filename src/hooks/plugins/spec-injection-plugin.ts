@@ -8,6 +8,7 @@ import { loadSpecs, loadExtraDocs, type SpecCategory, type LoadSpecsOptions } fr
 import { loadSpecInjectionConfig } from '../../config/index.js';
 import { resolveSelf } from '../../tools/team-members.js';
 import { evaluateKeywordInjection } from '../keyword-spec-injector.js';
+import { logInjectionEvent } from '../spec-analytics.js';
 
 /**
  * In-process plugin for `maestro coordinate` — injects relevant specs
@@ -79,7 +80,22 @@ export class SpecInjectionPlugin implements MaestroPlugin {
         }
       }
 
-      return parts.length > 1 ? parts.join('\n\n---\n\n') : prompt;
+      const injected = parts.length > 1;
+      const injectedContent = injected ? parts.slice(1).join('\n\n---\n\n') : '';
+      const inferredCat = category;
+
+      logInjectionEvent(this.projectPath, {
+        source: 'spec-injection-plugin',
+        promptSnippet: prompt.slice(0, 300),
+        inferredCategory: inferredCat,
+        categories: injected ? [inferredCat] : [],
+        specCount: catResult.totalLoaded,
+        contentLength: injectedContent.length,
+        inject: injected,
+        reason: injected ? undefined : 'no-content',
+      }, config.analytics);
+
+      return injected ? parts.join('\n\n---\n\n') : prompt;
     });
   }
 }
