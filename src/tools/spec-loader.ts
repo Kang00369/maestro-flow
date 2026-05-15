@@ -100,6 +100,12 @@ export function resolveSpecDir(projectPath: string, scope: SpecScope, uid?: stri
 export interface LoadSpecsOptions {
   /** Override global specs directory (for testing). Defaults to ~/.maestro/specs/ */
   globalDir?: string;
+  /** Keyword whitelist: only include entries matching at least one keyword */
+  includeKeywords?: string[];
+  /** Keyword blacklist: exclude entries matching any of these keywords */
+  excludeKeywords?: string[];
+  /** Extra spec filenames to include for the category (dynamic CATEGORY_MAP extension) */
+  extraSpecFiles?: string[];
 }
 
 export function loadSpecs(projectPath: string, category?: SpecCategory, uid?: string, keyword?: string, scope?: SpecScope, options?: LoadSpecsOptions): SpecLoadResult {
@@ -116,7 +122,7 @@ export function loadSpecs(projectPath: string, category?: SpecCategory, uid?: st
   // First pass: collect results per layer (skip empty)
   const layerResults: Array<{ label: string; sections: string[]; matched: string[] }> = [];
   for (const { dir, label } of layers) {
-    const { sections, matched } = loadFromDir(dir, category, keyword);
+    const { sections, matched } = loadFromDir(dir, category, keyword, options);
     if (sections.length > 0) {
       layerResults.push({ label, sections, matched });
     }
@@ -203,6 +209,7 @@ function loadFromDir(
   specsDir: string,
   category?: SpecCategory,
   keyword?: string,
+  options?: LoadSpecsOptions,
 ): { sections: string[]; matched: string[] } {
   if (!existsSync(specsDir)) return { sections: [], matched: [] };
 
@@ -217,7 +224,7 @@ function loadFromDir(
   const matched: string[] = [];
 
   for (const file of files) {
-    if (!shouldInclude(file, category)) continue;
+    if (!shouldInclude(file, category, options?.extraSpecFiles)) continue;
 
     const filePath = join(specsDir, file);
     let raw: string;
@@ -232,10 +239,10 @@ function loadFromDir(
 
     // Primary category doc → full load; other files → keyword-filtered only
     const fileCategory = CATEGORY_MAP[file];
-    const isPrimaryDoc = category && fileCategory === category;
+    const isPrimaryDoc = category && (fileCategory === category || options?.extraSpecFiles?.includes(file));
 
     const workflowRoot = join(specsDir, '..');
-    const formatted = formatFileContent(body, keyword, isPrimaryDoc ? undefined : category, workflowRoot);
+    const formatted = formatFileContent(body, keyword, isPrimaryDoc ? undefined : category, workflowRoot, options);
     if (formatted) {
       sections.push(formatted);
       matched.push(file);
@@ -249,8 +256,11 @@ function loadFromDir(
 // Internal
 // ============================================================================
 
-function shouldInclude(filename: string, category?: SpecCategory): boolean {
+function shouldInclude(filename: string, category?: SpecCategory, extraSpecFiles?: string[]): boolean {
   if (!category) return true; // No filter → load all
+
+  // Extra spec files for this category → always include as primary
+  if (extraSpecFiles?.includes(filename)) return true;
 
   // Category filter: include primary doc + all other files (for keyword cross-matching)
   const cat = CATEGORY_MAP[filename];
@@ -270,7 +280,7 @@ function shouldInclude(filename: string, category?: SpecCategory): boolean {
  * (cross-category matching for non-primary docs).
  * Falls back to raw body for files with no structured entries.
  */
-function formatFileContent(body: string, keyword?: string, crossCategory?: SpecCategory, workflowRoot?: string): string | null {
+function formatFileContent(body: string, keyword?: string, crossCategory?: SpecCategory, workflowRoot?: string, options?: LoadSpecsOptions): string | null {
   const { entries, legacy } = parseSpecEntries(body);
 
   // No structured entries → pass through raw body (or keyword-grep it)
@@ -292,6 +302,20 @@ function formatFileContent(body: string, keyword?: string, crossCategory?: SpecC
   } else if (crossCategory) {
     // Cross-category without keyword → skip (no way to match)
     return null;
+  }
+
+  // Apply keyword whitelist/blacklist filters from config
+  if (options?.includeKeywords?.length) {
+    const include = new Set(options.includeKeywords.map(k => k.toLowerCase()));
+    filteredEntries = filteredEntries.filter(e =>
+      e.keywords.some(k => include.has(k.toLowerCase())),
+    );
+  }
+  if (options?.excludeKeywords?.length) {
+    const exclude = new Set(options.excludeKeywords.map(k => k.toLowerCase()));
+    filteredEntries = filteredEntries.filter(e =>
+      !e.keywords.some(k => exclude.has(k.toLowerCase())),
+    );
   }
 
   const parts: string[] = [];
@@ -491,4 +515,50 @@ function autoInitSeeds(specsDir: string): void {
   } catch {
     // Best-effort — don't block loading
   }
+}
+
+// ============================================================================
+// Extra document loading
+// ============================================================================
+
+export interface ExtraDocsResult {
+  content: string;
+  count: number;
+}
+
+/**
+ * Load additional documents from arbitrary paths.
+ *
+ * Path resolution:
+ *   - Starts with `knowhow/` → resolved from `.workflow/knowhow/`
+ *   - Otherwise → resolved relative to projectPath
+ *
+ * Returns concatenated markdown content and loaded count.
+ */
+export function loadExtraDocs(projectPath: string, docPaths?: string[]): ExtraDocsResult {
+  if (!docPaths || docPaths.length === 0) return { content: '', count: 0 };
+
+  const sections: string[] = [];
+
+  for (const docPath of docPaths) {
+    const absPath = docPath.startsWith('knowhow/')
+      ? join(projectPath, '.workflow', docPath)
+      : join(projectPath, docPath);
+
+    try {
+      if (!existsSync(absPath)) continue;
+      const raw = readFileSync(absPath, 'utf-8');
+      const body = stripFrontmatter(raw).trim();
+      if (body) {
+        sections.push(body);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return {
+    content: sections.length > 0 ? sections.join('\n\n---\n\n') : '',
+    count: sections.length,
+  };
 }

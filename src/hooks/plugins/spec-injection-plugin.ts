@@ -2,9 +2,10 @@
 // SpecInjectionPlugin — Injects project specs into coordinator prompts
 // ---------------------------------------------------------------------------
 
-import type { MaestroPlugin } from '../../types/index.js';
+import type { MaestroPlugin, SpecInjectionConfig } from '../../types/index.js';
 import type { WorkflowHookRegistry } from '../workflow-hooks.js';
-import { loadSpecs, type SpecCategory } from '../../tools/spec-loader.js';
+import { loadSpecs, loadExtraDocs, type SpecCategory, type LoadSpecsOptions } from '../../tools/spec-loader.js';
+import { loadSpecInjectionConfig } from '../../config/index.js';
 import { resolveSelf } from '../../tools/team-members.js';
 import { evaluateKeywordInjection } from '../keyword-spec-injector.js';
 
@@ -26,13 +27,34 @@ export class SpecInjectionPlugin implements MaestroPlugin {
   apply(registry: WorkflowHookRegistry): void {
     registry.transformPrompt.tap(this.name, (prompt: string) => {
       const parts: string[] = [prompt];
+      const config = loadSpecInjectionConfig(this.projectPath);
 
-      // Category-based injection
+      // Category-based injection with keyword filters
       const category = inferCategory(prompt);
       const uid = resolveUidSafe();
-      const catResult = loadSpecs(this.projectPath, category, uid);
+
+      const loaderOpts: LoadSpecsOptions = {};
+      if (config.keywordFilters?.include?.length) loaderOpts.includeKeywords = config.keywordFilters.include;
+      if (config.keywordFilters?.exclude?.length) loaderOpts.excludeKeywords = config.keywordFilters.exclude;
+
+      const catDocConfig = config.categoryDocs?.[category];
+      if (catDocConfig?.specFiles?.length) loaderOpts.extraSpecFiles = catDocConfig.specFiles;
+
+      const catResult = loadSpecs(this.projectPath, category, uid, undefined, undefined, loaderOpts);
       if (catResult.content) {
         parts.push(catResult.content);
+      }
+
+      // Load category-level extra documents
+      if (catDocConfig?.docs?.length) {
+        const docsResult = loadExtraDocs(this.projectPath, catDocConfig.docs);
+        if (docsResult.content) parts.push(docsResult.content);
+      }
+
+      // Always-inject documents
+      if (config.always?.length) {
+        const alwaysResult = loadExtraDocs(this.projectPath, config.always);
+        if (alwaysResult.content) parts.push(alwaysResult.content);
       }
 
       // Keyword-based injection (with session dedup)

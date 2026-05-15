@@ -9,7 +9,7 @@
  * the prompt — safer and non-destructive.
  */
 
-import { loadSpecs, type SpecCategory } from '../tools/spec-loader.js';
+import { loadSpecs, loadExtraDocs, type SpecCategory, type LoadSpecsOptions } from '../tools/spec-loader.js';
 import { evaluateContextBudget } from './context-budget.js';
 import { resolveSelf } from '../tools/team-members.js';
 import { evaluateKeywordInjection } from './keyword-spec-injector.js';
@@ -80,18 +80,36 @@ export function evaluateSpecInjection(
   if (!categories || categories.length === 0) return { inject: false };
 
   const resolvedUid = uid ?? resolveUidSafe();
+  const kwFilters = resolveKeywordFilters(agentType, config);
 
   const sections: string[] = [];
   const allCategories: string[] = [];
   let totalCount = 0;
 
   for (const category of categories) {
+    // Build loader options with keyword filters and extra spec files
+    const loaderOpts: LoadSpecsOptions = {};
+    if (kwFilters.include?.length) loaderOpts.includeKeywords = kwFilters.include;
+    if (kwFilters.exclude?.length) loaderOpts.excludeKeywords = kwFilters.exclude;
+
+    const catDocConfig = config?.categoryDocs?.[category];
+    if (catDocConfig?.specFiles?.length) loaderOpts.extraSpecFiles = catDocConfig.specFiles;
+
     // Load specs by category (primary doc + keyword cross-match + tool discovery)
-    const specResult = loadSpecs(projectPath, category as SpecCategory, resolvedUid);
+    const specResult = loadSpecs(projectPath, category as SpecCategory, resolvedUid, undefined, undefined, loaderOpts);
     if (specResult.content) {
       sections.push(specResult.content);
       allCategories.push(category);
       totalCount += specResult.totalLoaded;
+    }
+
+    // Load category-level extra documents
+    if (catDocConfig?.docs?.length) {
+      const docsResult = loadExtraDocs(projectPath, catDocConfig.docs);
+      if (docsResult.content) {
+        sections.push(docsResult.content);
+        totalCount += docsResult.count;
+      }
     }
 
     // Wiki category knowledge injection
@@ -102,9 +120,34 @@ export function evaluateSpecInjection(
     }
   }
 
+  // Agent-specific extra documents
+  const agentExtras = config?.mapping?.[agentType]?.extras;
+  if (agentExtras?.length) {
+    const extrasResult = loadExtraDocs(projectPath, agentExtras);
+    if (extrasResult.content) {
+      sections.push(extrasResult.content);
+      totalCount += extrasResult.count;
+    }
+  }
+
+  // Always-inject documents
+  if (config?.always?.length) {
+    const alwaysResult = loadExtraDocs(projectPath, config.always);
+    if (alwaysResult.content) {
+      sections.push(alwaysResult.content);
+      totalCount += alwaysResult.count;
+    }
+  }
+
   if (sections.length === 0) return { inject: false };
 
-  const rawContent = sections.join('\n\n---\n\n');
+  let rawContent = sections.join('\n\n---\n\n');
+
+  // Apply maxContentLength before context budget
+  if (config?.maxContentLength && rawContent.length > config.maxContentLength) {
+    rawContent = rawContent.slice(0, config.maxContentLength);
+  }
+
   const budget = evaluateContextBudget(rawContent, sessionId);
 
   if (budget.action === 'skip') {
@@ -146,4 +189,26 @@ function resolveCategories(agentType: string, config?: SpecInjectionConfig): str
     return config.mapping[agentType].categories;
   }
   return AGENT_CATEGORY_MAP[agentType] ?? null;
+}
+
+/**
+ * Merge keyword filters from agent-level and global-level config.
+ * Agent-level include replaces global include; excludes are merged.
+ */
+function resolveKeywordFilters(agentType: string, config?: SpecInjectionConfig): { include?: string[]; exclude?: string[] } {
+  if (!config) return {};
+
+  const agentMapping = config.mapping?.[agentType];
+  const globalFilters = config.keywordFilters;
+
+  const include = agentMapping?.includeKeywords ?? globalFilters?.include;
+
+  const agentExclude = agentMapping?.excludeKeywords ?? [];
+  const globalExclude = globalFilters?.exclude ?? [];
+  const mergedExclude = [...agentExclude, ...globalExclude];
+
+  return {
+    include: include?.length ? include : undefined,
+    exclude: mergedExclude.length > 0 ? mergedExclude : undefined,
+  };
 }

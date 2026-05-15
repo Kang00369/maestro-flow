@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { paths } from '../config/paths.js';
-import { loadConfig, saveConfig, loadHooksConfig } from '../config/index.js';
+import { loadConfig, saveConfig, loadHooksConfig, loadSpecInjectionConfig } from '../config/index.js';
 import { evaluateWorkflowGuard, evaluatePathGuard, loadPathGuardConfig } from '../hooks/guards/workflow-guard.js';
 import { evaluatePreflightGuard, loadPreflightConfig } from '../hooks/guards/preflight-guard.js';
 import { evaluatePromptGuard } from '../hooks/guards/prompt-guard.js';
@@ -592,7 +592,8 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (isSessionStart) {
       const cwd = resolveWorkspace(data) ?? data.cwd ?? process.cwd();
       const sessionId: string = data.session_id ?? '';
-      const result = evaluateSpecInjection('general', cwd, sessionId);
+      const specConfig = loadSpecInjectionConfig(cwd);
+      const result = evaluateSpecInjection('general', cwd, sessionId, specConfig);
       if (result.inject && result.content) {
         process.stdout.write(JSON.stringify({
           hookSpecificOutput: {
@@ -612,7 +613,8 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     const cwd = resolveWorkspace(data) ?? data.cwd ?? process.cwd();
     const sessionId: string = data.session_id ?? '';
 
-    const result = evaluateSpecInjection(agentType, cwd, sessionId);
+    const specConfig = loadSpecInjectionConfig(cwd);
+    const result = evaluateSpecInjection(agentType, cwd, sessionId, specConfig);
     if (result.inject && result.content) {
       const originalPrompt: string = toolInput.prompt ?? '';
       const augmentedPrompt = `${result.content}\n\n---\n\n${originalPrompt}`;

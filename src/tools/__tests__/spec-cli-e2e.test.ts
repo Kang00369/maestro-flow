@@ -240,7 +240,7 @@ describe('maestro spec list', () => {
     expect(output).toContain('coding-conventions.md');
     expect(output).toContain('architecture-constraints.md');
     expect(output).toContain('learnings.md');
-    expect(output).toContain('7 files');
+    expect(output).toContain('8 files');
   });
 
   it('shows message when no specs directory exists', () => {
