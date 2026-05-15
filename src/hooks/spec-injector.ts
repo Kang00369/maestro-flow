@@ -51,6 +51,9 @@ const AGENT_CATEGORY_MAP: Record<string, SpecCategory[]> = {
   // Debug agents → debug specs
   'debug-explore-agent': ['debug'],
   'workflow-debugger':   ['debug'],
+
+  // General — used by Codex SessionStart (no agent type available)
+  'general':             ['coding', 'learning'],
 };
 
 // ---------------------------------------------------------------------------

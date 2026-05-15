@@ -501,7 +501,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (result.inject && result.content) {
       process.stdout.write(JSON.stringify({
         hookSpecificOutput: {
-          hookEventName: 'UserPromptSubmit',
+          hookEventName: data.hook_event_name || 'UserPromptSubmit',
           additionalContext: result.content,
         },
       }));
@@ -563,7 +563,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (result.flagged) {
       process.stdout.write(JSON.stringify({
         hookSpecificOutput: {
-          hookEventName: 'UserPromptSubmit',
+          hookEventName: data.hook_event_name || 'UserPromptSubmit',
           additionalContext: result.warning,
         },
       }));
@@ -585,6 +585,26 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
 
     const raw = await readStdin();
     const data = JSON.parse(raw);
+    const hookEventName: string = data.hook_event_name ?? '';
+    const isSessionStart = hookEventName === 'SessionStart';
+
+    // Codex SessionStart: inject specs as additionalContext (no agentType available)
+    if (isSessionStart) {
+      const cwd = resolveWorkspace(data) ?? data.cwd ?? process.cwd();
+      const sessionId: string = data.session_id ?? '';
+      const result = evaluateSpecInjection('general', cwd, sessionId);
+      if (result.inject && result.content) {
+        process.stdout.write(JSON.stringify({
+          hookSpecificOutput: {
+            hookEventName: 'SessionStart',
+            additionalContext: result.content,
+          },
+        }));
+      }
+      return;
+    }
+
+    // Claude Code PreToolUse:Agent — rewrite agent prompt
     const toolInput = data.tool_input ?? {};
     const agentType: string = toolInput.subagent_type ?? '';
     if (!agentType) return;
