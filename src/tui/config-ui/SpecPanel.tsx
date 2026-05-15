@@ -1280,7 +1280,7 @@ function AlwaysInjectSection({
       return;
     }
 
-    if (input === '\t') {
+    if (key.tab) {
       const idx = TABS.indexOf(tab);
       setTab(TABS[(idx + 1) % TABS.length]);
       setCursor(0);
