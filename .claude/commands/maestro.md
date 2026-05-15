@@ -1,7 +1,7 @@
 ---
 name: maestro
 description: Auto-route intent to optimal command chain
-argument-hint: "\"intent text\" [-y] [-c] [--dry-run] [--exec auto|cli|internal] [--tool <name>] [--super]"
+argument-hint: "<intent> [-y] [-c] [--dry-run] [--exec auto|cli|internal] [--tool <name>] [--super]"
 allowed-tools:
   - Read
   - Write

@@ -4,6 +4,7 @@ description: OWASP Top 10 and STRIDE security auditing with supply chain analysi
 argument-hint: "[quick|standard|deep] [--scope <path>]"
 allowed-tools:
   - Read
+  - Write
   - Bash
   - Glob
   - Grep

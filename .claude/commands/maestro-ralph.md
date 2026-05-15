@@ -1,7 +1,7 @@
 ---
 name: maestro-ralph
 description: Use when the optimal command sequence is unclear and needs automated state-based determination
-argument-hint: "[-y] \"intent\" | status | continue"
+argument-hint: "<intent> [-y] | status | continue"
 allowed-tools:
   - Read
   - Write

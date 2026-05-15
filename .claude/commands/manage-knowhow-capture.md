@@ -1,7 +1,7 @@
 ---
 name: manage-knowhow-capture
 description: Capture reusable knowledge as templates, recipes, or tips
-argument-hint: "[type] [description] [--lang <lang>] [--source <url>] [--tag tag1,tag2]"
+argument-hint: "[<type>] [<description>] [--lang <lang>] [--source <url>] [--tag t1,t2]"
 allowed-tools:
   - Read
   - Write
