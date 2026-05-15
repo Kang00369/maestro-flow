@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import Gradient from 'ink-gradient';
 import BigText from 'ink-big-text';
+import { C, SYM } from '../shared/index.js';
 import { InstallHub, buildHubItems } from './InstallHub.js';
 import { ComponentGrid } from './ComponentGrid.js';
 import { HooksConfig } from './HooksConfig.js';
@@ -282,9 +283,9 @@ export function InstallFlow({
             <Text
               key={s.key}
               bold={s.key === progressKey}
-              color={i < stepIndex ? 'green' : s.key === progressKey ? 'cyan' : 'gray'}
+              color={i < stepIndex ? C.success : s.key === progressKey ? C.primary : C.neutral}
             >
-              {i < stepIndex ? '[x]' : s.key === progressKey ? '[>]' : '[ ]'} {s.label}
+              {i < stepIndex ? SYM.stepDone : s.key === progressKey ? SYM.stepActive : SYM.stepPending} {s.label}
             </Text>
           ))}
         </Box>
@@ -294,14 +295,14 @@ export function InstallFlow({
       <Box flexGrow={1} flexDirection="column" paddingX={1} marginTop={1}>
         {step === 'mode' && (
           <Box flexDirection="column">
-            <Text bold color="cyan">{t.install.modeTitle}</Text>
+            <Text bold color={C.primary}>{t.install.modeTitle}</Text>
             <Box marginTop={1}>
-              <Text color={mode === 'global' ? 'green' : 'gray'}>
-                {mode === 'global' ? '[x]' : '[ ]'} {t.install.modeGlobal}
+              <Text color={mode === 'global' ? C.success : C.neutral}>
+                {mode === 'global' ? SYM.checkOn : SYM.checkOff} {t.install.modeGlobal}
               </Text>
               <Text>  </Text>
-              <Text color={mode === 'project' ? 'green' : 'gray'}>
-                {mode === 'project' ? '[x]' : '[ ]'} {t.install.modeProject}
+              <Text color={mode === 'project' ? C.success : C.neutral}>
+                {mode === 'project' ? SYM.checkOn : SYM.checkOff} {t.install.modeProject}
               </Text>
             </Box>
             <Box marginTop={1}>
@@ -313,7 +314,7 @@ export function InstallFlow({
             </Box>
             {lastManifest && (
               <Box marginTop={1}>
-                <Text color="yellow">
+                <Text color={C.warning}>
                   Defaults loaded from last install ({lastManifest.installedAt.split('T')[0]})
                 </Text>
               </Box>

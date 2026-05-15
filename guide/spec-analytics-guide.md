@@ -55,7 +55,7 @@ Spec 注入系统在 agent 创建和 prompt 转换时自动注入项目规范，
 │                     │                            │
 │  存储层             ▼                            │
 │  ┌──────────────────────────────────────┐        │
-│  │ .workflow/analytics/spec-analytics   │        │
+│  │ .workflow/spec-analytics   │        │
 │  │ .jsonl (JSONL append-only, 5MB 轮转) │        │
 │  └──────────────────┬───────────────────┘        │
 │                     │                            │
@@ -81,7 +81,7 @@ Spec 注入系统在 agent 创建和 prompt 转换时自动注入项目规范，
 
 ## 日志数据模型
 
-日志文件 `.workflow/analytics/spec-analytics.jsonl` 包含三种条目类型：
+日志文件 `.workflow/spec-analytics.jsonl` 包含三种条目类型：
 
 ### 注入事件 (`type: "injection"`)
 
@@ -372,7 +372,7 @@ maestro spec analytics --recent 50 --json
 ### 归档日志
 
 ```bash
-# 将当前日志归档到 .workflow/analytics/archive/
+# 将当前日志归档到 .workflow/archive/
 maestro spec analytics --clear
 ```
 
@@ -549,7 +549,7 @@ Hook 调用分析：
   "specInjection": {
     "analytics": {
       "enabled": true,
-      "logPath": ".workflow/analytics/spec-analytics.jsonl",
+      "logPath": ".workflow/spec-analytics.jsonl",
       "maxFileSize": 5242880,
       "retentionWeeks": 4
     }
@@ -562,7 +562,7 @@ Hook 调用分析：
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
 | `enabled` | `true` | 是否启用分析日志记录 |
-| `logPath` | `.workflow/analytics/spec-analytics.jsonl` | 日志文件路径（相对项目根） |
+| `logPath` | `.workflow/spec-analytics.jsonl` | 日志文件路径（相对项目根） |
 | `maxFileSize` | `5242880` (5MB) | 文件超过此大小时自动归档轮转 |
 | `retentionWeeks` | `4` | 归档保留周数 |
 
@@ -583,7 +583,7 @@ Hook 调用分析：
 ### 日志轮转
 
 - 每 50 次写入检查一次文件大小
-- 超过 `maxFileSize` 时归档到 `.workflow/analytics/archive/`
+- 超过 `maxFileSize` 时归档到 `.workflow/archive/`
 - 归档文件名：`spec-analytics-2026W20.jsonl`（ISO 周编号）
 - `maestro spec analytics --clear` 手动触发归档
 
@@ -693,4 +693,4 @@ maestro hooks analytics --recent 200 --json | \
 | `src/utils/jsonl-log.ts` | 底层 JSONL 读写工具 |
 | `src/types/index.ts` | `SpecAnalyticsConfig` 类型定义 |
 | `src/config/index.ts` | `loadAnalyticsConfig()` / `saveAnalyticsConfig()` |
-| `.workflow/analytics/spec-analytics.jsonl` | 日志文件存储位置 |
+| `.workflow/spec-analytics.jsonl` | 日志文件存储位置 |

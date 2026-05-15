@@ -53,11 +53,6 @@ export interface OverlayListProps {
 
 type Mode = 'view' | 'select';
 
-function truncate(text: string, maxLen: number): string {
-  if (text.length <= maxLen) return text;
-  return text.slice(0, maxLen - 1) + '\u2026';
-}
-
 /** Group markers by overlay name within a section. */
 function groupMarkersByOverlay(markers: SectionMarker[]): Map<string, SectionMarker[]> {
   const map = new Map<string, SectionMarker[]>();
@@ -100,12 +95,12 @@ function OverlayInfo({
     <Box flexDirection="column">
       <Box>
         <Text color="cyan" bold>
-          {truncate(overlay.meta.name, Math.max(10, nameMaxLen))}
+          {sharedTruncate(overlay.meta.name, Math.max(10, nameMaxLen))}
         </Text>
         <Text dimColor>{headerExtra}</Text>
       </Box>
       <Text dimColor>    targets: {targets}  cli={cli}</Text>
-      {desc ? <Text dimColor>    {truncate(desc, maxWidth - 4)}</Text> : null}
+      {desc ? <Text dimColor>    {sharedTruncate(desc, maxWidth - 4)}</Text> : null}
     </Box>
   );
 }
@@ -165,7 +160,7 @@ function SectionMapView({
                     const patchNums = patches.map((p: SectionMarker) => `#${p.patchIdx}`).join(', ');
                     const desc = patches[0].description;
                     const descText = desc
-                      ? `  "${truncate(desc, maxWidth - 30 - ovName.length)}"`
+                      ? `  "${sharedTruncate(desc, maxWidth - 30 - ovName.length)}"`
                       : '';
                     return (
                       <Text key={ovName}>
@@ -321,7 +316,7 @@ export function OverlayList({
               <Box key={name}>
                 <CursorMarker active={hl} />
                 <Text color={hl ? C.primary : undefined} bold={hl}>{name}</Text>
-                <Text dimColor> {'\u2014'} {truncate(desc, maxWidth - name.length - 6)}</Text>
+                <Text dimColor> {'\u2014'} {sharedTruncate(desc, maxWidth - name.length - 6)}</Text>
               </Box>
             );
           })}

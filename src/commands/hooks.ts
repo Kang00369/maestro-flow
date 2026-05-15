@@ -398,11 +398,14 @@ export function installCodexHooksByLevel(
 }
 
 // ---------------------------------------------------------------------------
-// Stdin reader for hook runners
+// Stdin reader for hook runners (cached — safe to call multiple times)
 // ---------------------------------------------------------------------------
 
+let _stdinCache: string | null = null;
+
 function readStdin(): Promise<string> {
-  return new Promise((resolve) => {
+  if (_stdinCache !== null) return Promise.resolve(_stdinCache);
+  return new Promise<string>((resolve) => {
     let input = '';
     const timeout = setTimeout(() => resolve(input), 500);
     process.stdin.setEncoding('utf8');
@@ -411,7 +414,37 @@ function readStdin(): Promise<string> {
       clearTimeout(timeout);
       resolve(input);
     });
-  });
+  }).then(raw => { _stdinCache = raw; return raw; });
+}
+
+/**
+ * Extract key fields from hook stdin for analytics logging.
+ * Keeps only short, diagnostic-relevant fields — never full prompts.
+ */
+function extractHookInputData(raw: string): Record<string, unknown> {
+  try {
+    if (!raw) return {};
+    const data = JSON.parse(raw);
+    const result: Record<string, unknown> = {};
+    if (data.tool_name) result.tool_name = data.tool_name;
+    if (data.session_id) result.session_id = data.session_id;
+    if (data.hook_event_name) result.hook_event_name = data.hook_event_name;
+    // tool_input key fields (abbreviated)
+    const ti = data.tool_input;
+    if (ti && typeof ti === 'object') {
+      if (ti.file_path) result.file_path = ti.file_path;
+      if (ti.subagent_type) result.subagent_type = ti.subagent_type;
+      if (typeof ti.command === 'string') result.command = ti.command.slice(0, 120);
+    } else if (typeof ti === 'string') {
+      result.command = ti.slice(0, 120);
+    }
+    // UserPromptSubmit: first 120 chars
+    const prompt = data.user_prompt ?? data.prompt;
+    if (typeof prompt === 'string') result.prompt_snippet = prompt.slice(0, 120);
+    return result;
+  } catch {
+    return {};
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -745,6 +778,10 @@ export function registerHooksCommand(program: Command): void {
         }
       }
 
+      // Pre-read stdin so runners get cached data and we can log input params
+      const stdinRaw = await readStdin();
+      const inputData = extractHookInputData(stdinRaw);
+
       // Track subprocess hook invocation
       const startMs = Date.now();
       let outcome = 'success';
@@ -756,7 +793,7 @@ export function registerHooksCommand(program: Command): void {
       }
       const durationMs = Date.now() - startMs;
 
-      // Log hook call (best-effort, never block exit)
+      // Log hook call with input params (best-effort, never block exit)
       try {
         const workspace = resolveWorkspace({ cwd });
         if (workspace) {
@@ -766,7 +803,7 @@ export function registerHooksCommand(program: Command): void {
             pluginName: 'subprocess',
             outcome,
             durationMs,
-            data: { event: def?.event, matcher: def?.matcher, level: def?.level },
+            data: { event: def?.event, ...inputData },
           });
         }
       } catch { /* swallow */ }

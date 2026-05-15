@@ -104,9 +104,9 @@ export interface SpecAnalyticsSummary {
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_LOG_PATH = '.workflow/analytics/spec-analytics.jsonl';
+const DEFAULT_LOG_PATH = '.workflow/spec-analytics.jsonl';
 const DEFAULT_MAX_SIZE = 5 * 1024 * 1024; // 5MB
-const DEFAULT_ARCHIVE_DIR = '.workflow/analytics/archive';
+const DEFAULT_ARCHIVE_DIR = '.workflow/archive';
 const ROTATION_CHECK_INTERVAL = 50;
 const CONFIG_CACHE_TTL_MS = 30_000;
 
@@ -349,8 +349,8 @@ export function computeStats(entries: AnalyticsLogEntry[], logFileSize = 0): Spe
       bySource[src].total++;
       if (entry.inject) bySource[src].injected++;
 
-      // By agent type
-      const agent = entry.agentType ?? entry.inferredCategory ?? '(unknown)';
+      // By agent type (fall back to source name for keyword/plugin entries)
+      const agent = entry.agentType ?? entry.inferredCategory ?? `(${entry.source})`;
       if (!byAgentType[agent]) byAgentType[agent] = { total: 0, injected: 0 };
       byAgentType[agent].total++;
       if (entry.inject) byAgentType[agent].injected++;

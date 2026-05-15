@@ -82,6 +82,15 @@ export const guideRegistry: Array<{
     icon: 'sliders',
   },
   {
+    slug: 'spec-analytics',
+    file: 'spec-analytics-guide.md',
+    title: 'Spec Analytics Guide',
+    description: 'Injection logging, hit rate statistics, keyword analysis, hook invocation tracking, and TUI visualization',
+    title_zh: 'Spec 分析系统指南',
+    description_zh: '注入日志、命中率统计、关键词分析、Hook 调用追踪、TUI 可视化',
+    icon: 'bar-chart-2',
+  },
+  {
     slug: 'overlay',
     file: 'overlay-guide.md',
     file_en: 'overlay-guide.en.md',

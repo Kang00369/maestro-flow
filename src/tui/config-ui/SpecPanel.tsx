@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
+import { C, SYM, SP, BORDER, pad, wrapCursor, KeyHints, SectionHeader, CursorMarker } from '../shared/index.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -145,9 +146,9 @@ export function SpecPanel({ workDir, onBack }: SpecPanelProps) {
   });
 
   return (
-    <Box flexDirection="column" paddingX={1}>
-      <Box borderStyle="round" borderColor="cyan" flexDirection="column" paddingX={2} paddingY={1}>
-        <Text bold color="cyan">SPEC SYSTEM</Text>
+    <Box flexDirection="column" paddingX={SP.detailPadX}>
+      <Box {...BORDER.primary} flexDirection="column" paddingX={SP.panelPadX} paddingY={SP.panelPadY}>
+        <SectionHeader title="SPEC SYSTEM" />
         <Text> </Text>
 
         {/* Mode tabs */}
@@ -239,7 +240,7 @@ function ViewMode({ scopes }: { scopes: ScopeInfo[] }) {
             const hasEntries = f.entries > 0;
             return (
               <Box key={f.name} gap={1}>
-                <Text color="cyan">{isCurrent ? '>' : ' '}</Text>
+                <Text color={C.primary}>{isCurrent ? SYM.cursor : SYM.cursorBlank}</Text>
                 <Text color={hasEntries ? 'green' : 'yellow'}>{hasEntries ? '+' : 'o'}</Text>
                 <Text bold={isCurrent}>{pad(f.name, 29)}</Text>
                 <Text dimColor={!isCurrent}>{pad(String(f.entries), 10)}</Text>
@@ -254,7 +255,7 @@ function ViewMode({ scopes }: { scopes: ScopeInfo[] }) {
       {currentScope?.files[cursor]?.entryBriefs.length > 0 && (
         <>
           <Text> </Text>
-          <Box borderStyle="single" borderColor="gray" flexDirection="column" paddingX={1}>
+          <Box {...BORDER.detail} flexDirection="column" paddingX={1}>
             <Text bold dimColor>Entries in {currentScope.files[cursor].name}:</Text>
             {currentScope.files[cursor].entryBriefs.map((e, i) => (
               <Box key={`${e.title}-${i}`} gap={1}>
@@ -414,7 +415,7 @@ function BrowseMode({ workDir }: { workDir: string }) {
           const isCurrent = realIdx === cursor;
           return (
             <Box key={`${e.category}-${e.title}-${realIdx}`} gap={1}>
-              <Text color="cyan">{isCurrent ? '>' : ' '}</Text>
+              <Text color={C.primary}>{isCurrent ? SYM.cursor : SYM.cursorBlank}</Text>
               <Text color="green">*</Text>
               <Text bold={isCurrent}>{pad(truncate(e.title, 28), 29)}</Text>
               <Text dimColor={!isCurrent} color="yellow">{pad(e.category, 12)}</Text>
@@ -431,7 +432,7 @@ function BrowseMode({ workDir }: { workDir: string }) {
       {selected && (
         <>
           <Text> </Text>
-          <Box borderStyle="single" borderColor="gray" flexDirection="column" paddingX={1}>
+          <Box {...BORDER.detail} flexDirection="column" paddingX={1}>
             <Text bold color="cyan">{selected.title}</Text>
             <Text dimColor>[{selected.category}] {selected.keywords.join(', ')}</Text>
             <Text> </Text>
@@ -536,7 +537,7 @@ function PreviewMode({ workDir }: { workDir: string }) {
           {result.inject && result.content && (
             <>
               <Text> </Text>
-              <Box borderStyle="single" borderColor="gray" flexDirection="column" paddingX={1}>
+              <Box {...BORDER.detail} flexDirection="column" paddingX={1}>
                 <Text bold dimColor>Content preview (first 500 chars):</Text>
                 <Text>{truncate(result.content, 500)}</Text>
               </Box>
@@ -1017,7 +1018,7 @@ function AgentMappingsSection({
           const isCur = i === cursor;
           return (
             <Box key={name} gap={1}>
-              <Text color="cyan">{isCur ? '>' : ' '}</Text>
+              <Text color={C.primary}>{isCur ? SYM.cursor : SYM.cursorBlank}</Text>
               <Text bold={isCur}>{pad(name, 25)}</Text>
               <Box gap={1}>
                 {m.categories.map(c => (
@@ -1223,7 +1224,7 @@ function CategoryDocsSection({
         const hasData = cd && ((cd.specFiles?.length ?? 0) + (cd.docs?.length ?? 0) > 0);
         return (
           <Box key={cat} gap={1}>
-            <Text color="cyan">{isCur ? '>' : ' '}</Text>
+            <Text color={C.primary}>{isCur ? SYM.cursor : SYM.cursorBlank}</Text>
             <Text bold={isCur} color={hasData ? 'green' : undefined}>{pad(cat, 12)}</Text>
             {hasData ? (
               <Text dimColor>
@@ -1338,7 +1339,7 @@ function AlwaysInjectSection({
           const color = tab === 'keywords' ? 'green' : tab === 'categories' ? 'yellow' : undefined;
           return (
             <Box key={`${p}-${i}`} gap={1}>
-              <Text color="cyan">{isCur ? '>' : ' '}</Text>
+              <Text color={C.primary}>{isCur ? SYM.cursor : SYM.cursorBlank}</Text>
               <Text bold={isCur} color={color}>{p}</Text>
               {isCur && <Text dimColor> [d]del</Text>}
             </Box>
@@ -1453,7 +1454,7 @@ function GlobalFiltersSection({
           const isCur = i === cursor;
           return (
             <Box key={`${kw}-${i}`} gap={1}>
-              <Text color="cyan">{isCur ? '>' : ' '}</Text>
+              <Text color={C.primary}>{isCur ? SYM.cursor : SYM.cursorBlank}</Text>
               <Text bold={isCur} color={activeList === 'include' ? 'green' : 'red'}>{kw}</Text>
               {isCur && <Text dimColor> [d]del</Text>}
             </Box>
@@ -1563,7 +1564,7 @@ function ConfigPreviewSection({
           {result.inject && result.content && (
             <>
               <Text> </Text>
-              <Box borderStyle="single" borderColor="gray" flexDirection="column" paddingX={1}>
+              <Box {...BORDER.detail} flexDirection="column" paddingX={1}>
                 <Text bold dimColor>Content preview (first 500 chars):</Text>
                 <Text>{truncate(result.content, 500)}</Text>
               </Box>
@@ -1583,10 +1584,6 @@ function ConfigPreviewSection({
 // ---------------------------------------------------------------------------
 // Utility helpers
 // ---------------------------------------------------------------------------
-
-function pad(s: string, width: number): string {
-  return s.length >= width ? s : s + ' '.repeat(width - s.length);
-}
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

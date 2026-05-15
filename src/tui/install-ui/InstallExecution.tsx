@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { writeFileSync } from 'node:fs';
 import { paths } from '../../config/paths.js';
+import { C } from '../shared/index.js';
 import {
   scanComponents,
   scanDisabledItems,
@@ -218,8 +219,8 @@ export function InstallExecution({ config, pkgRoot, version, onComplete }: Insta
   if (error) {
     return (
       <Box flexDirection="column" paddingX={1}>
-        <Text color="red" bold>{t.install.execFailed}</Text>
-        <Text color="red">{error}</Text>
+        <Text color={C.error} bold>{t.install.execFailed}</Text>
+        <Text color={C.error}>{error}</Text>
       </Box>
     );
   }
@@ -228,10 +229,10 @@ export function InstallExecution({ config, pkgRoot, version, onComplete }: Insta
     <Box flexDirection="column" paddingX={1}>
       <Box>
         {done ? (
-          <Text color="green" bold>{t.install.execDone}</Text>
+          <Text color={C.success} bold>{t.install.execDone}</Text>
         ) : (
           <Box>
-            <Text color="cyan"><Spinner type="dots" /></Text>
+            <Text color={C.primary}><Spinner type="dots" /></Text>
             <Text> {status}</Text>
           </Box>
         )}

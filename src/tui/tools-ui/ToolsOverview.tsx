@@ -8,6 +8,7 @@ import {
   type CliToolsConfig,
   type ReasoningEffort,
 } from '../../config/cli-tools-config.js';
+import { C, SYM, SP, BORDER, pad, wrapCursor, KeyHints, SectionHeader, StatusBadge, CursorMarker } from '../shared/index.js';
 
 export interface ToolsOverviewProps {
   config: CliToolsConfig;
@@ -33,8 +34,8 @@ export function ToolsOverview({ config, workDir, onBack, onReload }: ToolsOvervi
 
     if (mode === 'list') {
       if (key.escape) { onBack(); return; }
-      if (key.upArrow) setCursor(c => c > 0 ? c - 1 : entries.length - 1);
-      if (key.downArrow) setCursor(c => c < entries.length - 1 ? c + 1 : 0);
+      if (key.upArrow) setCursor(c => wrapCursor(c, -1, entries.length));
+      if (key.downArrow) setCursor(c => wrapCursor(c, 1, entries.length));
       if (input === 't' && entries.length > 0) {
         // Enter tag editing for current tool
         setEditTags([...(entries[cursor][1].tags ?? [])]);
@@ -243,8 +244,4 @@ export function ToolsOverview({ config, workDir, onBack, onReload }: ToolsOvervi
       {saving && <Text dimColor>Saving...</Text>}
     </Box>
   );
-}
-
-function pad(s: string, width: number): string {
-  return s.length >= width ? s.slice(0, width) : s + ' '.repeat(width - s.length);
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
+import { C, BORDER, SP, pad } from '../shared/index.js';
 
 import type {
   AnalyticsLogEntry,
@@ -78,8 +79,8 @@ export function SpecAnalyticsPanel({ workDir, onBack }: SpecAnalyticsPanelProps)
   if (loading) {
     return (
       <Box flexDirection="column" paddingX={1}>
-        <Box borderStyle="round" borderColor="cyan" flexDirection="column" paddingX={2} paddingY={1}>
-          <Text bold color="cyan">SPEC ANALYTICS</Text>
+        <Box {...BORDER.primary} flexDirection="column" paddingX={SP.panelPadX} paddingY={SP.panelPadY}>
+          <Text bold color={C.primary}>SPEC ANALYTICS</Text>
           <Text> </Text>
           <Text dimColor>Loading analytics data...</Text>
         </Box>
@@ -90,8 +91,8 @@ export function SpecAnalyticsPanel({ workDir, onBack }: SpecAnalyticsPanelProps)
   if (!stats || entries.length === 0) {
     return (
       <Box flexDirection="column" paddingX={1}>
-        <Box borderStyle="round" borderColor="cyan" flexDirection="column" paddingX={2} paddingY={1}>
-          <Text bold color="cyan">SPEC ANALYTICS</Text>
+        <Box {...BORDER.primary} flexDirection="column" paddingX={SP.panelPadX} paddingY={SP.panelPadY}>
+          <Text bold color={C.primary}>SPEC ANALYTICS</Text>
           <Text> </Text>
           <Text dimColor>No analytics data yet. Spec injection events will be recorded automatically.</Text>
           <Text> </Text>
@@ -103,8 +104,8 @@ export function SpecAnalyticsPanel({ workDir, onBack }: SpecAnalyticsPanelProps)
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      <Box borderStyle="round" borderColor="cyan" flexDirection="column" paddingX={2} paddingY={1}>
-        <Text bold color="cyan">SPEC ANALYTICS</Text>
+      <Box {...BORDER.primary} flexDirection="column" paddingX={SP.panelPadX} paddingY={SP.panelPadY}>
+        <Text bold color={C.primary}>SPEC ANALYTICS</Text>
         <Text> </Text>
 
         {/* Tab bar */}
@@ -112,7 +113,7 @@ export function SpecAnalyticsPanel({ workDir, onBack }: SpecAnalyticsPanelProps)
           {VIEW_TABS.map(tab => (
             <Box key={tab.key}>
               {tab.mode === mode
-                ? <Text bold inverse color="cyan">{` [${tab.key}]${tab.label} `}</Text>
+                ? <Text bold inverse color={C.primary}>{` [${tab.key}]${tab.label} `}</Text>
                 : <Text dimColor>{` [${tab.key}]${tab.label} `}</Text>
               }
             </Box>
@@ -139,7 +140,7 @@ export function SpecAnalyticsPanel({ workDir, onBack }: SpecAnalyticsPanelProps)
 // ---------------------------------------------------------------------------
 
 function SummaryView({ stats }: { stats: SpecAnalyticsSummary }) {
-  const hitColor = stats.hitRate >= 80 ? 'green' : stats.hitRate >= 50 ? 'yellow' : 'red';
+  const hitColor = stats.hitRate >= 80 ? C.success : stats.hitRate >= 50 ? C.warning : C.error;
   const sizeKB = (stats.logFileSize / 1024).toFixed(1);
   const earliest = stats.timeRange.earliest ? stats.timeRange.earliest.slice(0, 10) : '—';
   const latest = stats.timeRange.latest ? stats.timeRange.latest.slice(0, 10) : '—';
@@ -152,12 +153,12 @@ function SummaryView({ stats }: { stats: SpecAnalyticsSummary }) {
       </Box>
       <Box gap={2}>
         <Text>Successful:</Text>
-        <Text bold color="green">{stats.successfulInjections}</Text>
+        <Text bold color={C.success}>{stats.successfulInjections}</Text>
         <Text color={hitColor}>({stats.hitRate.toFixed(1)}%)</Text>
       </Box>
       <Box gap={2}>
         <Text>Failed:</Text>
-        <Text bold color="red">{stats.failedInjections}</Text>
+        <Text bold color={C.error}>{stats.failedInjections}</Text>
         <Text dimColor>({(100 - stats.hitRate).toFixed(1)}%)</Text>
       </Box>
 
@@ -167,7 +168,7 @@ function SummaryView({ stats }: { stats: SpecAnalyticsSummary }) {
         const rate = s.total > 0 ? ((s.injected / s.total) * 100).toFixed(1) : '0.0';
         return (
           <Box key={src} gap={1}>
-            <Text>  {padRight(src, 28)}</Text>
+            <Text>  {pad(src, 28)}</Text>
             <Text bold>{String(s.total).padStart(4)}</Text>
             <Text dimColor> ({rate}% hit)</Text>
           </Box>
@@ -196,7 +197,7 @@ function SummaryView({ stats }: { stats: SpecAnalyticsSummary }) {
       {stats.hookStats.totalInvocations > 0 && (
         <>
           <Text> </Text>
-          <Text bold>Hook Invocations: <Text color="cyan">{stats.hookStats.totalInvocations}</Text></Text>
+          <Text bold>Hook Invocations: <Text color={C.primary}>{stats.hookStats.totalInvocations}</Text></Text>
           <Text>  {Object.entries(stats.hookStats.byHook).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}: ${v}`).join('  ')}</Text>
         </>
       )}
@@ -236,20 +237,20 @@ function RecentView({ entries, cursor, expandedIdx }: { entries: AnalyticsLogEnt
 
         if (entry.type === 'injection') {
           const icon = entry.inject ? '\u2713' : '\u2717';
-          const iconColor = entry.inject ? 'green' : 'red';
+          const iconColor = entry.inject ? C.success : C.error;
           const src = entry.source.replace('spec-', '').slice(0, 18).padEnd(18);
           const agent = (entry.agentType ?? entry.inferredCategory ?? '').slice(0, 20).padEnd(20);
 
           return (
             <Box key={entry.id} flexDirection="column">
               <Box>
-                <Text color={selected ? 'cyan' : undefined} bold={selected}>
+                <Text color={selected ? C.primary : undefined} bold={selected}>
                   {selected ? '\u25B6' : ' '} {ts} </Text>
                 <Text color={iconColor}>{icon}</Text>
                 <Text> {src} {agent} </Text>
                 <Text dimColor>{entry.specCount} specs</Text>
                 {entry.matchedKeywords && entry.matchedKeywords.length > 0 && (
-                  <Text color="yellow"> kw:[{entry.matchedKeywords.slice(0, 3).join(',')}]</Text>
+                  <Text color={C.warning}> kw:[{entry.matchedKeywords.slice(0, 3).join(',')}]</Text>
                 )}
                 {entry.reason && <Text dimColor> ({entry.reason})</Text>}
               </Box>
@@ -272,9 +273,9 @@ function RecentView({ entries, cursor, expandedIdx }: { entries: AnalyticsLogEnt
           return (
             <Box key={entry.id} flexDirection="column">
               <Box>
-                <Text color={selected ? 'cyan' : undefined} bold={selected}>
+                <Text color={selected ? C.primary : undefined} bold={selected}>
                   {selected ? '\u25B6' : ' '} {ts} </Text>
-                <Text color="cyan">CLI</Text>
+                <Text color={C.primary}>CLI</Text>
                 <Text> {entry.command.padEnd(25)}</Text>
                 <Text dimColor>{JSON.stringify(entry.args)}</Text>
               </Box>
@@ -291,9 +292,9 @@ function RecentView({ entries, cursor, expandedIdx }: { entries: AnalyticsLogEnt
           return (
             <Box key={entry.id} flexDirection="column">
               <Box>
-                <Text color={selected ? 'cyan' : undefined} bold={selected}>
+                <Text color={selected ? C.primary : undefined} bold={selected}>
                   {selected ? '\u25B6' : ' '} {ts} </Text>
-                <Text color="yellow">HOOK</Text>
+                <Text color={C.warning}>HOOK</Text>
                 <Text> {entry.hookName.padEnd(20)}</Text>
                 {entry.nodeId && <Text dimColor> node:{entry.nodeId}</Text>}
                 {entry.outcome && <Text dimColor> outcome:{entry.outcome}</Text>}
@@ -326,7 +327,7 @@ function KeywordsView({ stats, cursor }: { stats: SpecAnalyticsSummary; cursor: 
     <Box flexDirection="column">
       <Box gap={2}>
         <Text>Total keyword matches:</Text>
-        <Text bold color="green">{stats.keywordStats.totalMatches}</Text>
+        <Text bold color={C.success}>{stats.keywordStats.totalMatches}</Text>
       </Box>
       <Box gap={2}>
         <Text>Avg matched/prompt:</Text>
@@ -334,7 +335,7 @@ function KeywordsView({ stats, cursor }: { stats: SpecAnalyticsSummary; cursor: 
       </Box>
       <Box gap={2}>
         <Text>Dedup filtered total:</Text>
-        <Text bold color="yellow">{stats.keywordStats.dedupFilteredTotal}</Text>
+        <Text bold color={C.warning}>{stats.keywordStats.dedupFilteredTotal}</Text>
       </Box>
 
       <Text> </Text>
@@ -346,10 +347,10 @@ function KeywordsView({ stats, cursor }: { stats: SpecAnalyticsSummary; cursor: 
         const bar = '\u2588'.repeat(barLen);
         return (
           <Box key={kw.keyword} gap={1}>
-            <Text color={selected ? 'cyan' : undefined} bold={selected}>
-              {selected ? '\u25B6' : ' '} {padRight(kw.keyword, 22)}
+            <Text color={selected ? C.primary : undefined} bold={selected}>
+              {selected ? '\u25B6' : ' '} {pad(kw.keyword, 22)}
             </Text>
-            <Text color="green">{bar}</Text>
+            <Text color={C.success}>{bar}</Text>
             <Text bold> {kw.count}</Text>
           </Box>
         );
@@ -380,15 +381,15 @@ function AgentsView({ stats, cursor }: { stats: SpecAnalyticsSummary; cursor: nu
       </Box>
       {agents.map((a, i) => {
         const selected = i === cursor;
-        const rateColor = a.rate >= 80 ? 'green' : a.rate >= 50 ? 'yellow' : 'red';
+        const rateColor = a.rate >= 80 ? C.success : a.rate >= 50 ? C.warning : C.error;
         return (
           <Box key={a.name} gap={1}>
-            <Text color={selected ? 'cyan' : undefined} bold={selected}>
-              {selected ? '\u25B6' : ' '} {padRight(a.name, 27)}
+            <Text color={selected ? C.primary : undefined} bold={selected}>
+              {selected ? '\u25B6' : ' '} {pad(a.name, 27)}
             </Text>
             <Text>{String(a.total).padStart(6)}</Text>
-            <Text color="green">{String(a.injected).padStart(6)}</Text>
-            <Text color="red">{String(a.total - a.injected).padStart(6)}</Text>
+            <Text color={C.success}>{String(a.injected).padStart(6)}</Text>
+            <Text color={C.error}>{String(a.total - a.injected).padStart(6)}</Text>
             <Text color={rateColor}>{(a.rate.toFixed(1) + '%').padStart(8)}</Text>
           </Box>
         );
@@ -413,7 +414,7 @@ function HooksView({ stats, cursor }: { stats: SpecAnalyticsSummary; cursor: num
     <Box flexDirection="column">
       <Box gap={2}>
         <Text>Total hook invocations:</Text>
-        <Text bold color="cyan">{stats.hookStats.totalInvocations}</Text>
+        <Text bold color={C.primary}>{stats.hookStats.totalInvocations}</Text>
       </Box>
       {stats.hookStats.avgDurationMs > 0 && (
         <Box gap={2}>
@@ -431,10 +432,10 @@ function HooksView({ stats, cursor }: { stats: SpecAnalyticsSummary; cursor: num
         const bar = '\u2588'.repeat(barLen);
         return (
           <Box key={name} gap={1}>
-            <Text color={selected ? 'cyan' : undefined} bold={selected}>
-              {selected ? '\u25B6' : ' '} {padRight(name, 20)}
+            <Text color={selected ? C.primary : undefined} bold={selected}>
+              {selected ? '\u25B6' : ' '} {pad(name, 20)}
             </Text>
-            <Text color="yellow">{bar}</Text>
+            <Text color={C.warning}>{bar}</Text>
             <Text bold> {count}</Text>
           </Box>
         );
@@ -446,7 +447,7 @@ function HooksView({ stats, cursor }: { stats: SpecAnalyticsSummary; cursor: num
           <Text bold>By Plugin:</Text>
           {plugins.map(([name, count]) => (
             <Box key={name} gap={1}>
-              <Text>  {padRight(name, 20)}</Text>
+              <Text>  {pad(name, 20)}</Text>
               <Text bold>{count}</Text>
             </Box>
           ))}
@@ -454,12 +455,4 @@ function HooksView({ stats, cursor }: { stats: SpecAnalyticsSummary; cursor: num
       )}
     </Box>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function padRight(s: string, len: number): string {
-  return s.length >= len ? s.slice(0, len) : s + ' '.repeat(len - s.length);
 }
