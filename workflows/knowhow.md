@@ -312,7 +312,21 @@ created: {ISO timestamp}
 {Auto-detected files/modules}
 ```
 
-### Step 3: Write File
+### Step 3: Generate Tags (Language-Aware)
+
+Auto-generate 3-5 tags matching the **content language**:
+
+- **Chinese content** → Chinese tags (2-4 字词语，如 `认证`, `路由`, `状态管理`)
+- **English content** → English tags (lowercase, hyphenated, e.g. `auth`, `routing`, `state-mgmt`)
+- **Mixed content** → Bilingual tags (中英各半，如 `认证,auth,令牌,token`)
+
+Tag quality rules:
+- Domain-specific terms users would naturally search for
+- Avoid generic words (代码/code, 文件/file, 函数/function)
+- Chinese tags: 2-4 characters, no punctuation
+- English tags: lowercase, hyphens for multi-word
+
+### Step 4: Write File
 
 Write to `.workflow/knowhow/{PREFIX}-{YYYYMMDD}-{HHMM}.md`.
 

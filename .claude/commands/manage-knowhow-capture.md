@@ -47,6 +47,8 @@ $ARGUMENTS — type token + description + optional flags.
 <execution>
 Follow '~/.maestro/workflows/knowhow.md' completely.
 
+**Tags language rule**: Tags must match content language. Chinese content → Chinese tags (如 `认证,令牌,刷新`). English content → English tags. Mixed → bilingual.
+
 **Type-specific content rules**:
 
 | Type | Content extraction |

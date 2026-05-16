@@ -184,7 +184,7 @@ function executeSearch(params: Params): CcwToolResult {
   }
 
   const queryLower = query.toLowerCase();
-  const queryTerms = queryLower.split(/\s+/).filter(Boolean);
+  const queryTerms = tokenizeQuery(queryLower);
 
   const results: Array<{
     id: string; filename: string; title: string; type: string;
@@ -233,6 +233,33 @@ function executeSearch(params: Params): CcwToolResult {
       total_matches: results.length,
     },
   };
+}
+
+/**
+ * Tokenize search query — handles both English (space-split) and CJK (n-gram).
+ * English: split by whitespace. Chinese: extract 2-4 char n-grams.
+ */
+function tokenizeQuery(query: string): string[] {
+  // English terms: split on whitespace
+  const terms = query.split(/\s+/).filter(Boolean);
+
+  // For CJK sequences without spaces, generate n-grams
+  const cjkTerms: string[] = [];
+  const cjkSeqs = query.match(/[\u4e00-\u9fff\u3400-\u4dbf]{2,}/g) ?? [];
+  for (const seq of cjkSeqs) {
+    // Full sequence
+    if (seq.length >= 2 && seq.length <= 6) cjkTerms.push(seq);
+    // 2-4 char n-grams
+    for (let n = 2; n <= Math.min(4, seq.length); n++) {
+      for (let i = 0; i <= seq.length - n; i++) {
+        cjkTerms.push(seq.substring(i, i + n));
+      }
+    }
+  }
+
+  // Merge: non-CJK terms + CJK n-grams, deduplicated
+  const all = new Set([...terms.filter(t => !/^[\u4e00-\u9fff\u3400-\u4dbf]+$/.test(t)), ...cjkTerms]);
+  return [...all];
 }
 
 // --- Tool Schema ---
