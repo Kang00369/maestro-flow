@@ -99,8 +99,8 @@ S_BUILD_CHAIN:
   -> S_CREATE_SESSION DO: A_BUILD_STEPS
 
 S_CREATE_SESSION:
-  -> S_CONFIRM       WHEN: not auto_mode
-  -> S_LOAD_NEXT     WHEN: auto_mode
+  -> S_CONFIRM       WHEN: not auto_mode                       DO: A_CREATE_SESSION
+  -> S_LOAD_NEXT     WHEN: auto_mode                           DO: A_CREATE_SESSION
 
 S_CONFIRM:
   -> S_LOAD_NEXT     WHEN: "Proceed"
@@ -220,6 +220,13 @@ Priority: regex from intent `phase\s*(\d+)` -> latest in-progress artifact's pha
 6. Args use placeholders `{phase}`, `{intent}`, `{dirs}` — resolved at wave execution time
 7. Append `-y` to all skill args when `auto_mode` is true (see -y propagation table in context)
 
+### A_CREATE_SESSION
+
+1. Write `.workflow/.maestro/ralph-{YYYYMMDD-HHmmss}/status.json` (see Session JSON Schema)
+2. Initialize tracking:
+   - `create_goal({ objective: "Ralph lifecycle: {quality_mode} mode, {N} steps from {lifecycle_position}" })`
+   - `update_plan({ plan: steps.map(step => { step, status: "pending" }) })`
+
 ### A_BUILD_AND_SPAWN_WAVE
 
 1. Conditional step eval: check_coverage -> read validation.json, skip if >= threshold
@@ -255,11 +262,16 @@ Update session: milestone, phase, reset passed_gates. Re-infer quality_mode. Bui
 
 ### A_FINALIZE
 
-Set status = "completed". Sync update_plan. Release goal. Display completion report.
+1. Set `session.status = "completed"`, write status.json
+2. Sync update_plan: all steps → "completed"
+3. `update_goal({ status: "complete" })` — release goal constraint
+4. Display completion report
 
 ### A_PAUSE_SESSION
 
-Set status = "paused". Do NOT release goal. Display: use $maestro-ralph execute to continue.
+1. Set `session.status = "paused"`, write status.json
+2. Do NOT call `update_goal` — goal stays for `execute`/`continue` resume
+3. Display: use `$maestro-ralph execute` to continue
 
 </actions>
 
