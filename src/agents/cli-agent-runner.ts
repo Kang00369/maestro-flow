@@ -99,6 +99,7 @@ const TOOL_TO_AGENT_TYPE: Record<string, AgentType> = {
   'codex-server': 'codex-server',
   claude: 'claude-code',
   opencode: 'opencode',
+  agy: 'agy',
 };
 
 // ---------------------------------------------------------------------------
@@ -113,6 +114,7 @@ const AGENT_TYPE_TO_TERMINAL_CMD: Record<string, string> = {
   'codex-server': 'codex',
   'claude-code': 'claude',
   'opencode': 'opencode',
+  'agy': 'agy',
 };
 
 // ---------------------------------------------------------------------------
@@ -127,6 +129,7 @@ const TOOL_PREFIX: Record<string, string> = {
   'codex-server': 'cxs',
   claude: 'cld',
   opencode: 'opc',
+  agy: 'agy',
 };
 
 export function generateCliExecId(tool: string): string {

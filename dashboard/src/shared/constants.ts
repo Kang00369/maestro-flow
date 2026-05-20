@@ -352,6 +352,7 @@ export const AGENT_DOT_COLORS: Record<AgentType, string> = {
   'gemini-a2a': 'var(--color-accent-blue)',
   'qwen': 'var(--color-accent-orange)',
   'opencode': 'var(--color-text-tertiary)',
+  'agy': 'var(--color-accent-blue)',
   'agent-sdk': 'var(--color-accent-purple)',
 } as const;
 
@@ -363,6 +364,7 @@ export const AGENT_LABELS: Record<AgentType, string> = {
   'gemini-a2a': 'Gemini (A2A)',
   'qwen': 'Qwen',
   'opencode': 'OpenCode',
+  'agy': 'Antigravity',
   'agent-sdk': 'Agent SDK',
 } as const;
 
