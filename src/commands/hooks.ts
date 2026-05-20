@@ -398,6 +398,181 @@ export function installCodexHooksByLevel(
 }
 
 // ---------------------------------------------------------------------------
+// Antigravity (agy) hooks
+//
+// File schema (per https://antigravity.google/docs/hooks):
+//   Top-level is Record<hookName, HookConfig> — a map of NAMED hooks.
+//   Each named hook can have `enabled: false` to disable without removing.
+//
+// Events:
+//   PreToolUse  / PostToolUse  — use {matcher, hooks: [...]} grouping; matcher
+//                                is a regex on agy tool names.
+//   PreInvocation / PostInvocation / Stop — flat [handler, ...] array
+//                                (no matcher wrapping; matcher field ignored).
+//
+// Locations:
+//   global    → ~/.gemini/config/hooks.json
+//   workspace → <project>/.agents/hooks.json
+//
+// Maestro identification: every maestro-installed hook is registered under a
+// top-level name with the `maestro-` prefix, so removal is a key-prefix sweep.
+// ---------------------------------------------------------------------------
+
+/** Antigravity hook event names. */
+type AgyEvent = 'PreToolUse' | 'PostToolUse' | 'PreInvocation' | 'PostInvocation' | 'Stop';
+
+interface AgyHookDef {
+  event: AgyEvent;
+  matcher?: string;              // only meaningful for PreToolUse/PostToolUse
+  level: HookLevel;
+  requiresWorkspace?: boolean;
+  timeout?: number;
+}
+
+/**
+ * Maestro → Antigravity event mapping.
+ *
+ * Agy has no SessionStart / UserPromptSubmit. The closest analog is
+ * PreInvocation (fires before every model call). The runners that previously
+ * targeted UserPromptSubmit / SessionStart are remapped to PreInvocation and
+ * rely on workspace-state checks to be cheap on repeated firings.
+ *
+ * Tool matchers use agy tool names (not Claude's): run_command, write_to_file,
+ * replace_file_content, multi_replace_file_content, invoke_subagent, etc.
+ */
+export const AGY_HOOK_DEFS: Record<string, AgyHookDef> = {
+  // Minimal — safe monitoring
+  'spec-injector':         { event: 'PreToolUse', matcher: 'invoke_subagent', level: 'minimal', requiresWorkspace: true },
+
+  // Standard — context injection + delegate / team / coordinator monitoring
+  'session-context':       { event: 'PreInvocation', level: 'standard', requiresWorkspace: true },
+  'skill-context':         { event: 'PreInvocation', level: 'standard', requiresWorkspace: true },
+  'keyword-spec-injector': { event: 'PreInvocation', level: 'standard', requiresWorkspace: true },
+  'delegate-monitor':      { event: 'PostToolUse', matcher: 'run_command|invoke_subagent', level: 'standard' },
+  'team-monitor':          { event: 'Stop', level: 'standard' },
+  'telemetry':             { event: 'Stop', level: 'standard' },
+  'coordinator-tracker':   { event: 'Stop', level: 'standard', requiresWorkspace: true },
+
+  // Full — guards
+  'preflight-guard':       { event: 'PreToolUse', matcher: 'run_command|write_to_file|replace_file_content|multi_replace_file_content|invoke_subagent', level: 'standard', requiresWorkspace: true },
+  'spec-validator':        { event: 'PreToolUse', matcher: 'write_to_file|replace_file_content|multi_replace_file_content', level: 'standard', requiresWorkspace: true },
+  'workflow-guard':        { event: 'PreToolUse', matcher: 'run_command|write_to_file|replace_file_content|multi_replace_file_content', level: 'full', requiresWorkspace: true },
+};
+
+export const AGY_HOOK_LEVEL_DESCRIPTIONS: Record<HookLevel, string> = {
+  none: 'No hooks',
+  minimal: 'spec-injector (PreToolUse on invoke_subagent)',
+  standard: '+ session/skill/keyword context (PreInvocation) + delegate-monitor (PostToolUse) + team/telemetry/coordinator (Stop) + preflight/spec guards',
+  full: '+ workflow-guard (PreToolUse on shell/file writes)',
+};
+
+// File-schema types matching Antigravity's published shape.
+interface AgyHookHandler {
+  type?: string;          // defaults to "command"
+  command: string;
+  timeout?: number;
+}
+
+interface AgyToolEventEntry {
+  matcher?: string;       // regex on tool name
+  hooks: AgyHookHandler[];
+}
+
+interface AgyHookConfig {
+  enabled?: boolean;
+  PreToolUse?: AgyToolEventEntry[];
+  PostToolUse?: AgyToolEventEntry[];
+  PreInvocation?: AgyHookHandler[];
+  PostInvocation?: AgyHookHandler[];
+  Stop?: AgyHookHandler[];
+}
+
+/** Whole hooks.json file: a flat map of hookName → HookConfig. */
+type AgyHooksFile = Record<string, AgyHookConfig>;
+
+const AGY_HOOK_NAME_PREFIX = 'maestro-';
+
+/**
+ * Resolve the path where Antigravity hooks are configured.
+ *   global    → ~/.gemini/config/hooks.json
+ *   workspace → <project>/.agents/hooks.json
+ *
+ * `projectPath` should be the absolute path of the target project; falls back
+ * to process.cwd() when omitted (matches the existing Codex pattern).
+ */
+export function getAgyHooksPath(opts: { project?: boolean; projectPath?: string } = {}): string {
+  return opts.project
+    ? join(opts.projectPath ?? process.cwd(), '.agents', 'hooks.json')
+    : join(homedir(), '.gemini', 'config', 'hooks.json');
+}
+
+export function loadAgyHooks(hooksPath: string): AgyHooksFile {
+  if (!existsSync(hooksPath)) return {};
+  try {
+    const parsed = JSON.parse(readFileSync(hooksPath, 'utf8'));
+    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed as AgyHooksFile : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Strip all maestro-prefixed top-level entries (preserves user-defined hooks). */
+export function removeAgyMaestroHooks(hooksFile: AgyHooksFile): void {
+  for (const key of Object.keys(hooksFile)) {
+    if (key.startsWith(AGY_HOOK_NAME_PREFIX)) delete hooksFile[key];
+  }
+}
+
+/** Determines which event-key shape applies. */
+function isFlatEvent(event: AgyEvent): boolean {
+  return event === 'PreInvocation' || event === 'PostInvocation' || event === 'Stop';
+}
+
+/**
+ * Install hooks at the given level into Antigravity's hooks.json.
+ */
+export function installAgyHooksByLevel(
+  level: HookLevel,
+  opts: { project?: boolean; projectPath?: string; hooksPath?: string } = {},
+): InstallHooksResult {
+  if (level === 'none') {
+    return { settingsPath: '', installedHooks: [], level };
+  }
+
+  const hooksPath = opts.hooksPath ?? getAgyHooksPath({ project: opts.project, projectPath: opts.projectPath });
+  const hooksFile = loadAgyHooks(hooksPath);
+  removeAgyMaestroHooks(hooksFile);
+
+  const installedHooks: string[] = [];
+  for (const [name, def] of Object.entries(AGY_HOOK_DEFS)) {
+    if (!hookIncludedInLevel(def.level, level)) continue;
+
+    const hookName = `${AGY_HOOK_NAME_PREFIX}${name}`;
+    const handler: AgyHookHandler = { type: 'command', command: `maestro hooks run ${name}` };
+    if (def.timeout) handler.timeout = def.timeout;
+
+    const config: AgyHookConfig = {};
+    if (isFlatEvent(def.event)) {
+      (config[def.event] as AgyHookHandler[]) = [handler];
+    } else {
+      const entry: AgyToolEventEntry = { hooks: [handler] };
+      if (def.matcher) entry.matcher = def.matcher;
+      (config[def.event] as AgyToolEventEntry[]) = [entry];
+    }
+    hooksFile[hookName] = config;
+    installedHooks.push(name);
+  }
+
+  // Only write if there are entries — avoid creating an empty {} file.
+  paths.ensure(join(hooksPath, '..'));
+  if (Object.keys(hooksFile).length > 0) {
+    writeFileSync(hooksPath, JSON.stringify(hooksFile, null, 2));
+  }
+
+  return { settingsPath: hooksPath, installedHooks, level };
+}
+
+// ---------------------------------------------------------------------------
 // Stdin reader for hook runners (cached — safe to call multiple times)
 // ---------------------------------------------------------------------------
 

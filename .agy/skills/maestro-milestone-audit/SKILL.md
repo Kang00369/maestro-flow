@@ -1,0 +1,84 @@
+---
+name: maestro-milestone-audit
+description: Audit current milestone for cross-phase integration gaps
+argument-hint: [<milestone>]
+allowed-tools:
+  - ask_question
+  - define_subagent
+  - grep_search
+  - invoke_subagent
+  - manage_subagents
+  - run_command
+  - send_message
+  - view_file
+  - write_to_file
+---
+
+<purpose>
+Audit milestone completion using the artifact registry. Checks:
+1. Phase coverage — every phase in roadmap has plan + execute artifacts (completed)
+2. Ad-hoc completeness — all adhoc artifacts are completed (or explicitly skipped)
+3. Execution completeness — all tasks in executed plans are completed
+4. Cross-artifact integration — interfaces, data contracts, configuration consistency
+
+Data source: `state.json.artifacts[]` filtered by current milestone.
+Produces audit report at `.workflow/milestones/{milestone}/audit-report.md`.
+</purpose>
+
+<required_reading>
+@~/.maestro/workflows/milestone-audit.md
+</required_reading>
+
+<context>
+Milestone: $ARGUMENTS (optional -- defaults to current_milestone from state.json).
+
+**Requires:** All phases in the milestone should have completed execute artifacts.
+
+**Data source:**
+- `.workflow/state.json` — artifacts[], current_milestone, milestones[]
+- `.workflow/roadmap.md` — milestone-to-phase mapping
+- Plan scratch dirs — for task status verification
+</context>
+
+<execution>
+Follow '~/.maestro/workflows/milestone-audit.md' completely.
+
+Audit checklist steps (phase coverage, ad-hoc completeness, execution completeness, cross-artifact integration) are defined in workflow `milestone-audit.md`.
+
+**Next-step routing on completion:**
+- Verdict PASS → `/maestro-milestone-complete {milestone}`
+- Verdict FAIL, integration gaps → `/maestro-plan --gaps`
+- Verdict FAIL, incomplete execution → `/maestro-execute`
+</execution>
+
+<error_codes>
+| Code | Severity | Condition | Recovery |
+|------|----------|-----------|----------|
+| E001 | error | Milestone identifier required | Check arguments format |
+| E002 | error | Milestone not found in state.json | Check milestone ID |
+| E003 | error | No execute artifacts found for milestone | Run maestro-execute first |
+| W001 | warning | Some phases lack complete artifact chains | Review incomplete phases |
+</error_codes>
+
+<success_criteria>
+- [ ] All phases in milestone identified from roadmap
+- [ ] Artifact chains verified (ANL→PLN→EXC) per phase
+- [ ] Ad-hoc artifacts checked for completion
+- [ ] Integration check completed (shared interfaces, data contracts)
+- [ ] Audit report written with clear PASS/FAIL verdict
+- [ ] Next-step routing provided
+</success_criteria>
+
+<!--
+Maestro: converted from .claude/. Semantic differences worth knowing:
+
+- TaskCreate / TaskUpdate / TaskList / TaskGet → file-based at .workflow/tasks/<id>.json
+  (agy's manage_task handles run_command async tasks, NOT named-task tracking)
+- mcp__ccw-tools__team_msg(log|broadcast|read|get_state) → write_to_file/view_file on
+  .workflow/.team/<session>/.msg/messages.jsonl
+- Skill(skill=X, args=Y) → user-triggered slash command in agy; cannot be invoked from an agent
+- TeamCreate / TeamDelete → no agy equivalent; rely on directory scaffolding at
+  .workflow/.team/<session>/
+- TodoWrite → write_to_file append on .workflow/todos.jsonl
+- send_message Recipient is a ConversationId returned by invoke_subagent, not a role name
+-->

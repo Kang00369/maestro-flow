@@ -28,6 +28,7 @@ import {
 import {
   installHooksByLevel,
   installCodexHooksByLevel,
+  installAgyHooksByLevel,
   HOOK_LEVELS,
   type HookLevel,
 } from './hooks.js';
@@ -141,8 +142,9 @@ export function registerInstallCommand(program: Command): void {
     .option('--hooks <level>', 'Hook level for --force mode: none, minimal, standard, full')
     .option('--codex-hooks <level>', 'Codex hook level for --force mode: none, minimal, standard, full')
     .option('--codex-mcp', 'Register Codex MCP server in --force mode')
+    .option('--agy-hooks <level>', 'Agy (Antigravity) hook level for --force mode: none, minimal, standard, full')
     .option('--components <ids>', 'Comma-separated component IDs to install (with --force)')
-    .action(async (opts: { force?: boolean; global?: boolean; path?: string; hooks?: string; codexHooks?: string; codexMcp?: boolean; components?: string }) => {
+    .action(async (opts: { force?: boolean; global?: boolean; path?: string; hooks?: string; codexHooks?: string; codexMcp?: boolean; agyHooks?: string; components?: string }) => {
       const pkgRoot = getPackageRoot();
 
       // Validate package root
@@ -185,7 +187,7 @@ export function registerInstallCommand(program: Command): void {
 function forceInstall(
   pkgRoot: string,
   version: string,
-  opts: { global?: boolean; path?: string; hooks?: string; codexHooks?: string; codexMcp?: boolean; components?: string },
+  opts: { global?: boolean; path?: string; hooks?: string; codexHooks?: string; codexMcp?: boolean; agyHooks?: string; components?: string },
 ): void {
   console.error(t.install.forceVersion.replace('{version}', version));
   console.error('');
@@ -288,6 +290,16 @@ function forceInstall(
   if (codexHookLevel !== 'none' && HOOK_LEVELS.includes(codexHookLevel)) {
     const codexResult = installCodexHooksByLevel(codexHookLevel, { project: mode === 'project' });
     console.error(`  Codex Hooks (${codexHookLevel}): ${codexResult.installedHooks.length} hooks → ${codexResult.settingsPath}`);
+  }
+
+  // Agy (Antigravity) hook installation
+  const agyHookLevel = (opts.agyHooks ?? 'none') as HookLevel;
+  if (agyHookLevel !== 'none' && HOOK_LEVELS.includes(agyHookLevel)) {
+    const agyResult = installAgyHooksByLevel(agyHookLevel, {
+      project: mode === 'project',
+      projectPath: mode === 'project' ? projectPath : undefined,
+    });
+    console.error(`  Agy Hooks (${agyHookLevel}): ${agyResult.installedHooks.length} hooks → ${agyResult.settingsPath}`);
   }
 
   // Codex MCP registration
