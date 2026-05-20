@@ -4,12 +4,10 @@ import { useSidebar } from './SidebarContext.js';
 import { SearchInput } from '@/client/components/navigation/index.js';
 import { Link } from 'react-router-dom';
 
-// Vite define — injected at build time from package.json
 declare const __APP_VERSION__: string;
 
 // ---------------------------------------------------------------------------
-// TopBar — warm minimal header with logo, search, nav links, version badge
-// Mobile: hamburger menu button toggles sidebar drawer
+// TopBar — Gemini CLI style header: logo, search, nav, theme toggle
 // ---------------------------------------------------------------------------
 
 export function TopBar() {
@@ -19,9 +17,7 @@ export function TopBar() {
     try {
       const stored = localStorage.getItem('docs-site-theme');
       if (stored === 'light' || stored === 'dark') return stored;
-    } catch {
-      // Ignore localStorage errors
-    }
+    } catch {}
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
@@ -35,17 +31,16 @@ export function TopBar() {
     try {
       localStorage.setItem('docs-site-theme', newTheme);
       document.documentElement.setAttribute('data-theme', newTheme);
-    } catch {
-      // Ignore errors
-    }
+    } catch {}
   };
 
   return (
     <header
       role="banner"
-      className="fixed top-0 left-0 right-0 flex items-center justify-between px-[var(--spacing-6)] h-[var(--size-topbar-height)] bg-bg-secondary/85 backdrop-blur-[12px] border-b border-border shrink-0 z-[100]"
+      className="fixed left-0 right-0 flex items-center justify-between px-[var(--spacing-6)] h-[var(--size-topbar-height)] bg-bg-primary border-b border-border-divider shrink-0 z-[100]"
+      style={{ top: 'var(--size-banner-height)' }}
     >
-      {/* Left: Hamburger (mobile) + Logo + separator + subtitle */}
+      {/* Left: Hamburger (mobile) + Logo */}
       <div className="flex items-center gap-[var(--spacing-4)]">
         {/* Mobile hamburger menu */}
         <button
@@ -54,39 +49,39 @@ export function TopBar() {
           aria-label={t('sidebar.toggle')}
           className="lg:hidden flex items-center justify-center w-8 h-8 rounded-[var(--radius-default)] transition-all duration-[var(--duration-fast)] hover:bg-bg-hover text-text-tertiary hover:text-text-primary"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
 
         <Link to="/" className="flex items-center gap-[var(--spacing-2)] no-underline">
-          {/* Logo icon */}
-          <span className="w-6 h-6 rounded-[var(--radius-default)] bg-text-primary flex items-center justify-center">
-            <svg className="w-[14px] h-[14px]" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {/* Logo icon — Gemini CLI style solid square */}
+          <span className="w-7 h-7 rounded-[var(--radius-default)] bg-accent-blue flex items-center justify-center">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2L2 7l10 5 10-5-10-5z" />
               <path d="M2 17l10 5 10-5" />
               <path d="M2 12l10 5 10-5" />
             </svg>
           </span>
-          <span className="font-[var(--font-weight-bold)] text-[length:16px] text-text-primary">
+          <span className="font-[var(--font-weight-bold)] text-[17px] text-text-primary tracking-[var(--letter-spacing-tight)]">
             Maestro
           </span>
         </Link>
-        <span className="w-px h-5 bg-border hidden sm:block"></span>
+        <span className="w-px h-5 bg-border-divider hidden sm:block"></span>
         <span className="hidden sm:block text-[length:var(--font-size-sm)] font-[var(--font-weight-medium)] text-text-secondary">
           {t('topbar.title')}
         </span>
       </div>
 
-      {/* Right: search + nav links + language + theme + version */}
-      <div className="flex items-center gap-[var(--spacing-3)]">
+      {/* Right: search + nav + controls */}
+      <div className="flex items-center gap-[var(--spacing-2)]">
         {/* Search */}
-        <div className="hidden sm:block w-60">
+        <div className="hidden sm:block w-64">
           <SearchInput placeholder={t('topbar.search_placeholder')} />
         </div>
 
         {/* Nav links */}
-        <nav className="hidden md:flex items-center gap-[var(--spacing-1)]">
+        <nav className="hidden md:flex items-center gap-[var(--spacing-0-5)]">
           <Link
             to="/"
             className="text-[length:var(--font-size-sm)] font-[var(--font-weight-medium)] text-text-secondary no-underline px-[var(--spacing-3)] py-[var(--spacing-1-5)] rounded-[var(--radius-default)] transition-all duration-[var(--duration-fast)] hover:text-text-primary hover:bg-bg-hover"
@@ -128,18 +123,18 @@ export function TopBar() {
           className="flex items-center justify-center w-8 h-8 rounded-[var(--radius-default)] transition-all duration-[var(--duration-fast)] hover:bg-bg-hover text-text-tertiary hover:text-text-primary"
         >
           {theme === 'light' ? (
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
             </svg>
           ) : (
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
           )}
         </button>
 
         {/* Version badge */}
-        <span className="hidden sm:inline-flex text-[length:10px] font-[var(--font-weight-semibold)] px-[var(--spacing-2-5)] py-[3px] rounded-full bg-status-bg-completed text-accent-green">
+        <span className="hidden sm:inline-flex text-[length:11px] font-[var(--font-weight-medium)] px-[var(--spacing-2)] py-[2px] rounded-[var(--radius-full)] bg-tint-green text-accent-green">
           v{__APP_VERSION__}
         </span>
       </div>

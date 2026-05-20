@@ -11,6 +11,7 @@ const SkillDetailPage = lazy(() => import('./pages/SkillDetailPage.js'));
 const SearchPage = lazy(() => import('./pages/SearchPage.js'));
 const GuidePage = lazy(() => import('./pages/GuidePage.js'));
 const ChangelogPage = lazy(() => import('./pages/ChangelogPage.js'));
+const QuickStartPage = lazy(() => import('./pages/QuickStartPage.js'));
 
 // Import Router components
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -118,6 +119,7 @@ export function App() {
 
               {/* Guides */}
               <Route path="/guides" element={<Navigate to="/guides/command-usage" replace />} />
+              <Route path="/guides/quick-start" element={<QuickStartPage />} />
               <Route path="/guides/:slug" element={<GuideRouteWrapper />} />
 
               {/* Catch-all - redirect to home */}

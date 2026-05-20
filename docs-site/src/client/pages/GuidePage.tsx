@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 // ---------------------------------------------------------------------------
-// GuidePage — renders a guide markdown file with cross-linked commands
+// GuidePage — Gemini CLI style guide page
 // ---------------------------------------------------------------------------
 
 interface GuidePageProps {
@@ -66,14 +66,13 @@ export default function GuidePage({ slug }: GuidePageProps) {
           <span className="flex items-center justify-center w-8 h-8 rounded-[var(--radius-default)] bg-tint-purple text-accent-purple">
             {getGuideIcon(content?.icon || 'book-open', 'w-4 h-4')}
           </span>
-          <h1 className="text-[length:28px] font-[var(--font-weight-bold)] text-text-primary leading-[1.3]">
+          <h1 className="text-[42px] font-[var(--font-weight-medium)] text-text-primary leading-[1.2] tracking-[var(--letter-spacing-tight)]">
             {displayTitle}
           </h1>
         </div>
-        <p className="text-[length:var(--font-size-md)] text-text-secondary leading-[var(--line-height-relaxed)]">
+        <p className="text-[length:var(--font-size-md)] text-text-secondary leading-[1.75]">
           {displayDesc}
         </p>
-        {/* Back to guides */}
         <Link
           to="/guides"
           className="inline-flex items-center gap-[var(--spacing-1)] text-[length:var(--font-size-sm)] text-accent-blue no-underline hover:underline mt-[var(--spacing-3)]"
@@ -85,7 +84,7 @@ export default function GuidePage({ slug }: GuidePageProps) {
         </Link>
       </div>
 
-      {/* Guide content + floating TOC — centered together */}
+      {/* Guide content + floating TOC */}
       <div className="flex gap-[var(--spacing-6)] xl:gap-[var(--spacing-10)] justify-center">
         <div className="flex-1 min-w-0 max-w-[860px]">
           <MarkdownRenderer content={content?.rawContent || ''} />
