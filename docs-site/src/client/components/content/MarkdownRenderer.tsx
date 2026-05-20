@@ -71,7 +71,8 @@ const components: Components = {
   pre({ children, ...props }) {
     // Check if child is a mermaid block (rendered as Suspense > MermaidBlock)
     const child = props.node?.children?.[0];
-    const isMermaid = child?.tagName === 'code' && (child.properties?.className?.[0] as string)?.includes('mermaid');
+    const classList = child != null && 'properties' in child ? (child.properties?.className as string[] | undefined) : undefined;
+    const isMermaid = child != null && 'tagName' in child && child.tagName === 'code' && classList?.[0]?.includes('mermaid');
     if (isMermaid) {
       return <>{children}</>;
     }

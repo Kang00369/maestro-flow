@@ -117,9 +117,11 @@ export function App() {
               {/* Changelog page */}
               <Route path="/changelog" element={<ChangelogPage />} />
 
+              {/* Quick Start - top-level route */}
+              <Route path="/quick-start" element={<QuickStartPage />} />
+
               {/* Guides */}
               <Route path="/guides" element={<Navigate to="/guides/command-usage" replace />} />
-              <Route path="/guides/quick-start" element={<QuickStartPage />} />
               <Route path="/guides/:slug" element={<GuideRouteWrapper />} />
 
               {/* Catch-all - redirect to home */}

@@ -89,6 +89,12 @@ export function Sidebar() {
         style={{ top: 'calc(var(--size-banner-height) + var(--size-topbar-height))', bottom: 0 }}
       >
         <nav className="py-[var(--spacing-4)]" aria-label={t('sidebar.aria_nav')}>
+          {/* Quick Start - top level */}
+          <SidebarQuickStartLink />
+
+          {/* Divider */}
+          <div className="mx-[var(--spacing-4)] my-[var(--spacing-2)] border-t border-border-divider" />
+
           {/* Guides section */}
           <SidebarGuidesSection />
 
@@ -277,7 +283,7 @@ function SidebarGuidesSection() {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(true);
   const isZh = locale === 'zh-CN';
-  const guides = useMemo(() => getAllGuideMeta(), []);
+  const guides = useMemo(() => getAllGuideMeta().filter((g) => g.slug !== 'quick-start'), []);
   const isGuidesActive = location.pathname.startsWith('/guides');
 
   return (
@@ -346,6 +352,36 @@ function SidebarGuidesSection() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SidebarQuickStartLink — top-level entry, same hierarchy as Guides
+// ---------------------------------------------------------------------------
+
+function SidebarQuickStartLink() {
+  const { t } = useI18n();
+  const location = useLocation();
+  const isActive = location.pathname === '/quick-start';
+
+  return (
+    <div className="px-[var(--spacing-3)]">
+      <NavLink
+        to="/quick-start"
+        className={[
+          'flex items-center gap-[var(--spacing-2)] px-[var(--spacing-3)] py-[var(--spacing-1-5)]',
+          'text-[length:var(--font-size-sm)] font-[var(--font-weight-medium)]',
+          'transition-all duration-[var(--duration-fast)]',
+          'rounded-[var(--radius-sm)]',
+          isActive
+            ? 'bg-accent-blue text-text-inverse'
+            : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover',
+        ].join(' ')}
+      >
+        {getGuideIcon('rocket', 'w-4 h-4')}
+        {t('sidebar.quick_start')}
+      </NavLink>
     </div>
   );
 }
