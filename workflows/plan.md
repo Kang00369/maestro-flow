@@ -171,9 +171,11 @@ When `--tdd` is active:
 
 **Purpose:** Generate the execution plan.
 
+**Rule:** Main flow MUST NOT create/modify TASK files. All planning delegated to planner agent. Upstream analyze results (conclusions.json / implementation_scope) MUST be passed into planner spawn as `explorationContext` in the same step.
+
 ### Standard Mode (default)
 
-Spawn `workflow-planner` agent with: context.md, spec-ref, doc-index.json, explorationContext (incl. implementationScope), clarificationContext, phase goal + success_criteria, templates (plan.json, task.json).
+Spawn `workflow-planner` agent with: context.md, spec-ref, doc-index.json, explorationContext (incl. implementationScope from P1 Step 5), clarificationContext, phase goal + success_criteria, templates (plan.json, task.json).
 
 **Task count guard**: Before spawning, assess scope complexity:
 - Single feature / simple change → expect **1-2 tasks** max
@@ -236,10 +238,11 @@ Every TASK-*.json MUST include these fields — they are NOT optional:
 
 ### Gap Mode (`--gaps`)
 
-For each gap from explorationContext (P1 Step 6), create `TASK-{NNN}.json`:
-- `type: "fix"`, `description`, `action` (concrete fix_direction), `read_first` (affected files), `convergence.criteria` (grep-verifiable), `issue_id` (if source == "issue")
+Spawn `workflow-planner` agent with: explorationContext (gap list from P1 Step 6), spec-ref, doc-index.json, phase goal + success_criteria, templates, mode = `gap-fix`.
 
-Bidirectional linking: update matching issues in `.workflow/issues/issues.jsonl` → `status: "planned"`. Build plan.json with gap-fix tasks.
+Planner: for each gap emit one task — `type: "fix"`, `description`, `action` (concrete fix_direction), `read_first` (affected files), `convergence.criteria` (grep-verifiable), `issue_id` (if source == "issue"); assign IDs and waves; build plan.json.
+
+Bidirectional linking (main flow, post-planner): update matching issues in `.workflow/issues/issues.jsonl` → `status: "planned"`.
 
 ### Output
 - `plan.json` in PHASE_DIR
@@ -389,11 +392,13 @@ Incrementally modify an existing plan without rebuilding from scratch.
      - Update convergence criteria
    - Parse instructions into concrete changes
 
-3. **Apply targeted changes**
-   - Modify affected TASK files in-place
-   - If tasks added/removed: re-sequence task IDs, regenerate wave assignments
-   - Update plan.json summary (task count, wave structure)
-   - Preserve unmodified tasks completely
+3. **Spawn `workflow-planner` agent for revision**
+   - Input: existing plan.json + all `.task/TASK-*.json` + parsed revision instructions + explorationContext (include implementation_scope if conclusions.json exists) + templates
+   - Planner:
+     - Modify affected TASK files in-place
+     - If tasks added/removed: re-sequence task IDs, regenerate wave assignments
+     - Update plan.json summary (task count, wave structure)
+     - Preserve unmodified tasks
 
 4. **Re-run plan-checker (P4)**
    - Validate modified plan with same checker as create mode

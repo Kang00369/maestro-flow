@@ -12,7 +12,7 @@ allowed-tools:
   - AskUserQuestion
 ---
 <purpose>
-Unified brainstorming combining interactive framework generation, multi-role parallel analysis, and cross-role synthesis. Two modes: Auto (full pipeline with guidance-specification → parallel role analysis → synthesis) and Single Role (individual role analysis for an existing session). Outputs structured artifacts in .brainstorming/ directory ready for downstream planning.
+Unified brainstorming combining interactive framework generation, multi-role parallel design, cross-role review, and resolution writeback. Two modes: Auto (full pipeline: guidance-specification → parallel design/{role}.md → cross-role-reviewer finds conflicts/gaps/synergies → user-confirmed resolutions patched into role files + logged in guidance §11) and Single Role (individual role design for an existing session). Outputs structured artifacts in `.workflow/scratch/brainstorm-{slug}-{date}/` ready for downstream planning (roadmap / analyze / spec-generate consume `guidance-specification.md`).
 </purpose>
 
 <required_reading>
@@ -29,10 +29,11 @@ Unified brainstorming combining interactive framework generation, multi-role par
 $ARGUMENTS -- topic text for auto mode, or role name for single role mode.
 
 **Auto mode**: topic text (e.g., "Build real-time collaboration platform") triggers full pipeline.
-**Single role mode**: valid role name (e.g., "system-architect") runs one role analysis.
+**Single role mode**: valid role name (e.g., "system-architect") runs one role design.
 **All output** goes to `.workflow/scratch/{YYYYMMDD}-brainstorm-{slug}/`.
 **Artifact registration**: On completion, registers artifact (type=brainstorm) in state.json.
 **Output boundary**: ALL file writes MUST target `{output_dir}/` or `.workflow/state.json` only. NEVER modify source code or files outside these paths.
+**Produced files**: `guidance-specification.md`, `design-research.md` (optional), `design/{role}.md` (per selected role).
 
 **Valid roles**: data-architect, product-manager, product-owner, scrum-master, subject-matter-expert, system-architect, test-strategist, ui-designer, ux-expert
 
@@ -82,35 +83,35 @@ Single role mode:
 | E001 | error | Topic or role argument required | Prompt user for topic text or role name |
 | E002 | error | No active session for single role mode | Guide user to run auto mode first |
 | E003 | error | Invalid role name | Show valid roles list |
+| E006 | error | `--review-only` but no `design/*.md` found | Run auto or single-role mode first |
+| E007 | error | `--review-only` but `guidance-specification.md` missing | Run auto mode to generate guidance first |
 | W001 | warning | Fewer than 10 ideas in divergent phase | Proceed with available ideas |
 | W002 | warning | Project context (.workflow/) not found | Continue without project context |
 | W003 | warning | Role template not found | Use generic analysis structure |
 | W004 | warning | Validation score < 60 | Log warning, suggest manual review |
 | W005 | warning | External research agent failed | Continue without designResearchContext |
+| W006 | warning | Reviewer patch_targets heading drift (no match) | Skip that patch; report in final summary |
 </error_codes>
 
 <success_criteria>
 **Auto mode**:
-- [ ] guidance-specification.md with RFC 2119 keywords, terminology, non-goals, feature decomposition
-- [ ] design-research.md persisted when Step 1.7 external research ran (fail-soft: absence not a failure)
-- [ ] Spec Review Gate passed (Step 3.5) or `--yes` bypassed
-- [ ] Role analysis files for each selected NON-UI role in `.brainstorming/{role}/`
+- [ ] `guidance-specification.md` with RFC 2119 keywords, terminology, non-goals, feature decomposition (§10), decision tracking (§11)
+- [ ] `design-research.md` persisted when Step 1.7 external research ran (fail-soft: absence not a failure)
 - [ ] If `ui-designer` in selected_roles AND Step 3.5 ran: `.workflow/impeccable/DESIGN.md` exists (visual style established via impeccable explore)
-- [ ] If `ui-designer` in selected_roles: `ui-designer/analysis.md` exists with UX analysis (interaction flows, state design, information architecture)
-- [ ] Feature specs in `.brainstorming/feature-specs/` (or synthesis-specification.md)
-- [ ] UI-bearing feature specs reference DESIGN.md for visual constraints in Section 3 (Interface Contract)
-- [ ] feature-index.json and synthesis-changelog.md
-- [ ] Final Output Gate passed (Step 5.5) or `--yes` bypassed
-- [ ] All user decisions captured with Decision Recording Protocol
-- [ ] Session metadata updated with completion status
-- [ ] Confidence scored per role completion and after cross-role analysis
-- [ ] Readiness gate checked before spec generation
-- [ ] Pressure pass completed on at least 1 feature spec
-- [ ] Confidence summary appended to synthesis-changelog.md
+- [ ] `design/{role}.md` written for each selected role (one file per role, ≤ 1500 lines)
+- [ ] Each `design/{role}.md` contains §1 Role Mandate, §2 Cross-Cutting Foundations, §3 Per-Feature Design, §4 Outstanding TODOs
+- [ ] `design/system-architect.md` §2 includes Data Model + State Machine when system-architect is selected
+- [ ] `design/ui-designer.md` references DESIGN.md visual constraints when ui-designer is selected
+- [ ] Each `design/{role}.md` §3 references ≥ 1 guidance decision ID per feature subsection
+- [ ] Cross-role review (Step 4.5) executed; reviewer output includes `patch_targets[]` for every finding
+- [ ] If findings exist: each accepted resolution applied via Edit (annotate / strikeout / append) AND logged in `guidance-specification.md` §11 "Cross-Role Resolutions"
+- [ ] If zero findings: final report explicitly states "No cross-role issues detected"; guidance §11 unchanged
+- [ ] Heading-drift patch failures surfaced in final report (if any)
+- [ ] Session metadata updated with completion status (review_findings_count, resolutions_applied, patches_skipped)
 
 **Single role mode**:
-- [ ] analysis.md written to `{output_dir}/{role}/`
-- [ ] Feature-point organization used when feature list available
-- [ ] Framework reference included when guidance-specification.md exists
+- [ ] `design/{role}.md` written
+- [ ] §3 Per-Feature Design populated when guidance §10 feature list available
+- [ ] §1 references guidance-specification.md when it exists
 - [ ] Session metadata updated
 </success_criteria>

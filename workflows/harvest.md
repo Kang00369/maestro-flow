@@ -61,7 +61,7 @@ Scan `.workflow/` for harvestable artifacts. Each source type has a known struct
 | Source Type | Scan Path | Key Files | ID Pattern |
 |-------------|-----------|-----------|------------|
 | `analysis` | `.workflow/.analysis/ANL-*/` | `conclusions.json`, `*.md` | `ANL-*` |
-| `brainstorm` | `.workflow/scratch/brainstorm-*/` | `guidance-specification.md`, `brainstorm-*.md` | directory name |
+| `brainstorm` | `.workflow/scratch/brainstorm-*/` | `guidance-specification.md`, `design/*.md`, `design-research.md` | directory name |
 | `lite-plan` | `.workflow/.lite-plan/*/` | `plan.json`, `plan-overview.md` | directory name |
 | `lite-fix` | `.workflow/.lite-fix/*/` | `fix-plan.json` | directory name |
 | `debug` | `.workflow/.debug/*/` | `debug-log.md`, `hypothesis-*.md` | directory name |
@@ -125,11 +125,14 @@ Parse content to identify discrete knowledge items. Each source type has specifi
 - `risks[]` → each risk is a fragment
 - Markdown sections with `## ` headings → section-level fragments
 
-**Brainstorm (`guidance-specification.md` + notes):**
-- `## Options` or `## Approaches` → each option is a fragment
-- `## Decision` or `## Recommendation` → decision fragment
-- `## Trade-offs` → trade-off fragments
-- Action items (lines starting with `- [ ]` or `TODO`) → task fragments
+**Brainstorm (`guidance-specification.md` + `design/*.md` + `design-research.md`):**
+- guidance §4-§N Role Decisions tables → each row is a decision fragment
+- guidance §10 Feature Decomposition rows → each feature is a fragment
+- guidance §11 Cross-Role Resolutions table → each resolution is a decision fragment
+- `design/{role}.md` §2 Cross-Cutting Foundations subsections → architectural / data-model / pitfall fragments by role
+- `design/{role}.md` §3 Per-Feature Design subsections → per-feature decision fragments
+- `design/{role}.md` §4 Outstanding TODOs → task fragments
+- `design-research.md` "Extractable Patterns" sections → pattern reference fragments
 
 **Lite-plan (`plan.json`):**
 - `tasks[]` → each with rationale → decision fragments

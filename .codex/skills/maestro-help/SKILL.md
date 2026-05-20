@@ -175,7 +175,7 @@ Guide 映射：
 
 - **Workflow (15)**: analyzer, planner, executor, verifier, reviewer, debugger, research-agent, roadmapper, plan-checker, phase-researcher, project-researcher, research-synthesizer, codebase-mapper, nyquist-auditor, integration-checker, external-researcher, collab-planner
 - **Team (2)**: supervisor, worker
-- **Planning (1)**: conceptual-planning-agent
+- **Brainstorm (2)**: role-design-author, cross-role-reviewer
 - **CLI (1)**: cli-explore-agent
 - **UI (1)**: ui-design-agent
 
