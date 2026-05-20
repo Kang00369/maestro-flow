@@ -1,20 +1,25 @@
 // ---------------------------------------------------------------------------
 // AgyAdapter — spawns the Antigravity (agy) CLI in non-interactive --print mode
 //
-// agy output strategy (dual-source):
-//   1. stdout = plain text assistant reply (agy has no --json flag)
-//   2. transcript.jsonl at ~/.gemini/antigravity-cli/brain/<conv>/.system_generated/
-//      logs/transcript.jsonl gets structured tool calls, thinking, results
+// agy output strategy (transcript-first):
+//   In non-TTY mode (i.e. spawned by Node with piped stdio), agy writes
+//   **nothing** to stdout. The full conversation — user input, planner
+//   responses, tool calls, tool results — lands in
+//   ~/.gemini/antigravity-cli/brain/<conv>/.system_generated/logs/transcript.jsonl
 //
-// We treat stdout lines as the streamed assistant message, then after the
-// process exits we locate the newest transcript and emit retrospective
-// tool_use / thinking entries derived from it. This gives the runner the full
-// picture (final text + tool history) without requiring agy to expose JSON.
+//   We locate the conversation for the current workspace via
+//   ~/.gemini/antigravity-cli/cache/last_conversations.json[workdir]
+//   (agy updates this map every run), then replay transcript entries that
+//   landed after our spawn timestamp.
+//
+//   stdout is still wired up as a fallback in case a future agy build emits
+//   text there, but PLANNER_RESPONSE.content from the transcript is the
+//   authoritative assistant reply.
 // ---------------------------------------------------------------------------
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
 import type {
@@ -82,7 +87,16 @@ function resolveAgyBinary(): string {
 }
 
 const AGY_BRAIN_DIR = join(homedir(), '.gemini', 'antigravity-cli', 'brain');
-const AGY_HISTORY_FILE = join(homedir(), '.gemini', 'antigravity-cli', 'history.jsonl');
+const AGY_LAST_CONV_FILE = join(homedir(), '.gemini', 'antigravity-cli', 'cache', 'last_conversations.json');
+
+/** Case-insensitive path equality on Windows. */
+function samePath(a: string, b: string): boolean {
+  const left = resolve(a);
+  const right = resolve(b);
+  return process.platform === 'win32'
+    ? left.toLowerCase() === right.toLowerCase()
+    : left === right;
+}
 
 // ---------------------------------------------------------------------------
 // Adapter implementation
@@ -97,6 +111,7 @@ export class AgyAdapter extends BaseAgentAdapter {
   private readonly stoppedEmitted = new Set<string>();
   private readonly spawnTimestamps = new Map<string, number>();
   private readonly textBuffers = new Map<string, string>();
+  private readonly workDirs = new Map<string, string>();
 
   // --- Lifecycle hooks -----------------------------------------------------
 
@@ -104,13 +119,12 @@ export class AgyAdapter extends BaseAgentAdapter {
     processId: string,
     config: AgentConfig,
   ): Promise<AgentProcess> {
-    const args: string[] = ['--print'];
-
     // --print-timeout: convert ms → "<n>s" (agy uses Go duration format)
     // Floor at 60s to give the agent room; ceiling at config.streamTimeoutMs.
     const timeoutMs = config.streamTimeoutMs ?? DEFAULT_STREAM_TIMEOUT_MS;
     const timeoutSec = Math.max(60, Math.floor(timeoutMs / 1000));
-    args.push('--print-timeout', `${timeoutSec}s`);
+
+    const args: string[] = ['--print-timeout', `${timeoutSec}s`];
 
     // approvalMode='auto' (write mode) → bypass permission prompts.
     // 'suggest' (analysis mode) keeps defaults.
@@ -126,10 +140,31 @@ export class AgyAdapter extends BaseAgentAdapter {
       agyResumeLast?: boolean;
     };
 
+    // Windows symlink workaround: agy's project discovery creates a symlink
+    // at <cwd>/.antigravitycli/<uuid>.json → ~/.gemini/config/projects/<uuid>.json.
+    // Without Developer Mode or admin, that symlink call fails and agy
+    // silently degrades — no auth, no API call, empty transcript. The home
+    // directory already has a working symlink from agy's first interactive
+    // run, so launching from there and exposing the real workdir via
+    // --add-dir gives agy a valid project context.
+    const requestedWorkDir = resolve(config.workDir ?? process.cwd());
+    const homeProjectDir = resolve(homedir());
+    const launchCwd =
+      process.platform === 'win32' && !samePath(requestedWorkDir, homeProjectDir)
+        ? homeProjectDir
+        : requestedWorkDir;
+
+    const includeDirs = new Set<string>();
+    if (!samePath(launchCwd, requestedWorkDir)) {
+      includeDirs.add(requestedWorkDir);
+    }
     if (metadata.includeDirs && metadata.includeDirs.length > 0) {
       for (const dir of metadata.includeDirs) {
-        args.push('--add-dir', dir);
+        includeDirs.add(resolve(dir));
       }
+    }
+    for (const dir of includeDirs) {
+      args.push('--add-dir', dir);
     }
 
     // Resume: agy supports -c (last) and --conversation <id>.
@@ -139,8 +174,11 @@ export class AgyAdapter extends BaseAgentAdapter {
       args.push('-c');
     }
 
-    // Prompt as positional after --print.
-    args.push(config.prompt);
+    // Prompt MUST use --prompt (or -p), NOT --print. agy's flag parser
+    // registers `--print` as boolean, so `--print "hi"` parses as
+    // `--print=true` + positional "hi", which hangs the run. `--prompt`
+    // and `-p` take the value as expected.
+    args.push('--prompt', config.prompt);
 
     // Environment
     const envFromFile = config.envFile ? loadEnvFile(config.envFile) : {};
@@ -152,11 +190,17 @@ export class AgyAdapter extends BaseAgentAdapter {
     const usesPath = bin === 'agy';
     const spawnedAt = Date.now();
     this.spawnTimestamps.set(processId, spawnedAt);
+    // last_conversations.json is keyed by the cwd agy was launched with —
+    // when we redirect to homedir, look up the conversation under that key.
+    this.workDirs.set(processId, launchCwd);
 
     const child = spawn(bin, args, {
-      cwd: config.workDir,
+      cwd: launchCwd,
       env: childEnv,
-      stdio: ['pipe', 'pipe', 'pipe'],
+      // stdin must NOT be a pipe — agy --print waits for stdin EOF before
+      // processing the prompt argv, so leaving stdin open hangs the process.
+      // Using 'ignore' detaches stdin entirely (equivalent to closing it).
+      stdio: ['ignore', 'pipe', 'pipe'],
       // Use shell only when falling back to PATH lookup; resolved absolute
       // paths spawn directly so killProcessTree owns the whole tree.
       shell: usesPath,
@@ -258,44 +302,82 @@ export class AgyAdapter extends BaseAgentAdapter {
   // --- Transcript enrichment ----------------------------------------------
 
   /**
-   * After the agy process exits, locate the conversation transcript that was
-   * touched during our run and emit tool_use / thinking / file_change entries
-   * derived from it. This gives downstream consumers (CliHistoryStore, the
-   * dashboard) structured visibility that --print stdout cannot provide.
+   * Locate the conversationId agy used for this workspace on this run.
+   *
+   * Strategy:
+   *  1. Read cache/last_conversations.json — agy writes the
+   *     workspace→conversationId map on every run. If the cache mtime is
+   *     after our spawn and the workdir key resolves, return that id.
+   *  2. Fall back to scanning brain/ directories for a transcript.jsonl
+   *     touched after our spawn (legacy heuristic; handles edge cases where
+   *     the cache write is delayed).
    */
-  private enrichFromTranscript(processId: string): void {
+  private resolveConversationId(processId: string): string | undefined {
     const spawnedAt = this.spawnTimestamps.get(processId) ?? 0;
-    if (!existsSync(AGY_BRAIN_DIR)) return;
+    const workdir = this.workDirs.get(processId);
 
-    let latest: { path: string; mtime: number } | null = null;
+    if (workdir && existsSync(AGY_LAST_CONV_FILE)) {
+      try {
+        const stat = statSync(AGY_LAST_CONV_FILE);
+        // Allow ±1s clock skew between Node's Date.now() and agy's file write.
+        if (stat.mtimeMs >= spawnedAt - 1000) {
+          const data = JSON.parse(readFileSync(AGY_LAST_CONV_FILE, 'utf8')) as Record<string, string>;
+          if (data[workdir]) return data[workdir];
+        }
+      } catch {
+        // fall through to brain scan
+      }
+    }
+
+    if (!existsSync(AGY_BRAIN_DIR)) return undefined;
+    let latest: { id: string; mtime: number } | null = null;
     try {
       for (const entry of readdirSync(AGY_BRAIN_DIR, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
         const transcriptPath = join(AGY_BRAIN_DIR, entry.name, '.system_generated', 'logs', 'transcript.jsonl');
         if (!existsSync(transcriptPath)) continue;
         const mtime = statSync(transcriptPath).mtimeMs;
-        if (mtime < spawnedAt - 1000) continue; // only files touched during/after spawn
-        if (!latest || mtime > latest.mtime) latest = { path: transcriptPath, mtime };
+        if (mtime < spawnedAt - 1000) continue;
+        if (!latest || mtime > latest.mtime) latest = { id: entry.name, mtime };
       }
     } catch {
-      return;
+      return undefined;
     }
-    if (!latest) return;
+    return latest?.id;
+  }
+
+  /**
+   * After the agy process exits, locate the conversation transcript for our
+   * workspace and replay the entries that landed during our turn. The
+   * PLANNER_RESPONSE.content carries the model's actual reply text — that's
+   * the primary assistant_message source since stdout is empty in non-TTY
+   * mode. Tool calls and intermediate results become tool_use entries.
+   */
+  private enrichFromTranscript(processId: string): void {
+    const spawnedAt = this.spawnTimestamps.get(processId) ?? 0;
+    const conversationId = this.resolveConversationId(processId);
+    if (!conversationId) return;
+
+    const transcriptPath = join(
+      AGY_BRAIN_DIR,
+      conversationId,
+      '.system_generated',
+      'logs',
+      'transcript.jsonl',
+    );
+    if (!existsSync(transcriptPath)) return;
 
     let content: string;
     try {
-      content = readFileSync(latest.path, 'utf8');
+      content = readFileSync(transcriptPath, 'utf8');
     } catch {
       return;
     }
 
-    const lines = content.split('\n');
-    // Replay entries written after our spawn. We approximate by walking the
-    // file backwards and stopping at the first USER_INPUT step before our
-    // spawn timestamp — everything after is "our turn".
+    // Replay entries written after our spawn (with 1s skew tolerance).
+    const cutoff = new Date(spawnedAt - 1000).toISOString();
     const ourEntries: AgyTranscriptEntry[] = [];
-    const cutoff = new Date(spawnedAt).toISOString();
-    for (const line of lines) {
+    for (const line of content.split('\n')) {
       if (line.trim().length === 0) continue;
       let entry: AgyTranscriptEntry;
       try {
@@ -308,10 +390,18 @@ export class AgyAdapter extends BaseAgentAdapter {
       }
     }
 
+    let emittedAssistant = false;
     for (const entry of ourEntries) {
       if (entry.source === 'MODEL' && entry.type === 'PLANNER_RESPONSE') {
         if (entry.thinking && entry.thinking.trim().length > 0) {
           this.emitEntry(processId, EntryNormalizer.thinking(processId, entry.thinking.trim()));
+        }
+        if (entry.content && entry.content.trim().length > 0) {
+          this.emitEntry(
+            processId,
+            EntryNormalizer.assistantMessage(processId, entry.content.trim(), false),
+          );
+          emittedAssistant = true;
         }
         if (entry.tool_calls && entry.tool_calls.length > 0) {
           for (const call of entry.tool_calls) {
@@ -327,9 +417,6 @@ export class AgyAdapter extends BaseAgentAdapter {
       }
 
       if (entry.source === 'MODEL' && TOOL_RESULT_TYPES.has(entry.type)) {
-        // Result of a previously-emitted tool_use. We don't have a stable
-        // mapping from this entry to the originating call_id, so we emit it
-        // as a generic tool result placeholder.
         const result = entry.content ?? '';
         const status: 'completed' | 'failed' = entry.status === 'ERROR' ? 'failed' : 'completed';
         this.emitEntry(
@@ -345,33 +432,21 @@ export class AgyAdapter extends BaseAgentAdapter {
       }
     }
 
-    // Emit a final consolidated assistant_message so resume / history captures
-    // the full reply as one unit, not just per-line partials.
-    const buffered = this.textBuffers.get(processId);
-    if (buffered && buffered.trim().length > 0) {
-      this.emitEntry(processId, EntryNormalizer.assistantMessage(processId, buffered.trim(), false));
+    // Fallback: if the transcript produced no PLANNER_RESPONSE.content but
+    // stdout buffered something (future TTY support), surface that.
+    if (!emittedAssistant) {
+      const buffered = this.textBuffers.get(processId);
+      if (buffered && buffered.trim().length > 0) {
+        this.emitEntry(processId, EntryNormalizer.assistantMessage(processId, buffered.trim(), false));
+      }
     }
 
-    // Record the conversation id so a follow-up `maestro delegate --resume`
+    // Record conversationId so a follow-up `maestro delegate --resume`
     // can pass it via --conversation.
-    try {
-      if (existsSync(AGY_HISTORY_FILE)) {
-        const histLines = readFileSync(AGY_HISTORY_FILE, 'utf8').trim().split('\n').reverse();
-        for (const line of histLines) {
-          if (line.trim().length === 0) continue;
-          const rec = JSON.parse(line) as { conversationId?: string; timestamp?: number };
-          if (rec.conversationId && (rec.timestamp ?? 0) >= spawnedAt - 5000) {
-            this.emitEntry(
-              processId,
-              EntryNormalizer.statusChange(processId, 'running', `agy.conversationId=${rec.conversationId}`),
-            );
-            break;
-          }
-        }
-      }
-    } catch {
-      // best-effort only
-    }
+    this.emitEntry(
+      processId,
+      EntryNormalizer.statusChange(processId, 'running', `agy.conversationId=${conversationId}`),
+    );
   }
 
   // --- Helpers -------------------------------------------------------------
@@ -429,5 +504,6 @@ export class AgyAdapter extends BaseAgentAdapter {
     this.childProcesses.delete(processId);
     this.spawnTimestamps.delete(processId);
     this.textBuffers.delete(processId);
+    this.workDirs.delete(processId);
   }
 }

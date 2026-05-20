@@ -13,6 +13,7 @@ import { existsSync } from 'node:fs';
 import { getPackageVersion } from '../utils/get-version.js';
 import { getAllManifests } from '../core/manifest.js';
 import { loadMigrations, planMigrations, runPendingMigrations } from '../utils/migration-registry.js';
+import { applyNotices, planNotices, printNoticePlan } from '../utils/update-notices.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -199,6 +200,28 @@ async function reinstallWorkflows(version: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Post-update: apply version-keyed notices (new features, optional installs)
+// ---------------------------------------------------------------------------
+
+/**
+ * Shell out to the NEW binary to apply notices for the upgrade range
+ * (oldVersion, newVersion]. The new binary's registry has the notice entries
+ * for this release; the running parent process can't see them.
+ */
+async function runNoticesViaNewBinary(oldVersion: string, opts: { nonInteractive?: boolean; dryRun?: boolean } = {}): Promise<void> {
+  const flags: string[] = ['--notices', '--from', oldVersion];
+  if (opts.nonInteractive) flags.push('--non-interactive');
+  if (opts.dryRun) flags.push('--dry-run');
+  // Stream stdio so the user sees prompts and answers them live.
+  const { spawn } = await import('node:child_process');
+  await new Promise<void>((resolve) => {
+    const child = spawn('maestro', ['update', ...flags], { stdio: 'inherit', shell: true });
+    child.on('exit', () => resolve());
+    child.on('error', () => resolve());
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Post-update: run migrations
 // ---------------------------------------------------------------------------
 
@@ -277,10 +300,46 @@ export function registerUpdateCommand(program: Command): void {
     .description('Check for updates and install the latest version')
     .option('--check', 'Only check for updates, do not install')
     .option('--migrate <path>', 'Run pending migrations for a project path')
-    .action(async (opts: { check?: boolean; migrate?: string }) => {
+    .option('--notices', 'Apply pending version-keyed notices (new tools/skills/features)')
+    .option('--from <version>', 'Lower bound for --notices (default: 0.0.0)')
+    .option('--to <version>', 'Upper bound for --notices (default: current binary version)')
+    .option('--dry-run', 'With --notices: list actions without executing them')
+    .option('--non-interactive', 'With --notices: skip prompts, use defaults')
+    .action(async (opts: {
+      check?: boolean;
+      migrate?: string;
+      notices?: boolean;
+      from?: string;
+      to?: string;
+      dryRun?: boolean;
+      nonInteractive?: boolean;
+    }) => {
       // Internal: --migrate runs migrations for a specific path via new binary
       if (opts.migrate) {
         await applyMigrations(opts.migrate);
+        return;
+      }
+
+      // Standalone: apply notices for a version range — no npm install
+      if (opts.notices) {
+        const from = opts.from ?? '0.0.0';
+        const to = opts.to ?? getPackageVersion();
+        const plan = planNotices(from, to);
+        if (plan.length === 0) {
+          console.error('  No pending update notices.');
+          return;
+        }
+        if (opts.dryRun) {
+          printNoticePlan(plan);
+          return;
+        }
+        console.error('');
+        console.error(`  Applying notices for v${from} → v${to}`);
+        await applyNotices(plan, from, to, {
+          dryRun: opts.dryRun,
+          nonInteractive: opts.nonInteractive,
+        });
+        console.error('');
         return;
       }
 
@@ -365,6 +424,10 @@ export function registerUpdateCommand(program: Command): void {
 
       // --- Post-update: reinstall workflow components ---
       await reinstallWorkflows(latest.version);
+
+      // --- Post-update: apply version-keyed notices via new binary ---
+      // (runs the new binary so its notice registry is the source of truth)
+      await runNoticesViaNewBinary(current);
 
       // --- Post-update: run pending migrations via new binary ---
       await runMigrationsForAllProjects();

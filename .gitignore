@@ -26,3 +26,6 @@ dashboard/dist-server/
 dashboard/node_modules/
 .history
 .claude/settings.local.json
+
+# Antigravity CLI auto-creates this for project discovery (empty on Windows without symlink permission)
+.antigravitycli/

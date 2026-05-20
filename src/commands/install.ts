@@ -326,9 +326,12 @@ function forceInstall(
     }
   }
 
-  // CLI tools config (idempotent — skips if exists)
-  if (initCliToolsConfigSync()) {
+  // CLI tools config — create on first install, merge missing tool defs on upgrade
+  const cliToolsResult = initCliToolsConfigSync();
+  if (cliToolsResult.created) {
     console.error('  Initialized cli-tools.json (auto-detected CLI availability)');
+  } else if (cliToolsResult.added.length > 0) {
+    console.error(`  cli-tools.json: added missing tools → ${cliToolsResult.added.join(', ')}`);
   }
 
   console.error('');

@@ -192,11 +192,12 @@ export function InstallExecution({ config, pkgRoot, version, onComplete }: Insta
           codexMcpRegistered = addCodexMcpServer(config.mode, config.projectPath, config.codexMcpTools, config.codexMcpProjectRoot || undefined);
         }
 
-        // CLI tools config
+        // CLI tools config — first install creates, upgrade merges missing tools
         if (!cancelled) {
           const { initCliToolsConfig } = await import('../../config/cli-tools-config.js');
-          const created = await initCliToolsConfig();
-          if (created) setStatus('Initialized cli-tools.json');
+          const result = await initCliToolsConfig();
+          if (result.created) setStatus('Initialized cli-tools.json');
+          else if (result.added.length > 0) setStatus(`cli-tools.json: added ${result.added.join(', ')}`);
         }
 
         setDone(true);
