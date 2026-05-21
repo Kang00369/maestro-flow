@@ -50,7 +50,7 @@ const taskPatterns = [
 
 ### 路径 3: 完整规范链（适合大型项目）
 1. `/maestro-init`
-2. `/maestro-spec-generate` — 7 阶段规范生成
+2. `/maestro-blueprint` — 6 阶段规范生成
 ```
 
 **功能开发** (复杂度: 中):

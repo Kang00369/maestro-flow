@@ -132,7 +132,7 @@ If project state is **empty** (greenfield, no source files found in Step 2):
 
 ### Step 10: Completion Report
 
-Display created files and next steps: `$maestro-roadmap --mode full` (full spec), `$maestro-roadmap` (light), `$manage-status`, `$maestro-brainstorm`, `$maestro-quick`.
+Display created files and next steps: `$maestro-blueprint` (full spec), `$maestro-roadmap` (roadmap), `$manage-status`, `$maestro-brainstorm`, `$maestro-quick`.
 
 </execution>
 

@@ -413,7 +413,7 @@ S_DECISION_EVAL 入口；镜像 maestro-ralph `A_GOAL_AUDIT_EVALUATE`。Condense
 | `feature` | [B] maestro-plan → [B] maestro-execute → maestro-verify |
 | `quality-fix` | [B] maestro-analyze --gaps → [B] maestro-plan --gaps → [B] maestro-execute → maestro-verify |
 | `deploy` | maestro-verify → maestro-milestone-release |
-| `spec-driven` | maestro-init → [B] maestro-roadmap --mode full → [B] maestro-plan → [B] maestro-execute → maestro-verify |
+| `blueprint-driven` | maestro-init → [B] maestro-blueprint → [B] maestro-plan → [B] maestro-execute → maestro-verify |
 | `brainstorm-driven` | [B] maestro-brainstorm → [B] maestro-plan → [B] maestro-execute → maestro-verify |
 | `ui-craft-build` | maestro-impeccable build → [B] maestro-plan → [B] maestro-execute → maestro-verify |
 | `roadmap-driven` | maestro-init → [B] maestro-roadmap → [B] maestro-plan → [B] maestro-execute → maestro-verify |

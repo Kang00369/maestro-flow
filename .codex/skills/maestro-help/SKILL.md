@@ -126,7 +126,7 @@ Guide 映射：
 **新项目**:
 - 最简: `/maestro-init` → `/maestro-roadmap "目标" -y`
 - 头脑风暴: `/maestro-brainstorm "描述"` → `/maestro-init --from brainstorm:ANL-xxx`
-- 完整规范: `/maestro-init` → `/maestro-spec-generate`
+- 完整规范: `/maestro-init` → `/maestro-blueprint`
 
 **功能开发**:
 - 标准: analyze → plan → execute → verify

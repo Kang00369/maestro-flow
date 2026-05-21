@@ -27,7 +27,7 @@ $ARGUMENTS — topic text and optional flags.
 **Session**: `.workflow/.csv-wave/{YYYYMMDD}-brainstorm-{slug}/`
 
 **Output** (per session):
-- `guidance-specification.md` — machine contract (Wave 1; consumed by downstream roadmap/analyze/spec-generate). §11 Decision Tracking, §12 Cross-Role Resolutions.
+- `guidance-specification.md` — machine contract (Wave 1; consumed by downstream roadmap/analyze/blueprint). §11 Decision Tracking, §12 Cross-Role Resolutions.
 - `design-research.md` — optional, external research from Wave 1
 - `{role}/analysis.md` — index + Decision Digest + cross-cutting foundations per selected role (Wave 2)
 - `{role}/analysis-F-{id}-{slug}.md` — per-feature analysis files (Wave 2)

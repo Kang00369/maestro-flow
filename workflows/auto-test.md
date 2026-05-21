@@ -55,8 +55,8 @@ Priority: Resume > Re-run > Spec > Gap > Code
    Skip to Step 4 (scenarios pre-loaded, plan confirmation)
 
 3. SPEC:
-   Check: .workflow/.spec/SPEC-*/requirements/REQ-*.md exists
-   Resolve: SPEC_DIR from index.json.spec_ref or most recent SPEC-*/
+   Check: .workflow/blueprint/BLP-*/requirements/REQ-*.md exists
+   Resolve: SPEC_DIR from index.json.blueprint_ref or most recent BLP-*/
    If SPEC_DIR found: set ROUTE = "spec", SPEC_MODE = "full"
    If no spec but has success_criteria: set ROUTE = "spec", SPEC_MODE = "degraded"
 
@@ -286,7 +286,7 @@ Output: `infrastructure` object passed to Steps 5-6.
 {
   "phase": "{phase}",
   "source_route": "{ROUTE}",
-  "spec_ref": "{SPEC_DIR name or null}",
+  "blueprint_ref": "{SPEC_DIR name or null}",
   "spec_mode": "full|degraded|null",
   "generated_at": "{ISO timestamp}",
   "infrastructure": { "framework": "...", "run_command": "..." },
@@ -307,7 +307,7 @@ Output: `infrastructure` object passed to Steps 5-6.
 === AUTO-TEST PLAN ===
 来源:  {ROUTE}
 阶段:  {phase_name}
-Spec:  {spec_ref or "N/A"}
+Blueprint: {blueprint_ref or "N/A"}
 
 层级分布:
   L0 Static:      {N} checks
@@ -520,7 +520,7 @@ Scored after each REFLECT step. Dimensions (5): scenario_coverage, test_quality,
   "phase": "{phase}",
   "phase_dir": "{PHASE_DIR}",
   "source_route": "spec|gap|code|re-run",
-  "spec_ref": "SPEC-001 | null",
+  "blueprint_ref": "SPEC-001 | null",
   "spec_mode": "full|degraded|null",
   "status": "converged|max_iter_reached|confirmed_defects|single_pass",
   "flags": { "max_iter": 5, "layer": null, "dry_run": false, "re_run": false },
@@ -550,7 +550,7 @@ Scored after each REFLECT step. Dimensions (5): scenario_coverage, test_quality,
 {
   "phase": "{phase}",
   "source_route": "{ROUTE}",
-  "spec_ref": "{spec ref or null}",
+  "blueprint_ref": "{spec ref or null}",
   "spec_mode": "full|degraded|null",
   "completed_at": "{ISO timestamp}",
   "convergence": {

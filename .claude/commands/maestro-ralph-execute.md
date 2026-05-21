@@ -179,7 +179,7 @@ Write enriched args back to status.json (resume-safe).
 2. Scan output for context signals:
    - `PHASE: N` → session.phase
    - `scratch_dir: path` → context.scratch_dir
-   - `SPEC-xxx` → context.spec_session_id
+   - `BLP-xxx` → context.blueprint_session_id
 3. Scan output for `--- COMPLETION STATUS ---` block. If found, parse and map:
    - `STATUS: DONE` → `step.status = "completed"`
    - `STATUS: DONE_WITH_CONCERNS` → `step.status = "completed"`, `step.concerns = CONCERNS value`

@@ -60,12 +60,31 @@ Worktree guard: If .workflow/worktree-scope.json exists, reject phase args not i
 Auto-bootstrap: Create minimal .workflow/state.json if missing.
 
 Scope determination → OUTPUT_DIR:
-  (no args) + milestone + roadmap → scope="milestone", OUTPUT_DIR=.workflow/scratch/analyze-{milestone_slug}-{date}/
+  (no args) + milestone + roadmap → scope="milestone", mode="micro", OUTPUT_DIR=.workflow/scratch/analyze-{milestone_slug}-{date}/
   (no args) without milestone/roadmap → ERROR E001
-  (number) + milestone + roadmap   → scope="phase", OUTPUT_DIR=.workflow/scratch/analyze-{phase_slug}-{date}/
+  (number) + milestone + roadmap   → scope="phase", mode="micro", OUTPUT_DIR=.workflow/scratch/analyze-{phase_slug}-{date}/
   (number) without milestone/roadmap → ERROR
-  (text) + milestone               → scope="adhoc", OUTPUT_DIR=.workflow/scratch/analyze-{topic_slug}-{date}/
-  (text) without milestone         → scope="standalone", OUTPUT_DIR=.workflow/scratch/analyze-{topic_slug}-{date}/
+  (text) + milestone               → scope="adhoc", mode="macro", OUTPUT_DIR=.workflow/scratch/analyze-{topic_slug}-{date}/
+  (text) without milestone         → scope="standalone", mode="macro", OUTPUT_DIR=.workflow/scratch/analyze-{topic_slug}-{date}/
+
+Macro mode additions (scope="adhoc" or "standalone"):
+  - In Step 6 Synthesis, evaluate scope_verdict: "small" | "medium" | "large"
+    - large: 3+ independent subsystems or hard serial dependency barriers
+    - medium: 1-2 subsystems, parallelizable
+    - small: single-file or few-file change
+  - Write scope_verdict to context.md conclusions section
+  - Include scope_verdict in context-package.json for downstream consumption
+
+Phase-to-Milestone resolution (when scope="phase"):
+  FOR each ms in state.json.milestones[]:
+    IF phase_number in ms.phases[]:
+      target_milestone = ms.id
+      BREAK
+  IF no match: target_milestone = current_milestone (fallback)
+
+  Use target_milestone (not current_milestone) for:
+    - artifact registration (milestone field in Step 8.9)
+    - loading prior artifacts (Step 1 context loading)
 
 Create OUTPUT_DIR.
 ```

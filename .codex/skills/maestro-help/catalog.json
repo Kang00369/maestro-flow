@@ -176,7 +176,7 @@
       "name": "初始化路径",
       "minimal": "/maestro-init → /maestro-roadmap",
       "from_brainstorm": "/maestro-brainstorm → /maestro-init --from brainstorm:<id> → /maestro-roadmap",
-      "full_spec": "/maestro-init → /maestro-spec-generate"
+      "full_spec": "/maestro-init → /maestro-blueprint"
     }
   }
 }

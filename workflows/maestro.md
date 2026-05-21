@@ -424,7 +424,7 @@ detectNextAction(state):
 | Chain | Steps | Use Case |
 |-------|-------|----------|
 | `full-lifecycle` | plan → execute → verify → review → test → audit | Full milestone completion |
-| `spec-driven` | init → spec-generate → plan → execute → verify | From idea/requirements (heavy) |
+| `blueprint-driven` | init → blueprint → plan → execute → verify | From idea/requirements (heavy) |
 | `roadmap-driven` | init → roadmap → plan → execute → verify | From requirements (light) |
 | `brainstorm-driven` | brainstorm → plan → execute → verify | From exploration |
 | `impeccable-build` | impeccable --chain build → plan → execute → verify | From design system generation |

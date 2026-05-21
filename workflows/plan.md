@@ -18,20 +18,40 @@ All output goes to `.workflow/scratch/plan-{slug}-{date}/`.
 ## Scope Resolution
 
 ```
-Input: [phase] argument OR --dir <path>
+Input: [phase] argument OR --dir <path> OR --from <source>
 
 Worktree guard: reject if phase not in .workflow/worktree-scope.json owned_phases
 Auto-bootstrap: create minimal state.json if missing
 
-Resolution priority:
-  --dir <path>   → CONTEXT_DIR = path, scope from state.json artifact or "standalone"
-  no arguments   → scope = "milestone", CONTEXT_DIR = latest analyze artifact for current_milestone
-                   (ERROR E001 if no roadmap)
-  numeric arg    → scope = "phase", resolve PHASE_SLUG from roadmap.md,
-                   CONTEXT_DIR = latest analyze artifact for phase
-                   (ERROR if no init + roadmap)
+Resolution priority (highest to lowest):
+  1. --from analyze:ANL-xxx → CONTEXT_DIR = artifact path, scope = "standalone"
+     Uses analyze conclusions.implementation_scope to seed task generation
+  2. --from blueprint:BLP-xxx → CONTEXT_DIR = blueprint path, scope = "standalone"
+     Uses blueprint requirements + architecture to seed task generation
+  3. --from <other> (@file, path/) → load context-package.json from path, scope = "standalone"
+  4. --dir <path>   → CONTEXT_DIR = path, scope from state.json artifact or "standalone"
+  5. no arguments + roadmap → scope = "milestone", CONTEXT_DIR = latest analyze artifact for current_milestone
+     (ERROR E001 if no roadmap)
+  6. numeric arg    → scope = "phase", resolve PHASE_SLUG from roadmap.md,
+     CONTEXT_DIR = latest analyze artifact for phase
+     (ERROR if no init + roadmap)
+  7. no arguments + no roadmap → search state.json for latest analyze artifact
+     Found → scope = "standalone", CONTEXT_DIR = artifact path
+     Not found → ERROR E001
 
-OUTPUT_DIR = .workflow/scratch/plan-{PHASE_SLUG or milestone_slug}-{date}/
+Phase-to-Milestone resolution (when scope="phase"):
+  FOR each ms in state.json.milestones[]:
+    IF phase_number in ms.phases[]:
+      target_milestone = ms.id
+      BREAK
+  IF no match: target_milestone = current_milestone (fallback)
+
+  Use target_milestone (not current_milestone) for:
+    - artifact registration (P5 Step 4 milestone field)
+    - collision detection scope (P4.5)
+    - prior artifact lookups
+
+OUTPUT_DIR = .workflow/scratch/{YYYYMMDD}-plan-[P{N}-|M{N}-]{slug}/
 ```
 
 ---
@@ -48,7 +68,7 @@ OUTPUT_DIR = .workflow/scratch/plan-{PHASE_SLUG or milestone_slug}-{date}/
 | `--revise [instructions]` | Revise existing plan (skip P1-P3, load → modify → P4). Auto-discovers latest plan or use `--dir` |
 | `--check <plan-dir>` | Standalone plan verification (P4 only, read-only) |
 | `--tdd` | Generate TDD task chains (RED-GREEN-REFACTOR triplets). Load `@~/.maestro/workflows/tdd.md` for discipline and task structure |
-| `--from <source>` | Load upstream context package directly (brainstorm:ID, analyze:ID, @file, or path). Bypasses normal context resolution |
+| `--from <source>` | Load upstream context directly (analyze:ANL-xxx, blueprint:BLP-xxx, brainstorm:ID, @file, or path). Bypasses roadmap requirement for analyze/blueprint sources |
 
 ---
 
@@ -89,8 +109,8 @@ When `--tdd` is active:
    - Else: read `${CONTEXT_DIR}/context.md` if exists, else warn (no upstream analyze)
    - Merge: if both `--from` and `context.md` exist, context-package takes precedence; context.md supplements
 
-2. **Load spec reference** (if `--spec` flag or index.json has spec_ref)
-   - Read from `.workflow/.spec/${spec_ref}/`: spec-summary.md, requirements/_index.md, epics/_index.md
+2. **Load spec reference** (if `--spec` flag or index.json has blueprint_ref)
+   - Read from `.workflow/blueprint/${blueprint_ref}/`: blueprint-summary.md, requirements/_index.md, epics/_index.md
 
 3. **Load project specs**
    ```

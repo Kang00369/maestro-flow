@@ -57,7 +57,7 @@ If argument is topic text (scratch mode):
 Gather context from available sources:
 - **2a.** Phase context.md: product type, industry, audience, preferences
 - **2b.** Brainstorm results: visual direction keywords, persona, product type
-- **2c.** Spec reference (index.json.spec_ref): UI-relevant requirements
+- **2c.** Blueprint reference (index.json.blueprint_ref): UI-relevant requirements
 
 **2d. Synthesize design brief:** product_type, industry, style_keywords, audience.
 

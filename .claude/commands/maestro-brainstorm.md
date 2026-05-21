@@ -12,7 +12,7 @@ allowed-tools:
   - AskUserQuestion
 ---
 <purpose>
-Unified brainstorming combining interactive framework generation, multi-role parallel analysis, cross-role review, and resolution writeback. Two modes: Auto (full pipeline: guidance-specification → parallel {role}/ multi-file analysis → cross-role-reviewer compares Decision Digests for conflicts/gaps/synergies → user-confirmed resolutions patched into role files + logged in guidance §12) and Single Role (individual role analysis for an existing session). Outputs structured artifacts in `.workflow/scratch/brainstorm-{slug}-{date}/` ready for downstream planning (roadmap / analyze / spec-generate consume `guidance-specification.md`).
+Unified brainstorming combining interactive framework generation, multi-role parallel analysis, cross-role review, and resolution writeback. Two modes: Auto (full pipeline: guidance-specification → parallel {role}/ multi-file analysis → cross-role-reviewer compares Decision Digests for conflicts/gaps/synergies → user-confirmed resolutions patched into role files + logged in guidance §12) and Single Role (individual role analysis for an existing session). Outputs structured artifacts in `.workflow/scratch/brainstorm-{slug}-{date}/` ready for downstream planning (roadmap / analyze / blueprint consume `guidance-specification.md`).
 </purpose>
 
 <required_reading>
@@ -80,9 +80,9 @@ Follow '~/.maestro/workflows/brainstorm.md' completely.
 
 Auto mode:
 - Project not initialized → Skill({ skill: "maestro-init" })
-- Project initialized, need spec package → Skill({ skill: "maestro-roadmap", args: "--mode full --from brainstorm:{artifact_id}" })
+- Project initialized, need formal spec package → Skill({ skill: "maestro-blueprint", args: "--from brainstorm:{artifact_id}" })
 - Project initialized, quick roadmap → Skill({ skill: "maestro-roadmap", args: "--from brainstorm:{artifact_id}" })
-- Need deeper analysis first → Skill({ skill: "maestro-analyze", args: "{topic}" })
+- Need deeper analysis first → Skill({ skill: "maestro-analyze", args: "{topic} --from brainstorm:{artifact_id}" })
 - `html-prototypes/` produced with 2+ files and user wants to browse → load `~/.maestro/workflows/brainstorm-visualize.md` and launch visualizer server (optional, user-triggered)
 - DESIGN.md established during Step 3.5 → suggest: "Run `/maestro-impeccable build <feature-description>` to build with the established design system"
 

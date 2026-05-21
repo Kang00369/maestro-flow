@@ -14,7 +14,7 @@ allowed-tools:
   - write_to_file
 ---
 <purpose>
-Unified brainstorming combining interactive framework generation, multi-role parallel analysis, cross-role review, and resolution writeback. Two modes: Auto (full pipeline: guidance-specification → parallel {role}/ multi-file analysis → cross-role-reviewer compares Decision Digests for conflicts/gaps/synergies → user-confirmed resolutions patched into role files + logged in guidance §12) and Single Role (individual role analysis for an existing session). Outputs structured artifacts in `.workflow/scratch/brainstorm-{slug}-{date}/` ready for downstream planning (roadmap / analyze / spec-generate consume `guidance-specification.md`).
+Unified brainstorming combining interactive framework generation, multi-role parallel analysis, cross-role review, and resolution writeback. Two modes: Auto (full pipeline: guidance-specification → parallel {role}/ multi-file analysis → cross-role-reviewer compares Decision Digests for conflicts/gaps/synergies → user-confirmed resolutions patched into role files + logged in guidance §12) and Single Role (individual role analysis for an existing session). Outputs structured artifacts in `.workflow/scratch/brainstorm-{slug}-{date}/` ready for downstream planning (roadmap / analyze / blueprint consume `guidance-specification.md`).
 </purpose>
 
 <required_reading>

@@ -27,7 +27,7 @@ Initialize a new project through auto state detection and unified flow. Invoked 
 <context>
 **Flags:**
 - `-y` -- Automatic mode. After config questions, runs research without further interaction. Expects idea document via @ reference.
-- `--from <source>` -- Load upstream context package (brainstorm:ID, @file, or path). Consumes context-package.json to pre-fill vision, goals, constraints, terminology. Alias: `--from-brainstorm`
+- `--from <source>` -- Load upstream context package (brainstorm:ID, @file, or path). Consumes context-package.json to pre-fill project vision, goals, constraints, and terminology. Skips interactive questioning. Alias: `--from-brainstorm`
 
 **Load project state if exists:**
 Check for `.workflow/state.json` -- loads context if project already initialized.
