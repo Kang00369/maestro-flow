@@ -54,13 +54,153 @@ Exit: on consensus or explicit user signal to proceed, finalize session metadata
 <csv_schema>
 ```csv
 id,title,description,role,topic,guidance_spec,deps,context_from,wave,status,findings,output_file,error
-"1","Guidance Spec","...","guidance-generator","<topic>","","","","1","","","",""
-"2","System Architect","...","system-architect","<topic>","","1","1","2","","","system-architect/analysis.md",""
-"3","UI Designer","...","ui-designer","<topic>","","1","1","2","","","ui-designer/analysis.md",""
-"4","Cross-Role Review","...","cross-role-reviewer","<topic>","","2;3","2;3","3","","","",""
+"1","Guidance Spec","<W1 prompt — see <agent_prompt_template>>","guidance-generator","<topic>","","","","1","","","",""
+"2","System Architect","<W2 prompt — see <agent_prompt_template>>","system-architect","<topic>","","1","1","2","","","<ABS_SESSION>/system-architect/analysis.md",""
+"3","UI Designer","<W2 prompt — see <agent_prompt_template>>","ui-designer","<topic>","","1","1","2","","","<ABS_SESSION>/ui-designer/analysis.md",""
+"4","Cross-Role Review","<W3 prompt — see <agent_prompt_template>>","cross-role-reviewer","<topic>","","2;3","2;3","3","","","",""
 ```
+
+**Column semantics (orchestrator MUST honor when generating tasks.csv)**:
+- `description`: full agent prompt — orchestrator MUST inflate `<W1/W2/W3 prompt>` placeholders using the templates in `<agent_prompt_template>` below. Never leave it as `"..."` — the spawned agent reads ONLY this field as its task brief.
+- `output_file`: **index file only** (single primary deliverable used by Wave 3 reviewer to locate the role). Wave 2 role agents write multiple files (`analysis.md` + per-feature + findings) under the same `{role}/` directory; the CSV only tracks the index path for dependency wiring.
+- **All paths in CSV (`output_file`, any path referenced in `description`) MUST be absolute.** Orchestrator MUST resolve `<ABS_SESSION>` to the absolute session dir (e.g. `D:/proj/.workflow/.csv-wave/20260521-brainstorm-foo/`) before writing tasks.csv. Relative paths break agent Write calls.
+
 Wave 1: 1 guidance row. Wave 2: N role rows (parallel) — each writes `{role}/analysis.md` + `{role}/analysis-F-*.md` + `{role}/findings-*.md`. Wave 3: 1 reviewer row (reads analysis.md §2 Decision Digests; emits structured findings consumed by orchestrator).
 </csv_schema>
+
+<agent_prompt_template>
+The orchestrator MUST inflate the CSV `description` field per row using these templates before invoking `spawn_agents_on_csv`. Without inflation, spawned agents have no contract and will not write files.
+
+### W1 prompt (role: guidance-generator)
+
+```
+You are the guidance generator for a brainstorm session on: <topic>.
+
+OUTPUT: Write `<ABS_SESSION>/guidance-specification.md` using the Write tool. MUST be on disk; do NOT return as chat text.
+
+CONTRACT — guidance-specification.md sections:
+  §1 Project Positioning & Goals
+  §2 Concepts & Terminology (5–10 core terms table)
+  §3 Non-Goals (Out of Scope) with rationale
+  §4–N Role Decisions with RFC 2119 keywords (MUST / SHOULD / MAY / MUST NOT / SHOULD NOT)
+  Cross-Role Integration
+  Risks & Constraints
+  §10 Feature Decomposition (max 8 features, F-{3-digit} id + slug, independently implementable)
+  §11 Decision Tracking appendix (incrementally populated during interview)
+  §12 Cross-Role Resolutions (initially empty — populated by Wave 3)
+
+CONSTRAINTS:
+- All behavioural statements MUST use RFC 2119 keywords.
+- No interrogative sentences in the deliverable (all declarative).
+- After write, verify with Glob; emit `TASK COMPLETE` only after file exists on disk.
+```
+
+### W2 prompt (role: one of the 9 valid roles)
+
+```
+You are the <role> for a brainstorm session on: <topic>.
+
+INPUTS:
+- Read guidance-specification.md at: <ABS_SESSION>/guidance-specification.md
+- Extract decisions belonging to your role (by ID prefix) and the §10 feature list.
+- If <ABS_SESSION>/design-research.md exists, integrate it as evidence (cite by project name + section).
+
+OUTPUT: Write multiple files under `<ABS_SESSION>/<role>/` using the Write tool. Files on disk are the ONLY valid deliverable — do NOT return analysis as chat text.
+
+FILE LAYOUT (all under <ABS_SESSION>/<role>/):
+  analysis.md                          — INDEX (see structure below)
+  analysis-F-{id}-{slug}.md            — one per feature in guidance §10 (< 2000 words each)
+  findings-{slug}.md                   — additional discoveries (0 or more, < 1000 words each)
+
+analysis.md structure (MUST contain):
+  §1 Role Mandate (≤ 200 words: what you decide, what you defer, why you are here)
+  §2 Decision Digest — four tables:
+       Decisions      | ID | Feature | Stance | Constraints (RFC 2119) |
+       Interfaces     | Name | Contract | Consumers |
+       Cross-Cutting Positions | Topic | Stance |
+       Findings Summary | Slug | Title | Impact |
+     MUST have ≥ 1 Decisions row per feature in §10.
+  §3 Cross-Cutting Foundations — role-specific subsections (see role-specific addendum below).
+  §4 File Index — list every written file with its top-level headings.
+  §5 Outstanding TODOs
+
+REFERENCE, DON'T DUPLICATE:
+- Reference guidance decisions by ID (e.g., SA-03) — do NOT copy decision text.
+- Cross-link sub-files with relative links: `see [F-002](analysis-F-002-skill-engine.md)`.
+
+CONSTRAINTS:
+- Aim for ≥ 5 RFC 2119 keyword occurrences across analysis.md.
+- No interrogative sentences.
+- After all writes, verify with Glob that analysis.md and every analysis-F-*.md exist. Only then emit `TASK COMPLETE`.
+
+ROLE-SPECIFIC §3 ADDENDUM (use these as §3 subsection headings):
+- system-architect:       Data Model · State Machine · Error Handling · Observability · Configuration · Boundary Scenarios
+- data-architect:         Filesystem Layout · YAML Schemas · Indexer Algorithm · Ref Bridge · Lifecycle · Migration
+- ux-expert:              Information Architecture · Sigil/Input · Visual Choreography · Streaming · Confirmation · Interrupt · Accessibility
+- subject-matter-expert:  Pitfall Taxonomy · Pattern Fingerprints · Domain-Silence Decisions · Differentiation Thesis · Crosswalk
+- test-strategist:        Test Layers · Coverage Targets · Risk-Based Prioritization · Tooling
+- product-manager:        Personas · Success Metrics · Roadmap Shape · Prioritization Rationale
+- product-owner:          Backlog Decomposition · Acceptance Criteria · Done Definition
+- scrum-master:           Cadence · Ceremonies · Impediments · Flow Metrics
+- ui-designer:            Design Tokens · Component States · Visual Language · Animation
+
+(Orchestrator inflates only the addendum line matching the current row's role.)
+```
+
+### W3 prompt (role: cross-role-reviewer)
+
+```
+You are the cross-role reviewer for a brainstorm session on: <topic>.
+
+INPUTS — read these files (do NOT modify):
+- <ABS_SESSION>/guidance-specification.md
+- <ABS_SESSION>/<role_1>/analysis.md
+- <ABS_SESSION>/<role_2>/analysis.md
+- ... (one per role from Wave 2)
+
+(Orchestrator MUST inject the actual absolute paths for all completed Wave 2 rows.)
+
+TASK: Compare §2 Decision Digests across role analysis.md index files. Identify:
+- Conflicts: contradictory stances between roles on the same feature/topic
+- Gaps: §2 Interfaces consumers referencing definitions that no role owns
+- Synergies: §2 Findings Summary items that align across roles and should cross-reference
+
+OUTPUT — return this structured markdown report as your final message (do NOT write files; the orchestrator parses your output and applies patches):
+
+  ## Conflicts (need user decision)
+  ### C-001: <one-line summary>
+    patch_targets:
+      - target_file: <ABS_SESSION>/<role-A>/analysis-F-{id}-{slug}.md  (or <role-A>/analysis.md for cross-cutting)
+        target_heading: ## <exact heading text from §4 File Index>
+        edit_type: annotate_and_strikeout
+        edit_content: > **Cross-Role Resolution (C-001)**: <1-line resolution>
+      - target_file: <ABS_SESSION>/<role-B>/analysis-F-{id}-{slug}.md
+        target_heading: ## <exact heading text>
+        edit_type: annotate_and_strikeout
+
+  ## Gaps
+  ### G-001: ...
+    patch_targets:
+      - target_file: <ABS_SESSION>/<ref-role>/analysis.md   edit_type: annotate_after_heading
+        target_heading: ### Interfaces
+      - target_file: <ABS_SESSION>/<owner-role>/analysis.md edit_type: append_to_section
+        target_heading: ### Decisions
+
+  ## Synergy Opportunities
+  ### S-001: ...
+    patch_targets:
+      - target_file: <ABS_SESSION>/<role-A>/analysis-F-{id}-{slug}.md edit_type: annotate_after_heading
+      - target_file: <ABS_SESSION>/<role-B>/analysis-F-{id}-{slug}.md edit_type: annotate_after_heading
+
+  ## Summary
+  conflicts_count / gaps_count / synergies_count / review_confidence (0–1)
+
+CONSTRAINTS:
+- `edit_type` is a CLOSED vocabulary: only `annotate_after_heading` / `annotate_and_strikeout` / `append_to_section`.
+- `target_heading` MUST match the heading text verbatim as it appears in the target file's §4 File Index (case + punctuation). Never invent.
+- If zero conflicts/gaps/synergies detected, return a `## Summary` block with all counts = 0 and a one-line explanation. Do not fabricate findings.
+```
+</agent_prompt_template>
 
 <invariants>
 1. **Wave order sacred**: Guidance (W1) MUST complete before role design (W2); review (W3) MUST run only after all W2 rows complete.

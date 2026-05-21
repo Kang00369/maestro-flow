@@ -329,23 +329,37 @@ When `ui-designer` is among the selected roles, establish the project's visual d
 
 For EACH selected role, spawn a `role-design-author` agent in parallel. Each agent produces a multi-file analysis under `{output_dir}/{role}/`.
 
+**Path resolution (orchestrator responsibility, BEFORE invocation)**:
+- Resolve `{output_dir}` to an **absolute path** (e.g., `D:/proj/.workflow/scratch/brainstorm-foo-20260521`). Do NOT pass the literal `.workflow/...` relative form — agent Write tool requires absolute paths.
+- Expand `~/` in `role_template_path` to the user home absolute path.
+- For absent optional fields (e.g., `style_skill` when role ≠ ui-designer, `design_research` when Step 1.7 was skipped), pass the literal string `null` — never a conditional placeholder like `{x if y}`.
+
 ```
 Agent({
   subagent_type: "role-design-author",
   prompt: """
     role_name: {role}
-    role_template_path: ~/.maestro/templates/planning-roles/{role}.md
-    guidance_path: {output_dir}/guidance-specification.md
-    output_dir: {output_dir}/{role}/
+    role_template_path: <ABSOLUTE path to planning-roles/{role}.md>
+    guidance_path: <ABSOLUTE {output_dir}>/guidance-specification.md
+    output_dir: <ABSOLUTE {output_dir}>/{role}/
     feature_list: <F-id + slug + title rows from guidance §10>
-    design_research: {output_dir}/design-research.md if exists, else null
-    project_specs: {specs_content or null}
-    user_context: {session.role_decisions[role] if any}
-    style_skill: {style_skill_path if role == ui-designer and provided}
+    design_research: <ABSOLUTE path>/design-research.md  OR  null
+    project_specs: <specs_content text>  OR  null
+    user_context: <session.role_decisions[role] text>  OR  null
+    style_skill: <ABSOLUTE style-skill SKILL.md path>  OR  null
 
-    Write the analysis files per the role template's "Brainstorming Analysis Structure".
+    Follow the Output Contract in `.claude/agents/role-design-author.md` (§1 Role Mandate,
+    §2 Decision Digest with 4 tables, §3 Cross-Cutting Foundations, §4 File Index, §5 TODOs)
+    — this is authoritative. The role template's "Brainstorming Analysis Structure" section
+    is legacy single-file scaffolding; ignore it for file layout. Use the role template ONLY
+    for §3 subsection headings (via the "MUST-Have Sections (Brainstorming)" block when present).
+
     Reference guidance decisions by ID (e.g., SA-03) — do NOT copy decision text.
     All behavioural statements MUST use RFC 2119 keywords.
+
+    MUST use the Write tool to persist every file under output_dir/. After all writes, verify
+    with Glob that `analysis.md` and each `analysis-F-*.md` exist on disk, then emit the
+    `TASK COMPLETE` return protocol. Returning analysis as text without files is failure.
   """,
   run_in_background: false
 })
