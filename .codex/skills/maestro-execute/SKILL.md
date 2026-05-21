@@ -206,11 +206,20 @@ If exit code is 1, present warnings and ask whether to proceed.
 
 | Input | Resolution |
 |-------|------------|
-| `--dir <path>` | Use path directly (scratch plan dir) |
+| `--dir <path>` | Use path directly (scratch plan dir); scope=standalone |
 | No args | Find all pending plans for current milestone from state.json.artifacts[] |
-| Number (e.g., `3`) | Find pending plans for phase N from state.json.artifacts[] |
+| Number (e.g., `3`) | Find pending plans for phase N from state.json.artifacts[]; **resolve milestone via D-007 reverse lookup** |
 
    For multi-plan: execute sequentially. Each plan is a full CSV session.
+
+   **D-007 milestone reverse lookup** (numeric arg only):
+   ```
+   resolve_milestone(phase_number):
+     for ms in state.json.milestones[]:
+       if str(phase_number) in ms.phase_slugs: return ms.id
+     return state.json.current_milestone   # fallback
+   ```
+   Use the resolved milestone for EXC artifact registration (`milestone` field) and artifact filtering. NEVER read `current_milestone` directly for phase-scoped runs — phase N may belong to a milestone different from current.
 
 2. **Load plan**: Read `{PLAN_DIR}/plan.json` for wave structure and task assignments
 
@@ -279,7 +288,7 @@ Blocked/failed tasks cascade: mark all downstream dependents as `skipped` with e
    - All task_refs completed -> `issue.status = "resolved"`; any failed -> `"in_progress"`
    - Append history entry: `{ action: "executed", at: <ISO>, by: "maestro-execute", summary: "TASK-{NNN} {status}" }`
 
-4. **Register EXC artifact in state.json**: Find matching plan artifact, create `{ id: "EXC-{next_id}", type: "execute", milestone, phase, scope, path, status: "completed", depends_on: plan_artifact.id, harvested: false, created_at, completed_at }`
+4. **Register EXC artifact in state.json**: Find matching plan artifact, create `{ id: "EXC-{next_id}", type: "execute", milestone, phase, scope, path, status: "completed", depends_on: plan_artifact.id, harvested: false, created_at, completed_at }`. `milestone` MUST come from D-007 `phase_slugs` reverse lookup (numeric phase) — inherit from matching plan artifact if available, otherwise reverse-lookup directly.
 
 5. **Extract incremental specs**: Read `.summaries/`, use `maestro spec add` CLI:
    - Learnings/pitfalls → `maestro spec add learning "<title>" "<content>" --keywords ... --source execute:{PLAN_DIR}`
@@ -356,7 +365,7 @@ echo '{"ts":"<ISO>","worker":"TASK-001","type":"code_pattern","data":{"name":"Re
 - [ ] All waves executed in order with cross-wave context propagation
 - [ ] Completed tasks have .summaries/TASK-{NNN}-summary.md
 - [ ] .task/TASK-*.json statuses updated to match execution results
-- [ ] state.json updated with EXC artifact
+- [ ] state.json updated with EXC artifact (numeric scope: milestone resolved via D-007 `phase_slugs` reverse lookup, NOT direct `current_milestone` read)
 - [ ] Issue status synced for tasks with issue_id (all completed → resolved, any failed → in_progress)
 - [ ] Incremental specs extracted from summaries (learnings, design rationale, root causes)
 - [ ] Post-task knowledge inquiry triggered when applicable (deviation, retry>=2, design rationale)

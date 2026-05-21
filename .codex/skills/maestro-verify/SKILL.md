@@ -94,8 +94,17 @@ S_AGGREGATE  -- 生成报告、创建 issues、修复计划             PERSIST:
 <transitions>
 
 S_PARSE:
-  -> S_MUST_HAVE    WHEN: phase resolved    DO: load index.json, plan.json, TASK-*.json, summaries, uat.md, ARCHITECTURE.md
+  -> S_MUST_HAVE    WHEN: phase resolved    DO: load index.json, plan.json, TASK-*.json, summaries, uat.md, ARCHITECTURE.md; **D-007 milestone reverse lookup** for numeric phase
   -> ERROR          WHEN: phase not found
+
+  **D-007 milestone reverse lookup** (numeric phase arg):
+  ```
+  resolve_milestone(phase_number):
+    for ms in state.json.milestones[]:
+      if str(phase_number) in ms.phase_slugs: return ms.id
+    return state.json.current_milestone   # fallback
+  ```
+  Write resolved milestone into `session.milestone` and VRF artifact registration. NEVER read `current_milestone` directly for phase-scoped runs.
 
 S_MUST_HAVE:
   -> S_CSV_GEN      DO: establish must-haves from success_criteria (primary), convergence.criteria (per-task), derived behaviors (fallback). Decompose into truth/artifact/wiring layers.
@@ -202,7 +211,7 @@ Protocol: read before analysis, append-only, dedup by type+key.
 - [ ] Issues auto-created for gaps + blocker anti-patterns
 - [ ] Post-verify knowledge inquiry triggered when applicable
 - [ ] Phase index.json updated with verification status
-- [ ] VRF artifact registered in state.json
+- [ ] VRF artifact registered in state.json (numeric scope: milestone resolved via D-007 `phase_slugs` reverse lookup, NOT direct `current_milestone` read)
 - [ ] Gap-fix closure loop documented: gaps → plan --gaps → execute → verify (re-run)
 - [ ] Next step routed (quality-review if passed, plan --gaps if gaps, quality-auto-test if low coverage)
 - [ ] discoveries.ndjson append-only throughout

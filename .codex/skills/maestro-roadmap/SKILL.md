@@ -1,7 +1,7 @@
 ---
 name: maestro-roadmap
 description: Generate milestone/phase roadmap from requirements or upstream context
-argument-hint: "\"<requirements>\" [--mode light|full] [-y|--yes] [-c] [--phases N] [--skip-research] [--from <source>] [--from-brainstorm SESSION-ID] [--revise [instructions]] [--review]"
+argument-hint: "\"<requirements>\" [-m progressive|direct|auto] [-y|--yes] [-c] [--phases N] [--skip-research] [--from <source>] [--from-brainstorm SESSION-ID] [--revise [instructions]] [--review]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
@@ -119,7 +119,7 @@ Merge results -> master tasks.csv.
 
 ### A_SPAWN_WAVE_2
 
-Build prev_context from wave 1. Inject strategy + --phases constraint (light mode). Spawn.
+Build prev_context from wave 1. Inject strategy + `--phases` constraint. Spawn.
 
 Assembly agent produces roadmap.md with Milestone > Phase hierarchy (goal, depends-on, requirements, success criteria), scope decisions.
 
@@ -168,9 +168,8 @@ Protocol: read before analysis, append-only, dedup by type+key.
 | Context source not found (--from / --from-brainstorm) | Abort with available sessions/sources list |
 | roadmap.md not found (--revise/--review) | Run maestro-roadmap first |
 | All Wave 1 agents failed | Wave 2 in degraded mode (seed only) |
-| Wave 2 agent failed (light) | Abort: "Roadmap generation failed" |
-| Wave 2 agent failed (full) | Export partial output, log issues |
-| Readiness < 60% (full) | Log issues, proceed with available output |
+| Wave 2 agent failed | Abort: "Roadmap generation failed" |
+| Readiness < 60% | Log issues, proceed with available output |
 </error_codes>
 
 <success_criteria>

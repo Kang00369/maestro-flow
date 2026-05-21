@@ -1,15 +1,15 @@
 ---
 name: maestro-blueprint
-description: Generate formal specification package (Product Brief, PRD, Architecture, Epics) through 6-phase document chain
+description: Generate formal specification package (Product Brief, PRD, Architecture, Epics) through 7-phase document chain (P0 Spec Study → P1 Discovery → P1.5 Req Expansion → P2 Product Brief → P3 PRD → P4 Architecture → P5 Epics → P6 Readiness Check)
 argument-hint: "<idea or @file> [-y] [-c] [--from <source>]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, spawn_agents_on_csv, request_user_input
 ---
 <purpose>
-Formal specification document chain producing a complete specification package through 6 sequential phases with multi-CLI analysis and interactive refinement. Pure documentation — no code generation, no roadmap generation.
+Formal specification document chain producing a complete specification package through 7 sequential phases (P0–P6, plus P1.5 requirement expansion) with multi-CLI analysis and interactive refinement. Pure documentation — no code generation, no roadmap generation.
 
 Parallel to `brainstorm` as an upstream origin command:
 - **brainstorm** = divergent exploration (lightweight, multi-role creative)
-- **blueprint** = convergent documentation (heavyweight, 6-phase formal spec chain)
+- **blueprint** = convergent documentation (heavyweight, 7-phase formal spec chain)
 
 Output: `.workflow/blueprint/BLP-{slug}-{date}/` containing Product Brief, PRD, Architecture, and Epics.
 </purpose>

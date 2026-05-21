@@ -67,7 +67,23 @@ $ARGUMENTS — phase number/text and optional flags.
 
 **Flags**: `-y` (auto), `-c N` (concurrency, default 4), `--continue` (resume), `--dir <path>`, `--from <source>` (load upstream context directly: analyze:ANL-xxx, blueprint:BLP-xxx, brainstorm:ID, @file, path), `--gaps` (issue-linked), `--spec SPEC-xxx`, `--collab`, `--revise`, `--check`, `--tdd` (RED-GREEN-REFACTOR task chains)
 
-**Scope routing** (priority): --dir → from parent artifact; no args → milestone; digit → phase; text → adhoc/standalone.
+**Scope routing** (priority, per redesign §5.2):
+1. `--from analyze:ANL-xxx` → CONTEXT_DIR = ANL artifact path; scope=`standalone`
+2. `--from blueprint:BLP-xxx` → CONTEXT_DIR = BLP path; scope=`standalone`
+3. `--dir <path>` → CONTEXT_DIR = path; scope=`standalone`
+4. Numeric arg + roadmap → scope=`phase`; D-007 reverse-lookup milestone via `state.json.milestones[].phase_slugs`
+5. No args + roadmap → scope=`milestone` (plans all pending phases in current milestone)
+6. No args + no roadmap → search `state.json.artifacts[]` for latest `type=="analyze"` (DESC by created_at). Found → scope=`standalone`, CONTEXT_DIR = artifact.path. None → ERROR E001.
+7. Text arg + no upstream → scope=`adhoc/standalone`
+
+**D-007 milestone reverse lookup** (numeric scope only):
+```
+resolve_milestone(phase_number):
+  for ms in state.json.milestones[]:
+    if str(phase_number) in ms.phase_slugs: return ms.id
+  return state.json.current_milestone   # fallback
+```
+Write resolved milestone into PLN artifact registration and `plan.json.milestone`; NEVER read `current_milestone` directly for phase-scoped runs.
 
 **Session**: `.workflow/.csv-wave/{YYYYMMDD}-plan-P{N}-{slug}/`
 **Scratch**: `.workflow/scratch/{YYYYMMDD}-plan-P{N}-{slug}/` (.task/ subdir)
@@ -110,8 +126,9 @@ S_REGISTER    — 注册 PLN artifact、更新 index.json           PERSIST: sta
 
 <transitions>
 S_PARSE → S_RESUME     WHEN: --continue
-S_PARSE → S_CONTEXT    WHEN: phase/dir resolved
-S_PARSE → ERROR        WHEN: no args and no roadmap
+S_PARSE → S_CONTEXT    WHEN: phase/dir/--from resolved (D-007 reverse lookup for numeric)
+S_PARSE → S_CONTEXT    WHEN: no args + no roadmap AND latest analyze artifact found in state.json (scope=standalone)
+S_PARSE → ERROR        WHEN: no args + no roadmap + no analyze artifact
 
 S_RESUME → S_WAVE_1    WHEN: W1 incomplete    DO: load session, resume
 S_RESUME → S_WAVE_2    WHEN: W1 done, W2 pending
@@ -173,7 +190,7 @@ Collision detection against same-milestone plans.
 <error_codes>
 | Condition | Recovery |
 |-----------|----------|
-| No args and no roadmap | Provide phase number or topic |
+| No args and no roadmap and no analyze artifact in state.json | Provide phase number, topic, or run analyze first |
 | --gaps but no gap source | Run maestro-verify first |
 | Planning agent fails | Retry once with simplified context |
 | Plan-checker exceeds 3 rounds | Accept with warnings |
@@ -190,6 +207,7 @@ Collision detection against same-milestone plans.
 - [ ] Pressure pass completed on highest-complexity task
 - [ ] Collision detection against same-milestone plans (non-blocking)
 - [ ] Plan-checker passed (or minor issues acknowledged, max 3 iterations)
-- [ ] PLN artifact registered in state.json
+- [ ] PLN artifact registered in state.json (numeric scope: milestone resolved via D-007 `phase_slugs` reverse lookup, NOT direct `current_milestone` read)
+- [ ] No-args fallback honored: latest analyze artifact auto-discovered when roadmap absent (§5.2 priority 6)
 - [ ] If --gaps: issues linked bidirectionally (task_refs[], task_plan_dir in issues.jsonl)
 </success_criteria>
