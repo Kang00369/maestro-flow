@@ -27,7 +27,7 @@ export function Layout({ children }: { children?: ReactNode }) {
 function AnnouncementBanner() {
   return (
     <div className="fixed top-0 left-0 right-0 z-[101] bg-[#2E7D32] text-white text-[length:14px] text-center py-[8px] px-[var(--spacing-4)] leading-[1.4]">
-      Maestro v0.4.13 已发布 — 知识沉淀系统、commands 契约修复、双语 guide 增强。详见{' '}
+      Maestro v0.4.14 已发布 — maestro-ralph 契约修复与 scratch session 目录命名统一。详见{' '}
       <Link
         to="/changelog"
         className="text-white font-[var(--font-weight-semibold)] underline hover:no-underline"

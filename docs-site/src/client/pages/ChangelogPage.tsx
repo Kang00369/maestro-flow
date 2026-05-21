@@ -17,6 +17,16 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '0.4.14',
+    date: '2026-05',
+    changes: [
+      { type: 'fix', text_en: 'ralph: internal step loading now honors required_reading / deferred_reading contract', text_zh: 'ralph: 内部 step 加载时遵循 required_reading / deferred_reading 契约' },
+      { type: 'refactor', text_en: 'maestro-ralph: clarified goal prompt handling in session creation and decision evaluation', text_zh: 'maestro-ralph: 更新文档以明确会话创建和决策评估中的目标提示处理' },
+      { type: 'refactor', text_en: 'ralph: streamlined Goal Prompt and recalibrated execution entry to ralph-execute', text_zh: 'ralph: 精简 Goal Prompt + 校准推进入口为 ralph-execute' },
+      { type: 'refactor', text_en: 'Unified scratch session directory naming to {YYYYMMDD}-{type}-{slug}/', text_zh: '统一 scratch session 目录命名为 {YYYYMMDD}-{type}-{slug}/' },
+    ],
+  },
+  {
     version: '0.4.13',
     date: '2026-05',
     changes: [
