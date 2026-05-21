@@ -54,16 +54,16 @@ const COMMANDS: CommandData[] = [
   {
     id: 'roadmap', cmd: '/maestro-roadmap', category: 'init', status: 'core', level: 1,
     zh: {
-      desc: '生成项目路线图，将目标分解为 Milestone > Phase 层级',
-      when: 'init 之后，需要规划项目里程碑和阶段',
-      how: '/maestro-roadmap "项目目标描述" -y',
-      tips: ['-y 自动确认，省去交互问答', '支持 --from brainstorm:ID 或 --from analyze:ANL-xxx 导入上游上下文', '路线图可通过 --revise 随时修订'],
+      desc: '消费 analyze 宏观产出，将目标分解为 Milestone > Phase 层级',
+      when: 'analyze 宏观分析产出 scope_verdict=large 时，需要多 Phase 里程碑分解',
+      how: '/maestro-roadmap -y',
+      tips: ['纯编排层，需要上游 context（analyze 或 brainstorm 产出）', '-y 自动确认，省去交互问答', '路线图可通过 --revise 随时修订', 'scope_verdict=medium/small 时可跳过，直接 plan --from analyze:ANL-xxx'],
     },
     en: {
-      desc: 'Generate project roadmap, decompose goals into Milestone > Phase hierarchy',
-      when: 'After init, when you need to plan milestones and phases',
-      how: '/maestro-roadmap "project goal description" -y',
-      tips: ['-y auto-confirms, skips interactive Q&A', 'Use --from brainstorm:ID or --from analyze:ANL-xxx for upstream context', 'Revise anytime with --revise'],
+      desc: 'Consume macro analyze output, decompose goals into Milestone > Phase hierarchy',
+      when: 'After macro analyze produces scope_verdict=large, for multi-phase milestone decomposition',
+      how: '/maestro-roadmap -y',
+      tips: ['Pure orchestration layer, requires upstream context (analyze or brainstorm output)', '-y auto-confirms, skips interactive Q&A', 'Revise anytime with --revise', 'Skip when scope_verdict=medium/small — go direct with plan --from analyze:ANL-xxx'],
     },
   },
   {
@@ -103,13 +103,13 @@ const COMMANDS: CommandData[] = [
       desc: '基于分析结果生成执行计划，分解为具体任务',
       when: '分析完成后，准备制定实现方案',
       how: '/maestro-plan 1',
-      tips: ['可带 --gaps 基于验证缺陷生成修复计划', '计划产物保存在 .workflow/scratch/ 下'],
+      tips: ['--from analyze:ANL-xxx 可跳过 roadmap 直达规划（中小功能推荐）', '可带 --gaps 基于验证缺陷生成修复计划', '计划产物保存在 .workflow/scratch/ 下'],
     },
     en: {
       desc: 'Generate execution plan from analysis, decompose into tasks',
       when: 'After analysis, ready to create implementation plan',
       how: '/maestro-plan 1',
-      tips: ['Use --gaps to generate fix plan from verification gaps', 'Plan artifacts saved under .workflow/scratch/'],
+      tips: ['--from analyze:ANL-xxx skips roadmap for direct planning (recommended for mid/small features)', 'Use --gaps to generate fix plan from verification gaps', 'Plan artifacts saved under .workflow/scratch/'],
     },
   },
   {
@@ -331,14 +331,27 @@ const SCENARIOS: ScenarioData[] = [
   {
     id: 'new-project', icon: '🚀',
     zh: {
-      title: '新项目起步',
-      desc: '从零开始的项目完整工作流（大型项目可用 /maestro-blueprint 替代 roadmap）',
-      steps: ['/maestro-init', '/maestro-roadmap "项目目标" -y', '# 或大型项目：/maestro-blueprint "项目目标"', '/maestro-analyze 1', '/maestro-plan 1', '/maestro-execute 1', '/maestro-verify 1', '/maestro-milestone-audit'],
+      title: '新项目起步（Path A）',
+      desc: '大型项目完整工作流：宏观分析 → roadmap 分解 → 逐 Phase 推进',
+      steps: ['/maestro-init', '/maestro-analyze "项目目标"', '# scope_verdict=large → roadmap', '/maestro-roadmap -y', '/maestro-analyze 1', '/maestro-plan 1', '/maestro-execute 1', '/maestro-verify 1'],
     },
     en: {
-      title: 'New Project',
-      desc: 'Complete workflow from scratch (use /maestro-blueprint instead of roadmap for large projects)',
-      steps: ['/maestro-init', '/maestro-roadmap "goal" -y', '# or for large projects: /maestro-blueprint "goal"', '/maestro-analyze 1', '/maestro-plan 1', '/maestro-execute 1', '/maestro-verify 1', '/maestro-milestone-audit'],
+      title: 'New Project (Path A)',
+      desc: 'Large project full workflow: macro analyze → roadmap decomposition → per-phase execution',
+      steps: ['/maestro-init', '/maestro-analyze "project goals"', '# scope_verdict=large → roadmap', '/maestro-roadmap -y', '/maestro-analyze 1', '/maestro-plan 1', '/maestro-execute 1', '/maestro-verify 1'],
+    },
+  },
+  {
+    id: 'medium-feature', icon: '📦',
+    zh: {
+      title: '中等功能（Path B）',
+      desc: '跳过 roadmap，analyze 直达 plan — 适合 1-2 个子系统的功能',
+      steps: ['/maestro-analyze "功能描述"', '# scope_verdict=medium → 直达 plan', '/maestro-plan --from analyze:ANL-xxx', '/maestro-execute', '/maestro-verify'],
+    },
+    en: {
+      title: 'Medium Feature (Path B)',
+      desc: 'Skip roadmap, analyze direct to plan — for features spanning 1-2 subsystems',
+      steps: ['/maestro-analyze "feature description"', '# scope_verdict=medium → direct to plan', '/maestro-plan --from analyze:ANL-xxx', '/maestro-execute', '/maestro-verify'],
     },
   },
   {
