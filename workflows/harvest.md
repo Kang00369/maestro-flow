@@ -67,7 +67,7 @@ Scan `.workflow/` for harvestable artifacts. Each source type has a known struct
 | Source Type | Scan Path | Key Files | ID Pattern |
 |-------------|-----------|-----------|------------|
 | `analysis` | `.workflow/.analysis/ANL-*/` | `conclusions.json`, `*.md` | `ANL-*` |
-| `brainstorm` | `.workflow/scratch/brainstorm-*/` | `guidance-specification.md`, `*/analysis.md`, `design-research.md` | directory name |
+| `brainstorm` | `.workflow/scratch/*-brainstorm-*/` | `guidance-specification.md`, `*/analysis.md`, `design-research.md` | directory name |
 | `lite-plan` | `.workflow/.lite-plan/*/` | `plan.json`, `plan-overview.md` | directory name |
 | `lite-fix` | `.workflow/.lite-fix/*/` | `fix-plan.json` | directory name |
 | `debug` | `.workflow/.debug/*/` | `debug-log.md`, `hypothesis-*.md` | directory name |

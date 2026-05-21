@@ -4,7 +4,7 @@
 
 Produces two-layer plan output: `plan.json` (overview with task_ids[] and waves[]) + `.task/TASK-{NNN}.json` (individual task definitions).
 
-All output goes to `.workflow/scratch/plan-{slug}-{date}/`.
+All output goes to `.workflow/scratch/{YYYYMMDD}-plan-[P{N}-|M{N}-]{slug}/`. Date-first ordering enables chronological sorting; scope prefix (`P{N}` for phase, `M{N}` for milestone, omit for standalone/adhoc) enables fallback identification.
 
 ---
 

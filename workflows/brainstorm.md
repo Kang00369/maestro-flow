@@ -50,7 +50,7 @@ Phase 3: Single Role Analysis → Detection → Context → Agent → Validation
 ## Input
 
 - `$ARGUMENTS`: topic text (auto mode) or role name (single role mode)
-- All output goes to `.workflow/scratch/brainstorm-{slug}-{date}/`
+- All output goes to `.workflow/scratch/{YYYYMMDD}-brainstorm-{slug}/`
 - Registers artifact (type=brainstorm) in state.json on completion
 
 ### Parameters
@@ -86,7 +86,7 @@ Phase 3: Single Role Analysis → Detection → Context → Agent → Validation
 
 All brainstorm output goes to scratch:
 ```
-.workflow/scratch/brainstorm-{slug}-{date}/
+.workflow/scratch/{YYYYMMDD}-brainstorm-{slug}/
 ├── guidance-specification.md          # Phase 2 output — machine contract (downstream consumes this)
 ├── design-research.md                 # Optional Step 1.7 output
 ├── system-architect/                  # Phase 3 per-role analysis (one folder per selected role)
@@ -129,14 +129,14 @@ Parse $ARGUMENTS to determine execution mode:
 - Missing/empty args without flags = error E001
 
 **Session Detection**:
-- Check `.workflow/scratch/brainstorm-*/` for existing sessions
+- Check `.workflow/scratch/*-brainstorm-*/` for existing sessions
 - Multiple → AskUserQuestion to select | Single → use it
 - None + auto mode → will create new session
 - None + single role mode → error E002
 
 **Output Directory Resolution**:
 - Phase mode (number): resolve `state.json.artifacts[phase == phaseNum].path` → `.workflow/{path}/.brainstorming/` (ERROR if phase not found)
-- All output: `.workflow/scratch/brainstorm-{slug}-{date}/`
+- All output: `.workflow/scratch/{YYYYMMDD}-brainstorm-{slug}/`
 - Existing session: use existing session directory
 
 ---
@@ -330,7 +330,7 @@ When `ui-designer` is among the selected roles, establish the project's visual d
 For EACH selected role, spawn a `role-design-author` agent in parallel. Each agent produces a multi-file analysis under `{output_dir}/{role}/`.
 
 **Path resolution (orchestrator responsibility, BEFORE invocation)**:
-- Resolve `{output_dir}` to an **absolute path** (e.g., `D:/proj/.workflow/scratch/brainstorm-foo-20260521`). Do NOT pass the literal `.workflow/...` relative form — agent Write tool requires absolute paths.
+- Resolve `{output_dir}` to an **absolute path** (e.g., `D:/proj/.workflow/scratch/20260521-brainstorm-foo`). Do NOT pass the literal `.workflow/...` relative form — agent Write tool requires absolute paths.
 - Expand `~/` in `role_template_path` to the user home absolute path.
 - For absent optional fields (e.g., `style_skill` when role ≠ ui-designer, `design_research` when Step 1.7 was skipped), pass the literal string `null` — never a conditional placeholder like `{x if y}`.
 

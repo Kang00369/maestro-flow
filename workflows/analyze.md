@@ -60,12 +60,12 @@ Worktree guard: If .workflow/worktree-scope.json exists, reject phase args not i
 Auto-bootstrap: Create minimal .workflow/state.json if missing.
 
 Scope determination → OUTPUT_DIR:
-  (no args) + milestone + roadmap → scope="milestone", mode="micro", OUTPUT_DIR=.workflow/scratch/analyze-{milestone_slug}-{date}/
+  (no args) + milestone + roadmap → scope="milestone", mode="micro", OUTPUT_DIR=.workflow/scratch/{YYYYMMDD}-analyze-M{N}-{milestone_slug}/
   (no args) without milestone/roadmap → ERROR E001
-  (number) + milestone + roadmap   → scope="phase", mode="micro", OUTPUT_DIR=.workflow/scratch/analyze-{phase_slug}-{date}/
+  (number) + milestone + roadmap   → scope="phase", mode="micro", OUTPUT_DIR=.workflow/scratch/{YYYYMMDD}-analyze-P{N}-{phase_slug}/
   (number) without milestone/roadmap → ERROR
-  (text) + milestone               → scope="adhoc", mode="macro", OUTPUT_DIR=.workflow/scratch/analyze-{topic_slug}-{date}/
-  (text) without milestone         → scope="standalone", mode="macro", OUTPUT_DIR=.workflow/scratch/analyze-{topic_slug}-{date}/
+  (text) + milestone               → scope="adhoc", mode="macro", OUTPUT_DIR=.workflow/scratch/{YYYYMMDD}-analyze-{topic_slug}/
+  (text) without milestone         → scope="standalone", mode="macro", OUTPUT_DIR=.workflow/scratch/{YYYYMMDD}-analyze-{topic_slug}/
 
 Macro mode additions (scope="adhoc" or "standalone"):
   - In Step 6 Synthesis, evaluate scope_verdict: "small" | "medium" | "large"
@@ -113,8 +113,8 @@ Parse $ARGUMENTS to determine mode and flags:
 - `-c` present: locate existing session folder (discussion.md exists), resume from last round
 - `-y` present: set AUTO_MODE=true
 - `-q` present: set QUICK_MODE=true (skip Steps 2-7, jump to Step 8: Decision Extraction)
-- Number (e.g., "3") = phase scope: resolve phase slug from roadmap, output to scratch/analyze-{phase-slug}-{date}/
-- Text (e.g., "microservices vs monolith") = adhoc/standalone scope: output to scratch/analyze-{slug}-{date}/
+- Number (e.g., "3") = phase scope: resolve phase slug from roadmap, output to scratch/{YYYYMMDD}-analyze-P{N}-{phase-slug}/
+- Text (e.g., "microservices vs monolith") = adhoc/standalone scope: output to scratch/{YYYYMMDD}-analyze-{slug}/
 - Missing/empty = milestone scope (if roadmap exists) or error E001
 
 **Session initialization:**

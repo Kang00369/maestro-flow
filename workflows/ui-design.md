@@ -24,7 +24,7 @@ Pipeline position: analyze -> **ui-design** -> plan -> execute -> verify
 
 ```
 Input: <phase> (number) OR topic text
-Output: .workflow/scratch/ui-design-{slug}-{date}/
+Output: .workflow/scratch/{YYYYMMDD}-ui-design-{slug}/
 
 Resolve scope:
   number → phase slug from roadmap.md, scope="phase", register with phase

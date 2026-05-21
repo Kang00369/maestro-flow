@@ -23,7 +23,7 @@ If argument is phase number/slug:
   SCRATCH_MODE = false
 
 If argument is topic text (scratch mode):
-  PHASE_DIR = .workflow/scratch/ui-design-{slug}-{YYYYMMDD}
+  PHASE_DIR = .workflow/scratch/{YYYYMMDD}-ui-design-{slug}
   Create directory + minimal index.json (type="ui-design", goal=topic).
   SCRATCH_MODE = true
 ```
