@@ -97,6 +97,16 @@ export function InstallResult({ result }: InstallResultProps) {
         </Box>
       )}
 
+      {result.statuslineInstalled && (
+        <Box marginTop={1}>
+          <Text dimColor>
+            Nerd Font glyphs needed for statusline icons — run{' '}
+          </Text>
+          <Text color={C.primary}>maestro install fonts</Text>
+          <Text dimColor> for platform-specific setup.</Text>
+        </Box>
+      )}
+
       <Box marginTop={1}>
         <Text dimColor>{t.install.resultExit}</Text>
       </Box>

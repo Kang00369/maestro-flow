@@ -50,6 +50,7 @@ import {
   type CopyStats,
 } from './install-backend.js';
 import { t } from '../i18n/index.js';
+import { registerFontsSubcommand } from './font-guide.js';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -172,6 +173,7 @@ export function registerInstallCommand(program: Command): void {
   registerComponentsSubcommand(install);
   registerHooksSubcommand(install);
   registerMcpSubcommand(install);
+  registerFontsSubcommand(install);
 
   // Legacy TUI wizard
   install
