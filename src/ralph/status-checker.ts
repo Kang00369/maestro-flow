@@ -9,7 +9,7 @@
 
 import { existsSync } from 'node:fs';
 import type { CheckFinding, RalphSession } from './status-schema.js';
-import { parseSkillManifest } from './skill-resolver.js';
+import { normalizeStoredPath, parseSkillManifest } from './skill-resolver.js';
 
 const REQUIRED_SESSION_FIELDS = ['session_id', 'status', 'steps'] as const;
 const REQUIRED_STEP_FIELDS = ['index', 'stage', 'status'] as const;
@@ -87,7 +87,8 @@ export function checkStatus(session: RalphSession): CheckFinding[] {
       });
       continue;
     }
-    if (!existsSync(step.command_path)) {
+    const resolvedPath = normalizeStoredPath(step.command_path);
+    if (!existsSync(resolvedPath)) {
       findings.push({
         level: 'E', code: 'E006',
         message: `command_path missing on disk: ${step.command_path}`,
@@ -96,7 +97,7 @@ export function checkStatus(session: RalphSession): CheckFinding[] {
       continue;
     }
     try {
-      const m = parseSkillManifest(step.command_path);
+      const m = parseSkillManifest(resolvedPath);
       if (m.missingRequired.length > 0) {
         for (const p of m.missingRequired) {
           findings.push({

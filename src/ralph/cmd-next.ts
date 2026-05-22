@@ -24,7 +24,7 @@ import { RALPH_PROTOCOL_VERSION } from './status-schema.js';
 import { resolveSession, writeStatus, workflowRoot } from './status-store.js';
 import { checkStatus } from './status-checker.js';
 import { hasErrors } from './cmd-check.js';
-import { loadSkill } from './skill-resolver.js';
+import { loadSkill, normalizeStoredPath } from './skill-resolver.js';
 
 export interface NextCmdOptions {
   sessionId?: string;
@@ -92,7 +92,7 @@ export async function runNext(opts: NextCmdOptions): Promise<number> {
 
   let loaded: ReturnType<typeof loadSkill>;
   try {
-    loaded = loadSkill(next.command_path);
+    loaded = loadSkill(normalizeStoredPath(next.command_path));
   } catch (err) {
     console.error(`[ralph next] ${err instanceof Error ? err.message : String(err)}`);
     return 1;
@@ -126,34 +126,57 @@ function emitPrompt(
 ): void {
   const total = session.steps.length;
   const idx = step.index;
-  const scope = step.command_scope ?? 'unknown';
   const args = (step.args ?? '').trim();
-  const argsHint = args ? `  args: ${args}` : '';
 
+  // Inline <required_reading> @ references with their actual content so the
+  // LLM sees a fully-expanded skill body (no separate banner blocks).
+  const body = inlineRequiredReading(loaded.body, loaded.requiredBodies);
+
+  const argsLine = args ? ` args=${JSON.stringify(args)}` : '';
+  const meta = [
+    '',
+    `<!-- maestro ralph: step [${idx}/${total}] skill=${step.skill}${argsLine} session=${sessionId} -->`,
+    '<!-- On finish, run exactly one of:',
+    `       maestro ralph complete ${idx} --status DONE [--evidence <path>]`,
+    `       maestro ralph complete ${idx} --status DONE_WITH_CONCERNS --concerns "..."`,
+    `       maestro ralph retry ${idx}`,
+    `       maestro ralph complete ${idx} --status BLOCKED --reason "<external blocker>" -->`,
+  ].join('\n');
+
+  process.stdout.write(body + meta + '\n');
+}
+
+/**
+ * Replace every `@path` line inside the `<required_reading>` block with the
+ * actual file content. Iterates `requiredBodies` in declaration order — the
+ * same order `parseSkillManifest` produced them. If there are extra @ lines
+ * without a matching loaded body (shouldn't happen if loadSkill succeeded),
+ * they're left untouched.
+ */
+function inlineRequiredReading(
+  body: string,
+  requiredBodies: ReadonlyArray<{ path: string; content: string }>,
+): string {
+  const re = /<required_reading>([\s\S]*?)<\/required_reading>/i;
+  const match = re.exec(body);
+  if (!match) return body;
+
+  const inner = match[1];
+  const lines = inner.split(/\r?\n/);
   const out: string[] = [];
-  out.push('===== MAESTRO RALPH NEXT =====');
-  out.push(`session: ${sessionId}`);
-  out.push(`step:    [${idx}/${total}] ${step.skill} [${scope}]${argsHint}`);
-  out.push(`active_step_index: ${idx}`);
-  out.push(`loaded:  required=${loaded.requiredPaths.length}  deferred=${loaded.deferredPaths.length}`);
-  out.push(`===== BEGIN COMMAND .md (${step.command_path}) =====`);
-  out.push(loaded.body);
-  for (const req of loaded.requiredBodies) {
-    out.push(`===== BEGIN REQUIRED: ${req.path} =====`);
-    out.push(req.content);
-    out.push('===== END REQUIRED =====');
+  let i = 0;
+  for (const line of lines) {
+    const m = /@(\S+)/.exec(line);
+    if (m && i < requiredBodies.length) {
+      out.push(`<!-- inlined @${m[1]} -->`);
+      out.push(requiredBodies[i].content);
+      out.push('<!-- /inlined -->');
+      i++;
+      continue;
+    }
+    out.push(line);
   }
-  if (loaded.deferredPaths.length > 0) {
-    out.push('===== DEFERRED MANIFEST =====');
-    for (const p of loaded.deferredPaths) out.push(`- ${p}`);
-  }
-  out.push('===== COMPLETION PROTOCOL =====');
-  out.push('On finish, run exactly one of:');
-  out.push(`  maestro ralph complete ${idx} --status DONE [--evidence <path>]`);
-  out.push(`  maestro ralph complete ${idx} --status DONE_WITH_CONCERNS --concerns "..."`);
-  out.push(`  maestro ralph retry ${idx}`);
-  out.push(`  maestro ralph complete ${idx} --status BLOCKED --reason "<external blocker>"`);
-  out.push('Statuses: DONE | DONE_WITH_CONCERNS | NEEDS_RETRY | BLOCKED');
-  out.push('===== END =====');
-  process.stdout.write(out.join('\n') + '\n');
+  return body.slice(0, match.index) +
+    `<required_reading>\n${out.join('\n')}\n</required_reading>` +
+    body.slice(match.index + match[0].length);
 }

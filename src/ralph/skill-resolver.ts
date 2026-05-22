@@ -39,7 +39,27 @@ const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 const REQUIRED_BLOCK_RE = /<required_reading>([\s\S]*?)<\/required_reading>/i;
 const DEFERRED_BLOCK_RE = /<deferred_reading>([\s\S]*?)<\/deferred_reading>/i;
 
-/** Expand `~/`, `@~/`, and resolve relative paths against the .md's dir. */
+/** Expand `~/`, `@~/`, and resolve relative paths.
+ *
+ * Resolution rules (first match wins):
+ *   1. `~/foo` / `@~/foo`             → `<homedir>/foo`
+ *   2. absolute path                   → as-is
+ *   3. starts with `.claude/`          → scope-root-relative (walk up baseDir
+ *      until we find the parent that contains the `.claude/` segment, treat
+ *      that parent as root). Used by skill SKILL.md files that reference
+ *      sibling files via `@.claude/skills/<name>/specs/...`.
+ *   4. otherwise                       → relative to baseDir (.md's directory)
+ */
+/** Normalize a stored absolute-ish path: expand `~/` to homedir, leave others. */
+export function normalizeStoredPath(p: string): string {
+  if (!p) return p;
+  if (p === '~') return homedir();
+  if (p.startsWith('~/') || p.startsWith('~\\')) {
+    return join(homedir(), p.slice(2));
+  }
+  return p;
+}
+
 export function expandPath(raw: string, baseDir: string): string {
   let p = raw.trim();
   if (p.startsWith('@')) p = p.slice(1);
@@ -47,6 +67,17 @@ export function expandPath(raw: string, baseDir: string): string {
     p = join(homedir(), p.slice(p.startsWith('~/') || p.startsWith('~\\') ? 2 : 1));
   }
   if (isAbsolute(p)) return p;
+  if (p.startsWith('.claude/') || p.startsWith('.claude\\')) {
+    // Find the deepest `.claude` segment in baseDir and treat its parent as root.
+    const matches = [...baseDir.matchAll(/[\\/]\.claude[\\/]/g)];
+    if (matches.length > 0) {
+      const last = matches[matches.length - 1];
+      return resolve(baseDir.slice(0, last.index), p);
+    }
+    // baseDir ends in `.claude` with no trailing separator (rare; skill at root)
+    const trailing = /(.*)[\\/]\.claude$/.exec(baseDir);
+    if (trailing) return resolve(trailing[1], p);
+  }
   return resolve(baseDir, p);
 }
 
