@@ -17,7 +17,7 @@ Closed-loop decision engine for the maestro workflow lifecycle.
 Reads project state → infers position → builds adaptive chain → delegates execution.
 
 Entry points:
-- **`/maestro-ralph "intent"`** — New session: infer → decompose → build → (decomposition → emit /goal prompt, STOP；否则 dispatch ralph-execute)
+- **`/maestro-ralph "intent"`** — New session: infer → decompose → build → emit /goal prompt（如有 decomposition）→ dispatch ralph-execute
 - **`/maestro-ralph continue`** — Wrapper; dispatches to ralph-execute（首选直接 `/maestro-ralph-execute` 推进 step）
 - **`/maestro-ralph status`** — Display session progress
 
@@ -69,14 +69,14 @@ Remaining     → intent
 
 <invariants>
 1. **Ralph never executes steps** — only creates sessions and evaluates decisions
-2. **Handoff via Skill("maestro-ralph-execute")** — 仅当 session 无 `task_decomposition` 时在创建后自动 handoff；decomposition 路径 STOP 等用户输入。decision 评估后始终 handoff
+2. **Handoff via Skill("maestro-ralph-execute")** — 创建 session 后始终自动 handoff；decision 评估后始终 handoff
 3. **Decision delegates read-only** — `maestro delegate --role analyze --mode analysis`
 4. **执行 step 通过 Read 命令 .md 内联执行**
 5. **status.json 是唯一真源** — 不生成 markdown 清单或侧文件
 6. **每个 step 必须 `completion_confirmed: true`** — 基于 `--- COMPLETION STATUS ---` 的 `STATUS: DONE`；缺失则视为未完成
 7. **command_path 在 A_BUILD_STEPS 解析** — 全局优先 `~/.claude/commands/{name}.md`，fallback 项目 `.claude/commands/{name}.md`，写入 status.json
 8. **执行 step 加载契约** — ralph-execute 读 `command_path` 后，必须解析并加载该命令 `<required_reading>` 引用的所有文件（"入口 + workflow"形式的核心），并把 `<deferred_reading>` 路径记录到 `step.deferred_reads`；加载完成后输出 `✓ skill {name} 加载完成`。ralph 在 build 阶段只解析路径，不读 .md 内容
-9. **Decomposition is outcome-oriented** — sub-goals 为可观测交付，禁止 lifecycle 复刻；`/goal` 用户绑定，ralph 只发提示词后 STOP，等用户输入
+9. **Decomposition is outcome-oriented** — sub-goals 为可观测交付，禁止 lifecycle 复刻；`/goal` 用户绑定，ralph 输出提示词后继续 handoff，用户可在执行过程中随时输入 `/goal`
 10. **planning_mode governs arg granularity** — `unified` → skill args 无 `{phase}`；`independent` → 含 `{phase}`
 11. **task_decomposition 驱动 steps[] 动态生长** — `post-goal-audit` 按 unmet 子目标插入 scoped mini-loop；字段可选/累加，既有字段不删不改
 </invariants>
@@ -148,9 +148,8 @@ S_BUILD_CHAIN:
   → S_CREATE_SESSION DO: A_BUILD_STEPS
 
 S_CREATE_SESSION:
-  → END             WHEN: task_decomposition present        DO: A_CREATE_SESSION (emits Goal Prompt → STOP，等用户输入 /goal 后手动 /maestro-ralph-execute)
-  → S_CONFIRM       WHEN: not auto_confirm AND no decomposition DO: A_CREATE_SESSION
-  → S_DISPATCH      WHEN: auto_confirm AND no decomposition  DO: A_CREATE_SESSION
+  → S_CONFIRM       WHEN: not auto_confirm                   DO: A_CREATE_SESSION
+  → S_DISPATCH      WHEN: auto_confirm                       DO: A_CREATE_SESSION
 
 S_CONFIRM:
   → S_DISPATCH      WHEN: user selects "Proceed"
@@ -435,7 +434,7 @@ Generate steps from `session.lifecycle_position` to `milestone-complete`.
 1. Validate: 所有 step 的 `command_scope != "missing"`；否则 raise E006 + 列出缺失 skill
 2. Write `.workflow/.maestro/ralph-{YYYYMMDD-HHmmss}/status.json` (Appendix: Session Schema)
 3. Display chain overview：每步显示 `{index}. {skill} [{type}] [{command_scope}]`
-4. If `task_decomposition` present: display **Goal Prompt block** (Appendix) → STOP，等用户输入 `/goal`（auto_confirm 也不跳过）
+4. If `task_decomposition` present: display **Goal Prompt block** (Appendix)，不阻塞流程，继续 handoff
 
 ### A_DELEGATE_EVALUATE
 
@@ -711,12 +710,12 @@ decision:post-goal-audit {retry+1}
 链路概览后逐字显示（仅当 decomposition 已产出）：
 
 ```
-📋 任务分解完成。复制以下 /goal 设定终止条件，随后运行 /maestro-ralph-execute：
+📋 任务分解完成。可随时复制以下 /goal 设定终止条件（执行过程中输入即可）：
 
 /goal 直到 {session_dir}/status.json 的 task_decomposition[*] 与 steps[*] 全部 completion_confirmed=true 才停。每轮以 status.json 为唯一行动手册，通过 /maestro-ralph-execute 推进 step；decision 节点由其自动 handoff 回 ralph 评估。禁止手动执行 skill 或修改 boundary_contract.out_of_scope。
 ```
 
-`/goal` 由用户输入；ralph 只输出此提示词。判据以 status.json 为权威。
+`/goal` 由用户输入；ralph 输出提示词后继续 handoff，不阻塞。
 
 ### Error Codes
 

@@ -168,12 +168,10 @@ Write enriched args back to status.json.
    ✓ skill {step.skill} 加载完成 (required: {N}, deferred: {M})
    ```
    其中 N = required_reading 引用数，M = deferred_reading 路径数（缺省块按 0 计）
-7. 计算 `effective_args`：`step.args` + auto flag（`auto ? (flag_map[step.skill] || "") : ""`）
+7. 计算 `effective_args`：`step.args` + (`auto ? " -y" : ""`)
 8. 按读到的指令在本会话中**内联执行**：调用允许的工具完成命令所规定的工作；执行过程中如触发 deferred_reading 引用的资源 → 按需 Read
 9. 执行结束：要求最后一段必须包含 `--- COMPLETION STATUS ---` 块（见 A_MARK_COMPLETE）
 10. Return success / failure
-
-**Auto flag map**: 所有 lifecycle skill → `-y`; `quality-test` → `-y --auto-fix`; 未列出 → 无 flag
 
 ### A_MARK_COMPLETE
 
@@ -248,7 +246,7 @@ Write enriched args back to status.json.
 ### Success Criteria
 
 - [ ] Session discovery covers maestro-* and ralph-*
-- [ ] `-y` parsed from args 或 session.auto_mode
+- [ ] `-y` parsed from args 或 session.auto_mode；auto=true 时透传 `-y` 到 skill args
 - [ ] Placeholders resolved；per-skill enrichment 正确
 - [ ] Decision 节点（`step.decision != null`）Skill("maestro-ralph") handoff
 - [ ] 执行 step 通过 Read({step.command_path}) 内联执行
