@@ -145,7 +145,7 @@ title: ".workflow/ 产物目录体系"
 | 文件 | 用途 | 关键字段 |
 |------|------|----------|
 | `state.json` | 项目状态机 + Artifact Registry | `version`, `status`, `current_milestone`, `current_phase`, `artifacts[]`, `milestones[]`, `milestone_history[]` |
-| `config.json` | 用户工作流配置（`maestro-init` 创建） | `granularity`, `workflow_agents`, `gate_preferences` |
+| `config.json` | 用户工作流配置（`maestro-init` 创建 + 各命令分段写入） | `workflow.{research,reflection}`, `execution.{method,auto_commit,default_executor}`, `git.commit_docs`, `gates.{confirm_roadmap,confirm_plan}`, `codebase.auto_sync_after_execute`, `worktree.{root,branch_prefix}`, `guard.*`, `collab.*`, `specInjection.*`, `dashboard.port` |
 | `project.md` | 项目定义（`maestro-init` 创建） | Core Value, Requirements, Key Decisions, Context |
 | `roadmap.md` | 里程碑/阶段路线图（`maestro-roadmap` 创建） | 里程碑列表、success criteria、依赖关系、Phase Progress Table |
 | `wiki-index.json` | Wiki 统一索引（WikiIndexer 自动生成） | 索引 project/specs/knowhow/issues/roadmap |
