@@ -44,13 +44,43 @@ $ARGUMENTS — lens selection and scope flags.
 **3a: Collect decisions** from wiki, specs, git log, phase context, .workflow/specs/learnings.md.
 **3b: Build decision registry** per decision (id, title, source, rationale, alternatives, evidence).
 
-**3c: Multi-perspective evaluation** via spawn_agents_on_csv (3 parallel agents):
+**3c: Multi-perspective evaluation** via spawn_agents_on_csv (3 parallel agents; filter `wave==1 AND status=="pending"`):
 
 | id | perspective | focus |
 |----|------------|-------|
 | 1 | technical | Implementation vs intent, context drift. Grade: sound/degraded/violated |
 | 2 | cost | Complexity added, coupling, tech debt. Grade: low-cost/acceptable/expensive |
 | 3 | hindsight | Right call with current knowledge? Grade: confirmed/questionable/should-revisit |
+
+**output_schema**:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id":            { "type": "string" },
+    "result_status": { "type": "string", "enum": ["completed", "failed"] },
+    "perspective":   { "type": "string", "enum": ["technical", "cost", "hindsight"] },
+    "grade":         { "type": "string" },
+    "findings":      { "type": "string", "maxLength": 500 },
+    "error":         { "type": "string" }
+  },
+  "required": ["id", "result_status", "grade", "findings"]
+}
+```
+
+Merge: `result_status` → master `status`; copy `perspective`, `grade`, `findings`, `error`.
+
+**Shared termination contract** (embed in every instruction):
+```
+You MUST call report_agent_job_result EXACTLY ONCE before exiting.
+- Success → result_status=completed with concrete grade
+- Failure → result_status=failed with error message
+- Timeout → near max_runtime_seconds → result_status=failed, error="timeout (partial)"
+- NEVER continue indefinitely. NEVER exit silently. NEVER omit the call.
+- Read-only analysis. Do NOT modify source files.
+Do NOT write to tasks.csv, wave-*.csv, results.csv. Do NOT call spawn_agents_on_csv (no recursion).
+```
 
 **3d: Classify lifecycle**: Validated / Aging / Questionable / Stale / Reversed.
 

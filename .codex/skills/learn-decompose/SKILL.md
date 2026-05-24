@@ -54,7 +54,7 @@ Resolve target to file list. Load coding specs: `maestro spec load --category co
 
 ### Phase 2: Wave 1 — Parallel Dimension Scans
 
-Generate `tasks.csv` with 4 dimension rows (wave 1) + 1 cross-ref row (wave 2):
+Generate `tasks.csv` with 4 dimension rows (wave 1) + 1 cross-ref row (wave 2). Initialize every row with `status="pending"`. Filter `wave==N AND status=="pending"` when writing each wave CSV.
 
 | id | dimension | focus |
 |----|-----------|-------|
@@ -64,7 +64,38 @@ Generate `tasks.csv` with 4 dimension rows (wave 1) + 1 cross-ref row (wave 2):
 | 4 | error | Boundaries, retry/backoff, fallbacks, guards, logging |
 | 5 | cross-ref | Dedup + catalog from wave 1 findings |
 
-Each dimension agent returns:
+**output_schema** (both waves):
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id":            { "type": "string" },
+    "result_status": { "type": "string", "enum": ["completed", "failed"] },
+    "dimension":     { "type": "string", "enum": ["structural", "behavioral", "data", "error", "cross-ref"] },
+    "patterns":      { "type": "string", "description": "JSON array string: [{name, dimension, confidence, anchors, description, rationale, tradeoffs}]" },
+    "findings":      { "type": "string", "maxLength": 500 },
+    "error":         { "type": "string" }
+  },
+  "required": ["id", "result_status", "findings"]
+}
+```
+
+Merge: `result_status` → master `status`; copy `dimension`, `patterns`, `findings`, `error`.
+
+**Shared termination contract** (embed in every instruction):
+```
+You MUST call report_agent_job_result EXACTLY ONCE before exiting.
+- Success → result_status=completed (patterns may be empty array if nothing found)
+- Failure → result_status=failed with error message
+- Timeout → near max_runtime_seconds → result_status=completed with partial patterns
+- NEVER continue indefinitely. NEVER exit silently. NEVER omit the call.
+- Every finding MUST include file:line anchors. No speculation.
+- Read-only analysis. Do NOT modify source.
+Do NOT write to tasks.csv, wave-*.csv, results.csv. Do NOT call spawn_agents_on_csv (no recursion).
+```
+
+Each dimension agent populates `patterns` as a JSON array string of:
 ```json
 [{
   "name": "pattern name",
@@ -79,7 +110,7 @@ Each dimension agent returns:
 
 ### Phase 3: Wave 2 — Cross-Reference + Catalog
 
-Single agent receives all wave 1 findings via `prev_context`. Tasks:
+Single agent receives all wave 1 findings via `prev_context`. Uses same `output_schema` + termination contract above. Tasks:
 - Match against dedup set → mark as `documented`, `known`, or `new`
 - Merge duplicates across dimensions (same pattern found by multiple agents)
 - Flag contradictions with documented conventions

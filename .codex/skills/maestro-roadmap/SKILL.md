@@ -110,19 +110,50 @@ S_AGGREGATE:
 
 <actions>
 
+### Shared Spawn Contract (W1 and W2)
+
+Every `spawn_agents_on_csv` call MUST filter `wave==N AND status=="pending"` and use this strict JSON Schema:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id":            { "type": "string" },
+    "result_status": { "type": "string", "enum": ["completed", "failed", "blocked"] },
+    "findings":      { "type": "string", "maxLength": 500 },
+    "output_path":   { "type": "string", "description": "W2 only: absolute path of roadmap.md (empty for W1 agents that just return findings)" },
+    "error":         { "type": "string" }
+  },
+  "required": ["id", "result_status", "findings"]
+}
+```
+
+Merge: `result_status` → master `status`; copy `findings`, `output_path`, `error`.
+
+**Shared termination contract** (embed in every instruction):
+```
+You MUST call report_agent_job_result EXACTLY ONCE before exiting.
+- Success → result_status=completed (W2: roadmap.md MUST exist on disk)
+- Failure → result_status=failed with error message
+- Blocked → upstream context insufficient → result_status=blocked
+- Timeout → near max_runtime_seconds → result_status=blocked, error="timeout"
+- NEVER continue indefinitely. NEVER exit silently. NEVER omit the call.
+Do NOT write to tasks.csv, wave-*.csv, results.csv. Do NOT call spawn_agents_on_csv (no recursion).
+```
+
 ### A_SPAWN_WAVE_1
 
-Filter wave==1 -> write wave-1.csv -> `spawn_agents_on_csv`.
+Filter `wave==1 AND status=="pending"` -> write wave-1.csv -> spawn.
 
-**Agents**: scope analysis (feature inventory + priority), risk analysis (unknowns + mitigations), dependency analysis (dependency graph + critical path).
+**Agents**: scope analysis (feature inventory + priority), risk analysis (unknowns + mitigations), dependency analysis (dependency graph + critical path). Read-only.
 
 Merge results -> master tasks.csv.
 
 ### A_SPAWN_WAVE_2
 
-Build prev_context from wave 1. Inject strategy + `--phases` constraint. Spawn.
+Filter `wave==2 AND status=="pending"`. Build prev_context from wave 1. Inject strategy + `--phases` constraint. Spawn.
 
-Assembly agent produces roadmap.md with Milestone > Phase hierarchy (goal, depends-on, requirements, success criteria), scope decisions.
+Assembly agent produces roadmap.md with Milestone > Phase hierarchy (goal, depends-on, requirements, success criteria), scope decisions. Verifies roadmap.md on disk before reporting completed.
 
 **Strategy selection** via uncertainty assessment (5 factors):
 | Factor | Low | Medium | High |

@@ -210,17 +210,17 @@ Filter master `tasks.csv` for `wave == 1 AND status == pending` → write `wave-
 spawn_agents_on_csv({
   csv_path: `${sessionFolder}/wave-1.csv`,
   id_column: "id",
-  instruction: buildRebuildInstruction(sessionFolder, sourceDirs),  // agent: ~/.codex/agents/workflow-codebase-mapper.toml
+  instruction: REBUILD_INSTRUCTION,                // see "Rebuild Worker Contract" below
   max_concurrency: maxConcurrency,
   max_runtime_seconds: 3600,
   output_csv_path: `${sessionFolder}/wave-1-results.csv`,
   output_schema: {
     type: "object",
     properties: {
-      id: { type: "string" },
-      result_status: { type: "string", enum: ["completed", "failed"] },
-      result_findings: { type: "string" },
-      error: { type: "string" }
+      id:              { type: "string" },
+      result_status:   { type: "string", enum: ["completed", "failed"] },
+      result_findings: { type: "string", description: "For task 1-3: JSON payload to merge into doc-index.json. For task 4-5: list of files written" },
+      error:           { type: "string" }
     },
     required: ["id", "result_status", "result_findings"]
   }
@@ -228,6 +228,53 @@ spawn_agents_on_csv({
 ```
 
 Merge `wave-1-results.csv` into master `tasks.csv`: map `result_status` -> master `status`, `result_findings` -> master `findings`, copy `error` as-is. After merge, delete temporary files (`wave-1.csv` and `wave-1-results.csv`).
+
+#### Rebuild Worker Contract (REBUILD_INSTRUCTION)
+
+```
+You are a codebase doc generator for ONE task (Component Scanner / Feature Mapper / Requirement Linker / Tech Registry Writer / Feature Map Writer). Your contract depends on your task id — read description carefully.
+
+DUAL CONTRACT (per task id):
+  Tasks 1-3 (Scanner/Mapper/Linker) → RETURN data via result_findings (JSON payload). Do NOT write files.
+  Tasks 4-5 (Writers) → MUST WRITE files via the Write tool. Verify each via Glob. Return file count + absolute paths via result_findings.
+
+REQUIRED STEPS:
+  1. Scan codebase per description and focus_area
+  2. For tasks 1-3: assemble JSON payload matching the documented section schema (components / features / requirements)
+  3. For tasks 4-5: render markdown documents and write them to disk; verify every intended file exists via Glob; if any file missing → result_status=failed
+  4. Append discoveries to {sessionFolder}/discoveries.ndjson if reusable
+  5. Call report_agent_job_result EXACTLY ONCE
+
+TERMINATION CONTRACT (mandatory — NO worker may end without calling report_agent_job_result):
+  - Success → result_status=completed
+  - Failure → unrecoverable error / write verification fails → result_status=failed
+  - Timeout → near max_runtime_seconds, finish current write/scan if safe, then report failed with error="timeout (partial)"
+  - NEVER skip report_agent_job_result.
+
+CONTRACT VIOLATION GUARD:
+  - Tasks 4-5 returning markdown content in result_findings instead of writing files → MUST self-report failed (orchestrator cannot assemble docs from text).
+  - Tasks 1-3 writing files to .workflow/codebase/ → MUST self-report failed (orchestrator owns assembly).
+
+OUTPUT (must match output_schema):
+  Tasks 1-3:
+  {
+    "id": "<your row id>",
+    "result_status": "completed" | "failed",
+    "result_findings": "<JSON payload to merge into doc-index.json section>",
+    "error": "<message if failed, else empty>"
+  }
+  Tasks 4-5:
+  {
+    "id": "<your row id>",
+    "result_status": "completed" | "failed",
+    "result_findings": "<count + semicolon-separated absolute paths of files written>",
+    "error": "<message if failed, else empty>"
+  }
+
+CONSTRAINTS:
+  - Do NOT write to tasks.csv, wave-*.csv, results.csv, doc-index.json (orchestrator assembles in Phase 3).
+  - Do NOT call spawn_agents_on_csv (no recursion).
+```
 
 ### Phase 3: Results -> .workflow/codebase/
 

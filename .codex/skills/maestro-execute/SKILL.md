@@ -257,16 +257,72 @@ For each wave N in ascending order:
 
 ```javascript
 spawn_agents_on_csv({
-  csv_path: `${sessionFolder}/wave-${N}.csv`,
+  csv_path: `${sessionFolder}/wave-${N}.csv`,    // only rows where wave==N AND status=="pending"
   id_column: "id",
-  instruction: buildExecutorInstruction(sessionFolder, phaseDir, autoCommit, specsContent),  // agent: ~/.codex/agents/workflow-executor.toml
-  max_concurrency: maxConcurrency, max_runtime_seconds: 3600,
+  instruction: EXECUTOR_INSTRUCTION,              // see "Executor Worker Contract" below
+  max_concurrency: maxConcurrency,
+  max_runtime_seconds: 3600,
   output_csv_path: `${sessionFolder}/wave-${N}-results.csv`,
-  output_schema: { id, result_status: [completed|failed|blocked], findings, files_modified, tests_passed, error }
+  output_schema: {
+    type: "object",
+    properties: {
+      id:             { type: "string" },
+      result_status:  { type: "string", enum: ["completed", "failed", "blocked"] },
+      findings:       { type: "string", maxLength: 500 },
+      files_modified: { type: "string", description: "Semicolon-separated paths" },
+      tests_passed:   { type: "string", enum: ["true", "false", "n/a"] },
+      error:          { type: "string" }
+    },
+    required: ["id", "result_status", "findings"]
+  }
 })
 ```
 
-4. Merge results into master `tasks.csv`: map `result_status` from `wave-{N}-results.csv` to the `status` column in master CSV. Delete `wave-{N}.csv` AND `wave-{N}-results.csv` after merge.
+4. Merge results into master `tasks.csv`: map `result_status` from `wave-{N}-results.csv` to the `status` column in master CSV; copy `findings`, `files_modified`, `tests_passed`, `error`. Delete `wave-{N}.csv` AND `wave-{N}-results.csv` after merge.
+
+#### Executor Worker Contract (EXECUTOR_INSTRUCTION)
+
+The literal `instruction` string passed to `spawn_agents_on_csv` MUST include the following contract (substitute `{sessionFolder}`, `{phaseDir}`, `{autoCommit}`, `{specsContent}` at build time):
+
+```
+You are a task executor. ONE task row is assigned to you.
+
+INPUT (from your CSV row):
+  - id, title, description, prev_context (findings from upstream tasks)
+  - meta.tdd_phase (red|green|refactor) if TDD mode is enabled
+
+REQUIRED STEPS:
+  1. Read prev_context — depend on upstream findings, not memory
+  2. Read shared discoveries: {sessionFolder}/discoveries.ndjson
+  3. Implement the task: edit/create files per description
+  4. Run verification — relevant tests; if TDD, honor tdd_phase semantics
+  5. If autoCommit and task succeeded → commit changes with task ID in message
+  6. Append discoveries (type=implementation_note / pattern) to discoveries.ndjson
+  7. Call report_agent_job_result EXACTLY ONCE
+
+TERMINATION CONTRACT (mandatory — NO worker may end without calling report_agent_job_result):
+  - Success path → all files written, tests pass → result_status=completed, tests_passed="true"
+  - Blocked path → cannot proceed (missing dep, unclear requirement, contract violation) → result_status=blocked with error explaining what is needed
+  - Failure path → unrecoverable error (build error, file write fail) → result_status=failed with error message
+  - Timeout path → approaching max_runtime_seconds → revert partial work, report blocked with error="timeout"
+  - NEVER continue indefinitely. NEVER exit silently. NEVER omit the call.
+
+OUTPUT (return via report_agent_job_result; must match output_schema):
+  {
+    "id": "<your row id>",
+    "result_status": "completed" | "failed" | "blocked",
+    "findings": "<one-sentence summary, max 500 chars>",
+    "files_modified": "<semicolon-separated paths or empty>",
+    "tests_passed": "true" | "false" | "n/a",
+    "error": "<message if not completed, else empty>"
+  }
+
+CONSTRAINTS:
+  - Modify ONLY files implicated by the task description and prev_context.
+  - Do NOT write to tasks.csv, wave-*.csv, results.csv, plan.json, or state.json — orchestrator owns those.
+  - Do NOT call spawn_agents_on_csv (no recursion).
+  - Honor specs loaded by orchestrator (passed via instruction context).
+```
 
 #### Blocked Task Handling
 

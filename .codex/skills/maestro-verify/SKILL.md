@@ -128,23 +128,58 @@ S_AGGREGATE:
 
 <actions>
 
+### Shared Spawn Contract (W1, W2, W3)
+
+Every `spawn_agents_on_csv` call MUST filter `wave==N AND status=="pending"` from master tasks.csv and use the strict JSON Schema below.
+
+**output_schema**:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id":            { "type": "string" },
+    "result_status": { "type": "string", "enum": ["completed", "failed", "blocked"] },
+    "verdict":       { "type": "string", "description": "Per-agent verdict (e.g., VERIFIED/FAILED/UNCERTAIN, SUBSTANTIVE/STUB, WIRED/ORPHANED/NOT_WIRED, COVERED/PARTIAL/MISSING)" },
+    "findings":      { "type": "string", "maxLength": 500 },
+    "gaps_found":    { "type": "string", "description": "Semicolon-separated gaps with severity + fix direction" },
+    "error":         { "type": "string" }
+  },
+  "required": ["id", "result_status", "findings", "verdict"]
+}
+```
+
+Merge: `result_status` → master `status`; copy `verdict`, `findings`, `gaps_found`, `error`.
+
+**Shared termination contract** (embed in every instruction):
+```
+You MUST call report_agent_job_result EXACTLY ONCE before exiting.
+- Success → result_status=completed with concrete verdict
+- Failure → result_status=failed with error message
+- Blocked → upstream missing (W2/W3 cannot proceed) → result_status=blocked
+- Timeout → near max_runtime_seconds → result_status=blocked, error="timeout"
+- NEVER continue indefinitely. NEVER exit silently. NEVER omit the call.
+- Read-only verification. Do NOT modify source files.
+Do NOT write to tasks.csv, wave-*.csv, results.csv, verification.json. Do NOT call spawn_agents_on_csv (no recursion).
+```
+
 ### A_SPAWN_WAVE_1
 
-Filter wave==1 -> write wave-1.csv -> spawn.
+Filter `wave==1 AND status=="pending"` -> write wave-1.csv -> spawn.
 
-**Truth check agent**: Identify supporting artifacts, check existence + substance + wiring indicators. Status: VERIFIED / FAILED / UNCERTAIN. Report gaps with severity + fix direction.
+**Truth check agent**: Identify supporting artifacts, check existence + substance + wiring indicators. verdict: VERIFIED / FAILED / UNCERTAIN. Report gaps with severity + fix direction.
 **Artifact existence agent**: Check file on disk. Missing = gap (severity=critical). Exists = note size + structure for wave 2.
 
 ### A_SPAWN_WAVE_2
 
-Filter wave==2, skip if existence failed for that artifact. Build prev_context from wave 1 -> spawn.
+Filter `wave==2 AND status=="pending"`, skip if existence failed for that artifact. Build prev_context from wave 1 -> spawn.
 
 **Substance agent**: <10 lines real logic or placeholder markers = STUB. Otherwise SUBSTANTIVE.
-**Wiring agent**: Grep for import + actual usage beyond imports. Status: WIRED / ORPHANED / NOT_WIRED.
+**Wiring agent**: Grep for import + actual usage beyond imports. verdict: WIRED / ORPHANED / NOT_WIRED.
 
 ### A_SPAWN_WAVE_3
 
-Filter wave==3. Mark skipped per --skip-antipattern / --skip-tests. Build prev_context from waves 1+2 -> spawn.
+Filter `wave==3 AND status=="pending"`. Mark skipped per --skip-antipattern / --skip-tests. Build prev_context from waves 1+2 -> spawn.
 
 **Anti-pattern agent**: Extract modified files from summaries. Scan for TODO/FIXME/XXX/HACK, placeholder, empty returns, disabled tests. Categorize: Blocker / Warning / Info.
 **Nyquist agent**: Detect test framework, map requirements to test files, classify COVERED / PARTIAL / MISSING. Run coverage if available.

@@ -212,6 +212,47 @@ CONSTRAINTS:
 7. **DO NOT STOP**: Continuous until all waves complete; only pause at [CHECKPOINT] (skipped with -y).
 </invariants>
 
+<spawn_contract>
+
+All three waves invoke `spawn_agents_on_csv` with the same shape — only `instruction` (inflated from `<agent_prompt_template>`) and `max_concurrency` differ. The orchestrator MUST:
+
+1. Filter master tasks.csv to `wave==N AND status=="pending"` before writing `wave-{N}.csv`.
+2. Use the strict JSON Schema below for `output_schema`.
+3. Append the shared termination contract to every inflated `description`.
+4. Merge: map `result_status` → master `status`; copy `findings`, `output_path`, `error`.
+
+**output_schema** (all waves):
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id":            { "type": "string" },
+    "result_status": { "type": "string", "enum": ["completed", "failed", "blocked"] },
+    "findings":      { "type": "string", "maxLength": 500 },
+    "output_path":   { "type": "string", "description": "Primary deliverable absolute path (W1: guidance-specification.md; W2: {role}/analysis.md; W3: review-findings.json)" },
+    "error":         { "type": "string" }
+  },
+  "required": ["id", "result_status", "findings"]
+}
+```
+
+**Shared termination contract** (append to every inflated W1/W2/W3 description):
+
+```
+TERMINATION CONTRACT (mandatory — NO worker may end without calling report_agent_job_result):
+  - Success path → all required files written AND verified via Glob → result_status=completed, output_path set
+  - Failure path → unrecoverable error (write fail, missing input file) → result_status=failed
+  - Blocked path → upstream missing (W2 cannot read guidance-spec; W3 cannot read analysis.md) → result_status=blocked
+  - Timeout path → near max_runtime_seconds → finalize current write if safe → otherwise report blocked with error="timeout"
+  - NEVER continue indefinitely. NEVER exit silently. NEVER omit the call.
+  - NEVER return analysis as chat text — files on disk are the ONLY valid deliverable.
+  - Do NOT write to tasks.csv, wave-*.csv, results.csv.
+  - Do NOT call spawn_agents_on_csv (no recursion).
+```
+
+</spawn_contract>
+
 <state_machine>
 
 <states>

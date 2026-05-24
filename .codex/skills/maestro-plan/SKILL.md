@@ -154,14 +154,49 @@ S_REGISTER → END       DO: A_REGISTER
 
 <actions>
 
+### Shared Spawn Contract (W1 and W2)
+
+Every `spawn_agents_on_csv` call MUST filter `wave==N AND status=="pending"` rows from master tasks.csv, use the strict JSON Schema below, and embed the termination contract.
+
+**Output Schema**:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id":            { "type": "string" },
+    "result_status": { "type": "string", "enum": ["completed", "failed", "blocked"] },
+    "findings":      { "type": "string", "maxLength": 500 },
+    "files_modified":{ "type": "string", "description": "Semicolon-separated paths (W2 writes plan.json + .task/*)" },
+    "error":         { "type": "string" }
+  },
+  "required": ["id", "result_status", "findings"]
+}
+```
+
+Merge: `result_status` → master `status`; copy `findings`, `files_modified`, `error`.
+
+**Termination contract** (embed in every instruction):
+```
+You MUST call report_agent_job_result EXACTLY ONCE before exiting.
+- Success → result_status=completed (W2: plan.json AND .task/* MUST exist on disk before reporting completed)
+- Failure → result_status=failed with error message
+- Blocked → upstream context insufficient → result_status=blocked
+- Timeout → near max_runtime_seconds → result_status=blocked, error="timeout"
+- NEVER continue indefinitely. NEVER exit silently. NEVER omit the call.
+Do NOT write to tasks.csv, wave-*.csv, results.csv, state.json. Do NOT call spawn_agents_on_csv (no recursion).
+```
+
 ### Exploration agent responsibilities (W1)
-Each explores one angle: architecture (module boundaries, deps), patterns (similar implementations), tests (framework, conventions), risks (complexity, blockers). Reads files, maps dependencies, shares via discoveries.ndjson.
+Each explores one angle: architecture (module boundaries, deps), patterns (similar implementations), tests (framework, conventions), risks (complexity, blockers). Reads files, maps dependencies, shares via discoveries.ndjson. Read-only — does NOT write plan.json.
 
 ### Planning agent responsibilities (W2)
 Consumes all exploration findings + context.md + specs. Produces:
 - `plan.json`: summary, approach, task_ids, waves (with phase labels), confidence section
 - `.task/TASK-*.json`: each with read_first[], convergence.criteria[] (grep-verifiable), concrete action/implementation
 - Deep Work Rules: every task has read_first with file being modified + source of truth files
+
+Verifies plan.json and every .task/*.json exists on disk before reporting completed; else report blocked.
 
 ### A_PLAN_CHECK
 Run plan-checker: coverage, dependency validity, criteria quality, pressure pass on highest-complexity task.

@@ -152,29 +152,63 @@ S_AGGREGATE:
 
 <actions>
 
+### Shared Spawn Contract (all three waves)
+
+Every `spawn_agents_on_csv` call in this skill MUST use the strict JSON Schema below and the shared termination contract.
+
+**Output Schema**:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id":            { "type": "string" },
+    "result_status": { "type": "string", "enum": ["completed", "failed", "blocked"] },
+    "findings":      { "type": "string", "maxLength": 500 },
+    "score":         { "type": "string", "description": "0-100 (wave 2 scoring only)" },
+    "evidence":      { "type": "string", "description": "Code refs file:line (wave 1/2)" },
+    "error":         { "type": "string" }
+  },
+  "required": ["id", "result_status", "findings"]
+}
+```
+
+Merge step: `result_status` → master `status`; copy `findings`, `score`, `evidence`, `error`.
+
+**Termination contract** (embed in every instruction):
+```
+You MUST call report_agent_job_result EXACTLY ONCE before exiting.
+- Success → result_status=completed
+- Failure → result_status=failed with error message
+- Blocked → upstream missing → result_status=blocked
+- Timeout → near max_runtime_seconds → result_status=blocked, error="timeout"
+- NEVER continue indefinitely. NEVER exit silently. NEVER omit the call.
+Do NOT write to tasks.csv, wave-*.csv, results.csv. Do NOT call spawn_agents_on_csv (no recursion).
+```
+
 ### A_SPAWN_WAVE_1
 
-Filter wave==1 -> write wave-1.csv -> `spawn_agents_on_csv({ csv_path, max_concurrency })`.
+Filter `wave==1 AND status=="pending"` -> write wave-1.csv -> `spawn_agents_on_csv({ csv_path, id_column:"id", instruction: EXPLORATION_INSTRUCTION + SHARED_TERMINATION_CONTRACT, max_concurrency, max_runtime_seconds: 3600, output_csv_path, output_schema })`.
 
 **Exploration agent** (3-layer per dimension):
 1. Module Discovery (breadth): keyword search, relevant files, module boundaries
 2. Structure Tracing (depth): top 3-5 files, call chains 2-3 levels, data flow
 3. Code Anchor Extraction (detail): code snippet 20-50 lines with file:line per finding
 
-Share via discovery board. Merge results -> master tasks.csv.
+Share via discovery board. Merge results -> master tasks.csv (map `result_status` → master `status`).
 
 ### A_SPAWN_WAVE_2
 
-Filter wave==2 -> build prev_context from wave 1 findings -> write wave-2.csv -> spawn.
+Filter `wave==2 AND status=="pending"` -> build prev_context from wave 1 findings -> write wave-2.csv -> spawn with `SCORING_INSTRUCTION + SHARED_TERMINATION_CONTRACT`.
 
 **Scoring agent** (6 dimensions: feasibility, impact, risk, complexity, alignment, maintainability):
 Score 0-100 with specific evidence (code refs from exploration). Each score MUST reference exploration findings.
 
-Merge results -> master tasks.csv.
+Merge results -> master tasks.csv (map `result_status` → master `status`).
 
 ### A_SPAWN_WAVE_3
 
-Filter wave==3 -> build prev_context from wave 2 scores (or project context for quick mode) -> spawn.
+Filter `wave==3 AND status=="pending"` -> build prev_context from wave 2 scores (or project context for quick mode) -> spawn with `SYNTHESIS_INSTRUCTION + SHARED_TERMINATION_CONTRACT`.
 
 **Synthesis agent**:
 - Full mode: analysis.md (executive summary, per-dimension scores, risk matrix, Go/No-Go), context.md (Locked/Free/Deferred decisions), context-package.json, conclusions.json (with `scope_verdict` + `implementation_scope[]`)
