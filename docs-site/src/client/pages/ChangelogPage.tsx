@@ -17,6 +17,17 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '0.4.18',
+    date: '2026-05',
+    changes: [
+      { type: 'feat', text_en: 'wiki: unified knowledge retrieval — codebase/session virtual nodes + finish-work workflow', text_zh: 'wiki: 统一知识检索 — codebase/session 虚拟节点 + finish-work 工作流' },
+      { type: 'feat', text_en: 'commands: new maestro-next single-chain recommendation command', text_zh: 'commands: 新增 maestro-next 单链推荐命令' },
+      { type: 'fix', text_en: 'ralph: CLI recognizes both maestro-* and ralph-* sessions', text_zh: 'ralph: CLI 识别 maestro-* 与 ralph-* 两类 session' },
+      { type: 'refactor', text_en: 'codex/skills: unified spawn_agents_on_csv contract — mandatory worker termination + strict output_schema', text_zh: 'codex/skills: 统一 spawn_agents_on_csv 契约 — 强制 worker 终止 + 严格 output_schema' },
+      { type: 'docs', text_en: 'changelog and announcement banner updated for v0.4.17', text_zh: '更新 v0.4.17 changelog 与公告栏' },
+    ],
+  },
+  {
     version: '0.4.17',
     date: '2026-05',
     changes: [
