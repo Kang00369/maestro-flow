@@ -17,6 +17,17 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '0.4.19',
+    date: '2026-05',
+    changes: [
+      { type: 'feat', text_en: 'skills: new team-swarm — ACO-driven swarm intelligence with pheromone optimizer (4 roles + Python controller + 5 specs)', text_zh: 'skills: 新增 team-swarm 蚁群智能技能 — ACO 驱动 + 信息素优化器（4 角色 + Python 控制器 + 5 份 spec）' },
+      { type: 'feat', text_en: 'install: TUI supports Agy (Antigravity) hooks configuration alongside Claude/Codex', text_zh: 'install: 安装器 TUI 支持 Agy (Antigravity) hooks 配置，与 Claude/Codex hooks 独立' },
+      { type: 'refactor', text_en: 'install: load manifest defaults by scope+target via findManifest, avoiding cross-scope contamination', text_zh: 'install: 改用 findManifest 按 scope+target 加载 manifest 默认值，避免跨 scope 污染' },
+      { type: 'refactor', text_en: 'install: hookLevel default reads hooks.claude.level only — drops unreliable legacy top-level field', text_zh: 'install: hookLevel 默认源仅读 hooks.claude.level，去除不可靠的 legacy 顶层字段' },
+      { type: 'chore', text_en: 'maestro-next: rewrite command body to align with new skill topology', text_zh: 'maestro-next: 重写命令体以贴合新技能拓扑' },
+    ],
+  },
+  {
     version: '0.4.18',
     date: '2026-05',
     changes: [
