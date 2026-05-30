@@ -17,6 +17,18 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '0.4.21',
+    date: '2026-05',
+    changes: [
+      { type: 'feat', text_en: 'graph: remove UA external dependency, create native src/graph/ module (types, merger, loader, query, FsAnalyzer)', text_zh: 'graph: 移除 UA 外部依赖，创建原生 src/graph/ 模块（类型、合并、加载、查询、FsAnalyzer）' },
+      { type: 'feat', text_en: 'kg: new maestro kg index command — local codebase scanning with git-aware enumeration', text_zh: 'kg: 新增 maestro kg index 命令 — 本地代码库扫描 + git 感知枚举' },
+      { type: 'feat', text_en: 'graph: enhanced indexing — call graph extraction, tested_by edges, topological sort tour, file category classification', text_zh: 'graph: 图索引增强 — 调用图提取(calls)、测试配对(tested_by)、拓扑排序 tour、文件分类' },
+      { type: 'feat', text_en: 'swarm: new team-adversarial-swarm — ACO + modular Workflow + adversarial decision gates', text_zh: 'swarm: 新增 team-adversarial-swarm — ACO 蚁群 + 模块化 Workflow + 对抗决策门' },
+      { type: 'feat', text_en: 'commands: new maestro-universal-workflow for dynamic adversarial workflow generation', text_zh: 'commands: 新增 maestro-universal-workflow 动态对抗工作流生成' },
+      { type: 'fix', text_en: 'universal-workflow: hardened script generation to prevent Unicode parse errors', text_zh: 'universal-workflow: 强化脚本生成防错机制，消除 Unicode 解析错误' },
+    ],
+  },
+  {
     version: '0.4.20',
     date: '2026-05',
     changes: [
