@@ -55,7 +55,7 @@ S_PARSE       — 解析参数和意图                     PERSIST: —
 S_SCAN        — 扫描现有 workflow 库匹配            PERSIST: —
 S_DECIDE      — 用户选择：复用现有 / 生成新脚本       PERSIST: —
 S_DESIGN      — 分析任务、设计工作流结构              PERSIST: —
-S_GENERATE    — 生成 JavaScript 脚本代码             PERSIST: —
+S_GENERATE    — 生成脚本 → 写入文件 → node --check 验证  PERSIST: uwf-{slug}.js
 S_EXECUTE     — 调用 Workflow 工具执行               PERSIST: —
 S_PERSIST     — 保存脚本到 dynamic/ 目录              PERSIST: —
 </states>
@@ -79,8 +79,10 @@ S_DESIGN:
   → S_GENERATE  DO: A_DESIGN_WORKFLOW
 
 S_GENERATE:
-  → S_EXECUTE   WHEN: script valid AND NOT --dry-run  DO: A_GENERATE_SCRIPT
-  → S_PERSIST   WHEN: --dry-run                       DO: A_GENERATE_SCRIPT
+  → S_EXECUTE   WHEN: Write + node --check pass AND NOT --dry-run  DO: A_GENERATE_SCRIPT
+  → S_PERSIST   WHEN: --dry-run (file already written)             DO: A_GENERATE_SCRIPT
+  → S_GENERATE  WHEN: node --check fails (retry ≤2)               DO: A_GENERATE_SCRIPT (fix & retry)
+  → END         WHEN: node --check fails after 2 retries          DO: report E003
 
 S_EXECUTE:
   → S_PERSIST   WHEN: workflow completed             DO: A_EXECUTE_WORKFLOW
@@ -187,69 +189,134 @@ blueprint: {
 
 ### A_GENERATE_SCRIPT
 
-根据蓝图生成完整的 JavaScript 脚本。
+根据蓝图生成完整的 JavaScript 脚本。**先写文件，再通过 scriptPath 执行**（避免内联 script 字符串的编码/转义问题）。
+
+若 `--from` 指定了基础脚本，先 Read 源脚本，然后在其基础上修改。
 
 **脚本结构模板：**
 
 ```javascript
 export const meta = {
   name: '{blueprint.name}',
-  description: '{blueprint.description}',
-  whenToUse: '{自动生成的使用场景描述}',
-  phases: [{blueprint.phases}],
+  description: '{English description}',
+  whenToUse: '{English usage scenario}',
+  phases: [
+    { title: '{EnglishTitle}', detail: '{English detail}' },
+  ],
 }
 
-// --- Schemas ---
-{为每个 agent 生成 JSON Schema 常量}
+// --- Schemas (top-level constants, never inline) ---
+const WORK_SCHEMA = { type: 'object', properties: { ... }, required: [...] }
+const CHALLENGE_SCHEMA = { ... }
 
 // --- Args ---
-{解析 args 参数}
+const target = args?.target || 'default'
 
 // --- Phase 1: {title} ---
 phase('{title}')
-{并行或串行 agent 调用}
+const results = await parallel([
+  () => agent('prompt text', { label: 'work:1', phase: '{title}', schema: WORK_SCHEMA }),
+])
 
 // --- Phase 2: Adversarial Gate ---
 phase('{adversarial_phase_title}')
-{对抗模式代码 — 从 ADVERSARIAL_PATTERNS 模板生成}
-
-// --- Phase N: ... ---
-{后续阶段}
+// 对抗模式代码 — 从 ADVERSARIAL_PATTERNS 模板生成
 
 return { ... }
 ```
 
-**生成规则：**
-1. 纯 JavaScript，不用 TypeScript
-2. 不用 `Date.now()`、`Math.random()`、无参 `new Date()`
-3. 用 `args?.xxx` 访问参数
-4. Schema 必须是完整的 JSON Schema 字面量
-5. 每个对抗 gate 使用对应模式的标准代码模板
-6. `agentType` 仅在有明确匹配时设置（如 `cli-explore-agent`、`workflow-analyzer`）
-7. phase 变量不能遮蔽 phase() 函数
+**生成规则（必须全部遵守）：**
 
-生成完毕后，若非 `--dry-run`，直接进入 S_EXECUTE。
-若 `--from` 指定了基础脚本，先 Read 源脚本，然后在其基础上修改。
+| # | 规则 | 原因 |
+|---|------|------|
+| 1 | **纯 JavaScript** — 无 TypeScript 类型注解（`: string`、`interface`、泛型） | 解析器不支持 TS |
+| 2 | **meta 块全英文** — `name`、`description`、`whenToUse`、`phases[].title/detail` 只用 ASCII 字符 | 中文在 script 字符串序列化时触发 `\uXXXX` 解析错误 |
+| 3 | **禁用 API** — 不用 `Date.now()`、`Math.random()`、无参 `new Date()` | 破坏 resume 缓存匹配 |
+| 4 | **Schema 独立声明** — 所有 JSON Schema 在文件顶部声明为 `const XXX_SCHEMA = {...}`，agent 调用中用 `schema: XXX_SCHEMA` 引用 | 内联大 Schema 易出括号匹配错误 |
+| 5 | **字符串用 `+` 拼接** — agent prompt 中嵌入变量用 `'text ' + variable + ' more text'`，**不用模板字符串** | 反引号嵌套和 `${}` 转义是最常见的解析错误源 |
+| 6 | **回调用 `function`** — `array.filter(function(x) { return x })` 而非箭头函数 | 箭头函数隐式返回对象 `() => ({})` 易遗漏外层括号 |
+| 7 | **`phase` 不做变量名** — 不遮蔽全局 `phase()` 函数 | 遮蔽后 `phase('X')` 调用会崩溃 |
+| 8 | **路径用正斜杠** — 字符串中路径用 `src/auth/` 不用 `src\\auth\\` | `\a`、`\u` 等被解析为转义序列 |
+| 9 | **`agentType`** — 仅在有明确匹配时设置（如 `Explore`、`workflow-analyzer`） | 无效 agentType 导致运行时错误 |
+| 10 | **null 安全** — 链式访问用 `?.`，数组操作前加 `.filter(Boolean)` | agent 返回 null（用户跳过）时链式调用崩溃 |
+
+**常见错误对照：**
+
+```javascript
+// BAD — meta 中文导致 \uXXXX 解析错误
+export const meta = { name: 'uwf-x', description: '参数审计' }
+// GOOD
+export const meta = { name: 'uwf-x', description: 'Parameter audit for unused/ambiguous/dead params' }
+
+// BAD — 模板字符串嵌套
+agent(`Analyze ${item.name} for ${reason}`)
+// GOOD — 字符串拼接
+agent('Analyze ' + item.name + ' for ' + reason)
+
+// BAD — Schema 内联在 agent 调用中
+agent('prompt', { schema: { type: 'object', properties: { a: { type: 'string' }, b: { type: 'array', items: { type: 'object', properties: { ... } } } } } })
+// GOOD — Schema 顶部声明
+const MY_SCHEMA = { type: 'object', properties: { a: { type: 'string' } }, required: ['a'] }
+agent('prompt', { schema: MY_SCHEMA })
+
+// BAD — 箭头函数隐式返回对象
+results.map(r => ({ ...r, verified: true }))
+// GOOD — function + 显式 return
+results.map(function(r) { return Object.assign({}, r, { verified: true }) })
+
+// BAD — 反斜杠路径
+const path = 'C:\Users\project\src'
+// GOOD
+const path = 'C:/Users/project/src'  // 或直接不在脚本中硬编码路径
+```
+
+**Step 1 — 生成脚本内容**
+
+按蓝图结构 + 上述规则生成完整 JavaScript 字符串。agent prompt 内部可以使用中文（prompt 是运行时字符串，不影响解析）。
+
+**Step 2 — 写入文件**
+
+```
+Write({
+  file_path: expandPath('~/.maestro/workflows/dynamic/uwf-{slug}.js'),
+  content: generatedScript
+})
+```
+
+**Step 3 — 语法验证**
+
+```
+Bash({ command: 'node --check "path/to/uwf-{slug}.js"' })
+```
+
+若验证失败：
+1. 读取错误信息中的行号和错误类型
+2. 针对性修复（常见：遗漏逗号、括号不匹配、保留字冲突）
+3. 重新 Write + 验证（最多重试 2 次）
+4. 仍失败则报 E003，展示脚本内容和错误信息
+
+验证通过后进入 S_EXECUTE（若非 `--dry-run`）。
 
 ### A_EXECUTE_WORKFLOW
 
+**必须用 scriptPath 调用**（不用 script 内联字符串）：
+
 ```
 Workflow({
-  script: generatedScript,
+  scriptPath: expandPath('~/.maestro/workflows/dynamic/uwf-{slug}.js'),
   args: taskSpecificArgs,   // 从 intent 推断
   resumeFromRunId: resumeId // 若有
 })
 ```
 
-记录返回的 `scriptPath` 和 `runId`。
+记录返回的 `runId`。脚本已在 A_GENERATE_SCRIPT 中写入文件，无需再次持久化。
 
 ### A_PERSIST_SCRIPT
 
-1. 确保目录存在：`~/.maestro/workflows/dynamic/`
-2. 复制 Workflow 持久化的脚本到：`~/.maestro/workflows/dynamic/uwf-{slug}.js`
-   - 若 `--dry-run`，Write 生成的脚本到目标路径
-   - 若已执行，从 Workflow 返回的 scriptPath 复制
-3. 展示保存路径和使用方式：
+脚本已在 A_GENERATE_SCRIPT Step 2 写入 `~/.maestro/workflows/dynamic/uwf-{slug}.js`。
+
+1. 确认文件存在（Glob 检查）
+2. 展示保存路径和使用方式：
    ```
    Saved: ~/.maestro/workflows/dynamic/uwf-{slug}.js
    Reuse: /maestro-universal-workflow --from uwf-{slug} "{new intent}"
@@ -421,12 +488,15 @@ Findings: ${digest}
 1. **先查后建** — 必须先扫描现有库，避免重复生成相同功能的脚本
 2. **对抗必选** — 每个 decision_point 必须有对应的对抗模式，不允许单 agent 决策
 3. **depth 递进** — shallow ⊂ standard ⊂ deep，高 depth 包含低 depth 的所有模式
-4. **纯 JS** — 生成的脚本必须是纯 JavaScript，不含 TypeScript
-5. **Schema 完整** — 每个 agent 调用必须有 schema，确保结构化输出
-6. **持久化必做** — 每次成功执行后必须保存脚本到 dynamic/ 目录
-7. **幂等命名** — 同名脚本覆盖（uwf-{slug}.js），用户可通过 --name 控制
-8. **禁用 API** — 脚本内不使用 Date.now()、Math.random()、无参 new Date()
-9. **变量安全** — 不使用 `phase` 作为变量名（避免遮蔽 phase() 函数）
+4. **纯 JS** — 生成的脚本必须是纯 JavaScript，不含 TypeScript 类型注解
+5. **meta 全英文** — meta 块中 name/description/whenToUse/phases 只用 ASCII 字符（agent prompt 内可用中文）
+6. **Schema 完整** — 每个 agent 调用必须有 schema，且 Schema 在文件顶部声明为独立常量
+7. **先写后跑** — 脚本必须先 Write 到文件 → `node --check` 验证 → 再通过 `scriptPath` 执行（禁止内联 script 字符串）
+8. **幂等命名** — 同名脚本覆盖（uwf-{slug}.js），用户可通过 --name 控制
+9. **禁用 API** — 脚本内不使用 Date.now()、Math.random()、无参 new Date()
+10. **变量安全** — 不使用 `phase` 作为变量名（避免遮蔽 phase() 函数）
+11. **无模板字符串** — agent prompt 用 `+` 拼接，不用反引号模板（避免嵌套转义错误）
+12. **无反斜杠路径** — 字符串中路径用正斜杠（`\u`、`\a` 等会被解析为转义序列）
 </invariants>
 
 <appendix>
@@ -484,7 +554,7 @@ universal-workflow 扫描时会同时检查 swarm/ 和 dynamic/ 目录，
 |------|-------------|----------|
 | E001 | 无 intent | 提示用户输入 |
 | E002 | 设计阶段无法分解任务 | 要求更具体的 intent |
-| E003 | 生成的脚本语法错误 | 自动修复一次，失败则展示脚本让用户手动修改 |
+| E003 | 生成的脚本语法错误 | `node --check` 失败时：读取行号+错误类型 → 针对性修复 → 重试（最多 2 次）→ 仍失败则展示脚本+错误让用户手动修改 |
 | E004 | Workflow 执行失败 | 展示错误，提供 --resume |
 | E005 | 持久化失败 | 展示脚本内容，让用户手动保存 |
 
