@@ -50,11 +50,25 @@ SKILL.md (Coordinator — this file)
 
 ## Shared Dependencies
 
-- **Python ACO 脚本**: 继承 `team-swarm` → 路径 `<team-swarm-skill>/scripts/aco.py`
-  - 运行时解析: `Glob(".claude/skills/team-swarm/scripts/aco.py")` 或通过安装路径
+**所有依赖均在本 skill 内部，无外部引用。**
+
+- **Python ACO 脚本**: `<this-skill>/scripts/aco.py`
+  - 运行时解析: `Glob(".claude/skills/team-adversarial-swarm/scripts/aco.py")`
+  - 依赖模块: `pheromone.py`, `scoring.py`（同目录）
   - 命令: `init` / `select` / `update` / `converged` / `report`
+  - 协议: [specs/swarm-protocol.md](specs/swarm-protocol.md)
 - **Workflow 脚本**: `<this-skill>/workflows/wf-swarm-*.js`
   - 运行时解析: `Glob(".claude/skills/team-adversarial-swarm/workflows/wf-swarm-*.js")`
+
+## Specs Reference
+
+| Spec | Purpose |
+|------|---------|
+| [specs/swarm-protocol.md](specs/swarm-protocol.md) | Coordinator ↔ Script ↔ Workflow 三方协议 |
+| [specs/pheromone-schema.md](specs/pheromone-schema.md) | 信息素矩阵结构、更新公式、蒸发规则 |
+| [specs/ant-output-schema.md](specs/ant-output-schema.md) | 蚁输出 JSON 合约（三层评分） |
+| [specs/convergence-criteria.md](specs/convergence-criteria.md) | 双层收敛：Python 信号 + 对抗辩论 |
+| [specs/swarm-config-template.json](specs/swarm-config-template.json) | 用户配置模板 |
 
 ## Session Directory
 
