@@ -56,6 +56,9 @@ Follow '~/.maestro/workflows/codebase-rebuild.md' completely.
 **Next-step routing on completion:**
 - View updated project state → `/manage-status`
 - Incremental updates later → `/manage-codebase-refresh`
+- Verify KG stats → `maestro kg stats`
+- Verify wiki integration → `maestro wiki list --keyword kg`
+- Future change impact → `maestro kg diff-wiki`
 </execution>
 
 <error_codes>
@@ -64,6 +67,8 @@ Follow '~/.maestro/workflows/codebase-rebuild.md' completely.
 | E001 | error | .workflow/ not initialized | Run maestro-init first to create .workflow/ |
 | W001 | warning | A mapper agent failed (partial results) | Retry failed mapper or accept partial results |
 | W002 | warning | `.workflow/codebase/` already exists -- user prompted for rebuild/skip | check_existing |
+| W003 | warning | KG validation failed (graph written with valid=false) | Review .kg-tmp/ artifacts, re-run KG pipeline |
+| W004 | warning | Wiki index rebuild failed after KG generation | Non-fatal, retries on next wiki access |
 </error_codes>
 
 <success_criteria>
@@ -76,5 +81,7 @@ Follow '~/.maestro/workflows/codebase-rebuild.md' completely.
 - [ ] project.md Tech Stack section updated if changes detected
 - [ ] KG pipeline executed (if UA vendor installed)
 - [ ] knowledge-graph.json generated in .workflow/codebase/ (if UA vendor installed)
+- [ ] KG nodes indexed as virtual wiki entries (automatic via WikiIndexer on next wiki access)
 - [ ] Next step routing: `/manage-status` or `/manage-codebase-refresh` for incremental updates later
+- [ ] KG impact check available: `maestro kg diff-wiki` for future change impact analysis
 </success_criteria>

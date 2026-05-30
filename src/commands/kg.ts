@@ -12,6 +12,9 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 
+import { WikiIndexer } from '#maestro-dashboard/wiki/wiki-indexer.js';
+import type { WikiEntry } from '#maestro-dashboard/wiki/wiki-types.js';
+
 // ── Types ──────────────────────────────────────────────────────────────
 
 interface GraphNode {
@@ -97,6 +100,65 @@ function countBy<T>(items: T[], keyFn: (item: T) => string): Record<string, numb
     counts[key] = (counts[key] ?? 0) + 1;
   }
   return counts;
+}
+
+// ── Wiki cross-reference ──────────────────────────────────────────────
+
+let _wikiIndexer: WikiIndexer | null = null;
+function getWikiIndexer(): WikiIndexer | null {
+  if (_wikiIndexer) return _wikiIndexer;
+  const workflowRoot = resolve('.workflow');
+  if (!existsSync(workflowRoot)) return null;
+  _wikiIndexer = new WikiIndexer({ workflowRoot });
+  return _wikiIndexer;
+}
+
+interface WikiMatch {
+  id: string;
+  type: string;
+  title: string;
+  matchReason: string;
+}
+
+async function findRelatedWikiEntries(nodeId: string, filePath?: string): Promise<WikiMatch[]> {
+  const indexer = getWikiIndexer();
+  if (!indexer) return [];
+  try {
+    const index = await indexer.get();
+    const matches: WikiMatch[] = [];
+    const seen = new Set<string>();
+
+    for (const e of index.entries) {
+      if (seen.has(e.id)) continue;
+      // Match by KG node binding (uakg-* entries referencing this node)
+      if (e.ext?.virtualKind === 'ua-kg-node' && e.ext?.kgNodeId === nodeId) {
+        seen.add(e.id);
+        matches.push({ id: e.id, type: e.type, title: e.title, matchReason: 'kg-node-entry' });
+        continue;
+      }
+      // Match by codePaths containing the node's filePath
+      if (filePath && Array.isArray(e.ext?.codeLocations)) {
+        const locs = e.ext.codeLocations as string[];
+        const normFp = filePath.replace(/\\/g, '/').toLowerCase();
+        if (locs.some(l => l.replace(/\\/g, '/').toLowerCase() === normFp)) {
+          seen.add(e.id);
+          matches.push({ id: e.id, type: e.type, title: e.title, matchReason: 'codePath-match' });
+        }
+      }
+      // Match by codePaths in ext.codePaths (knowhow entries)
+      if (filePath && Array.isArray(e.ext?.codePaths)) {
+        const paths = e.ext.codePaths as string[];
+        const normFp = filePath.replace(/\\/g, '/').toLowerCase();
+        if (paths.some(p => p.replace(/\\/g, '/').toLowerCase() === normFp)) {
+          seen.add(e.id);
+          matches.push({ id: e.id, type: e.type, title: e.title, matchReason: 'codePath-match' });
+        }
+      }
+    }
+    return matches;
+  } catch {
+    return [];
+  }
 }
 
 // ── Registration ───────────────────────────────────────────────────────
@@ -190,7 +252,8 @@ export function registerKgCommand(program: Command): void {
     .command('explain <node-id>')
     .description('Show full details of a node and its connections')
     .option('--json', 'Output as JSON')
-    .action((nodeId: string, opts) => {
+    .option('--no-wiki', 'Skip wiki cross-reference lookup')
+    .action(async (nodeId: string, opts) => {
       const graph = loadGraph();
       const node = graph.nodes.find(n => n.id === nodeId);
 
@@ -203,8 +266,12 @@ export function registerKgCommand(program: Command): void {
       const outgoing = graph.edges.filter(e => e.source === nodeId);
       const layers = graph.layers.filter(l => l.nodeIds.includes(nodeId));
 
+      const wikiMatches = opts.wiki !== false
+        ? await findRelatedWikiEntries(nodeId, node.filePath)
+        : [];
+
       if (opts.json) {
-        console.log(JSON.stringify({ node, incoming, outgoing, layers }, null, 2));
+        console.log(JSON.stringify({ node, incoming, outgoing, layers, wiki: wikiMatches }, null, 2));
         return;
       }
 
@@ -237,6 +304,14 @@ export function registerKgCommand(program: Command): void {
         console.log(`Outgoing edges (${outgoing.length}):`);
         for (const e of outgoing) {
           console.log(`  ${nodeId} --${e.type}--> ${e.target}`);
+        }
+      }
+
+      if (wikiMatches.length > 0) {
+        console.log('');
+        console.log(`Related wiki entries (${wikiMatches.length}):`);
+        for (const w of wikiMatches) {
+          console.log(`  [${w.type}] ${w.id} -- ${w.title} (${w.matchReason})`);
         }
       }
     });
@@ -416,6 +491,123 @@ export function registerKgCommand(program: Command): void {
       } else {
         for (const n of impactedNodes) {
           console.log(`  [${n.type}] ${n.id} -- ${truncate(n.summary, 60)}`);
+        }
+      }
+    });
+
+  // ── diff-wiki ─────────────────────────────────────────────────────
+  kg
+    .command('diff-wiki')
+    .description('Cross-reference git changes with KG nodes and wiki entries')
+    .option('--staged', 'Use staged changes only')
+    .option('--json', 'Output as JSON')
+    .action(async (opts) => {
+      const graph = loadGraph();
+
+      let changedFiles: string[];
+      try {
+        const cmd = opts.staged
+          ? 'git diff --staged --name-only'
+          : 'git diff --name-only';
+        const output = execSync(cmd, { encoding: 'utf-8' }).trim();
+        changedFiles = output ? output.split('\n').map(f => f.trim()).filter(Boolean) : [];
+      } catch {
+        console.error('Failed to run git diff. Are you in a git repository?');
+        process.exit(1);
+      }
+
+      if (changedFiles.length === 0) {
+        if (opts.json) {
+          console.log(JSON.stringify({ changedFiles: [], affectedWiki: [] }, null, 2));
+        } else {
+          console.log('No changed files detected.');
+        }
+        return;
+      }
+
+      // Find direct + impacted KG nodes
+      const directNodes = graph.nodes.filter(n =>
+        n.filePath && changedFiles.some(f =>
+          n.filePath === f || n.filePath!.endsWith('/' + f) || f.endsWith('/' + n.filePath!)),
+      );
+      const directIds = new Set(directNodes.map(n => n.id));
+      const impactedIds = new Set<string>();
+      for (const e of graph.edges) {
+        if (directIds.has(e.source) && !directIds.has(e.target)) impactedIds.add(e.target);
+        if (directIds.has(e.target) && !directIds.has(e.source)) impactedIds.add(e.source);
+      }
+
+      // Collect all affected file paths from KG nodes
+      const affectedPaths = new Set<string>();
+      for (const n of directNodes) {
+        if (n.filePath) affectedPaths.add(n.filePath.replace(/\\/g, '/').toLowerCase());
+      }
+      for (const nid of impactedIds) {
+        const n = graph.nodes.find(nd => nd.id === nid);
+        if (n?.filePath) affectedPaths.add(n.filePath.replace(/\\/g, '/').toLowerCase());
+      }
+      // Also add raw changed files
+      for (const f of changedFiles) {
+        affectedPaths.add(f.replace(/\\/g, '/').toLowerCase());
+      }
+
+      // Cross-reference with wiki
+      const indexer = getWikiIndexer();
+      const affectedWiki: Array<{ id: string; type: string; title: string; reason: string }> = [];
+
+      if (indexer) {
+        try {
+          const index = await indexer.get();
+          const seen = new Set<string>();
+          for (const entry of index.entries) {
+            if (seen.has(entry.id)) continue;
+            // Check codeLocations (codebase-component entries)
+            if (Array.isArray(entry.ext?.codeLocations)) {
+              const locs = entry.ext.codeLocations as string[];
+              for (const loc of locs) {
+                if (affectedPaths.has(loc.replace(/\\/g, '/').toLowerCase())) {
+                  seen.add(entry.id);
+                  affectedWiki.push({ id: entry.id, type: entry.type, title: entry.title, reason: 'codeLocation' });
+                  break;
+                }
+              }
+            }
+            if (seen.has(entry.id)) continue;
+            // Check codePaths (knowhow entries)
+            if (Array.isArray(entry.ext?.codePaths)) {
+              const paths = entry.ext.codePaths as string[];
+              for (const p of paths) {
+                if (affectedPaths.has(p.replace(/\\/g, '/').toLowerCase())) {
+                  seen.add(entry.id);
+                  affectedWiki.push({ id: entry.id, type: entry.type, title: entry.title, reason: 'codePath' });
+                  break;
+                }
+              }
+            }
+          }
+        } catch { /* wiki unavailable — continue without */ }
+      }
+
+      if (opts.json) {
+        console.log(JSON.stringify({
+          changedFiles,
+          directNodes: directNodes.length,
+          impactedNodes: impactedIds.size,
+          affectedWiki,
+        }, null, 2));
+        return;
+      }
+
+      console.log(`Changed files: ${changedFiles.length}`);
+      console.log(`KG direct: ${directNodes.length}, impacted: ${impactedIds.size}`);
+      console.log('');
+
+      if (affectedWiki.length === 0) {
+        console.log('No wiki entries affected by these changes.');
+      } else {
+        console.log(`Affected wiki entries (${affectedWiki.length}):`);
+        for (const w of affectedWiki) {
+          console.log(`  [${w.type}] ${w.id} -- ${w.title} (${w.reason})`);
         }
       }
     });

@@ -7,6 +7,8 @@ import { parseSpecEntries, parseKnowhowEntries } from './spec-entry-parser.js';
 import {
   adaptCodebaseDocIndex,
   adaptIssueRow,
+  adaptUaKgGraph,
+  crossReferenceKgWithDocIndex,
   loadSessionArchiveEntries,
   loadVirtualEntries,
   loadVirtualJsonEntries,
@@ -68,16 +70,18 @@ export class WikiIndexer {
       const virtualEntries = await this.scanVirtual();
       const entries = [...fileEntries, ...virtualEntries];
 
-      // Stable collision suffix
+      // Stable collision suffix — use original id for counting so the
+      // third duplicate becomes -3 (not another -2).
       const seen = new Map<string, number>();
       for (const d of entries) {
-        const n = seen.get(d.id) ?? 0;
+        const original = d.id;
+        const n = seen.get(original) ?? 0;
         if (n > 0) {
           // eslint-disable-next-line no-console
-          console.warn(`[wiki-indexer] id collision '${d.id}' — suffixing`);
-          d.id = `${d.id}-${n + 1}`;
+          console.warn(`[wiki-indexer] id collision '${original}' — suffixing`);
+          d.id = `${original}-${n + 1}`;
         }
-        seen.set(d.id, n + 1);
+        seen.set(original, n + 1);
       }
 
       const byId: Record<string, WikiEntry> = {};
@@ -396,6 +400,16 @@ export class WikiIndexer {
       out.push(...(await loadVirtualJsonEntries(codebaseIndex, adaptCodebaseDocIndex, rel)));
     }
 
+    // Knowledge Graph: .workflow/codebase/knowledge-graph.json → KG nodes/layers/tour
+    // Loaded after doc-index so cross-referencing can link uakg-* ↔ codebase-comp-*
+    const kgPath = join(this.workflowRoot, 'codebase', 'knowledge-graph.json');
+    if (existsSync(kgPath) && this.isInsideRoot(kgPath)) {
+      const kgRel = toForwardSlash(relative(this.workflowRoot, kgPath));
+      const kgEntries = await loadVirtualJsonEntries(kgPath, adaptUaKgGraph, kgRel);
+      crossReferenceKgWithDocIndex(kgEntries, out);
+      out.push(...kgEntries);
+    }
+
     // Sessions: scan archive.json under scratch/ (sealed) and
     // milestones/{M}/artifacts/ (archived). Adapter filters out active.
     // archive.json carries lifecycle + content_refs; context-package.json
@@ -523,28 +537,33 @@ export class WikiIndexer {
   /**
    * Write a lightweight persistent index to `.workflow/wiki-index.json`.
    * Strips body/raw/ext to keep the file small and fast to parse externally.
+   * KG virtual entries get additional truncation to prevent file bloat.
    */
   private async persistIndex(index: WikiIndex): Promise<void> {
     const persisted: PersistedWikiIndex = {
       version: 2,
       generatedAt: index.generatedAt,
-      entries: index.entries.map((e): PersistedEntry => ({
-        id: e.id,
-        type: e.type,
-        title: e.title,
-        summary: e.summary,
-        tags: e.tags,
-        status: e.status,
-        created: e.created,
-        updated: e.updated,
-        scope: e.scope,
-        category: e.category,
-        createdBy: e.createdBy,
-        sourceRef: e.sourceRef,
-        parent: e.parent,
-        related: e.related,
-        source: e.source,
-      })),
+      entries: index.entries.map((e): PersistedEntry => {
+        const isKg = typeof e.ext?.virtualKind === 'string'
+          && (e.ext.virtualKind as string).startsWith('ua-kg-');
+        return {
+          id: e.id,
+          type: e.type,
+          title: e.title,
+          summary: isKg ? e.summary.slice(0, 160) : e.summary,
+          tags: isKg ? e.tags.slice(0, 8) : e.tags,
+          status: e.status,
+          created: e.created,
+          updated: e.updated,
+          scope: e.scope,
+          category: e.category,
+          createdBy: e.createdBy,
+          sourceRef: e.sourceRef,
+          parent: e.parent,
+          related: isKg ? e.related.slice(0, 8) : e.related,
+          source: e.source,
+        };
+      }),
     };
     const target = join(this.workflowRoot, 'wiki-index.json');
     await mkdir(dirname(target), { recursive: true });

@@ -153,6 +153,9 @@ Single wave generates `wave-1.csv`. No `prev_context` needed (all tasks independ
 | `tech-registry/{slug}.md` | Per-component documentation |
 | `feature-maps/_index.md` | Feature index table |
 | `feature-maps/{slug}.md` | Per-feature documentation |
+| `knowledge-graph.json` | UA Knowledge Graph: nodes, edges, layers, tour (if UA vendor installed) |
+
+**Wiki Integration**: After rebuild, KG nodes are automatically indexed as virtual wiki entries (type: knowhow, virtualKind: ua-kg-node/ua-kg-layer/ua-kg-tour-step) on next `maestro wiki` access. Verify with `maestro wiki list --keyword kg`. Use `maestro kg diff-wiki` for future change impact analysis.
 
 ### Session Structure
 
@@ -350,6 +353,9 @@ Generators: {completed}/{total} succeeded
 Next steps:
   Skill({ skill: "manage-status" })
   Skill({ skill: "manage-codebase-refresh" })
+  maestro kg stats           # verify KG
+  maestro wiki list --keyword kg  # verify wiki integration
+  maestro kg diff-wiki       # future change impact
 ```
 
 ### Shared Discovery Board Protocol

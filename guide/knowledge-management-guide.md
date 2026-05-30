@@ -174,6 +174,38 @@ Session 级去重：同一条目不会重复注入。
 
 ---
 
+## 代码知识图谱集成（UA KG × Wiki）
+
+当 `/manage-codebase-rebuild` 的 KG 管道生成 `knowledge-graph.json` 后，WikiIndexer 自动将 KG 数据索引为虚拟 wiki 条目：
+
+| KG 数据 | Wiki 条目 | virtualKind | 用途 |
+|---------|-----------|-------------|------|
+| GraphNode | `uakg-{id}` | `ua-kg-node` | 代码实体（函数、类、模块） |
+| Layer | `uakg-layer-{id}` | `ua-kg-layer` | 架构层（CLI、Core、Orchestration） |
+| TourStep | `uakg-tour-{order}` | `ua-kg-tour-step` | 代码导览步骤（链表串联） |
+
+**Edge 双层存储**：`related[]` 保存 top-N 关联 ID（用于 wiki 图分析），`ext.kgEdges[]` 保存完整有向异构边（用于语义遍历）。
+
+**搜索降级**：KG 节点在 BM25 中仅索引 title + tags，避免代码标识符污染常规搜索。
+
+**交叉引用**：KG 节点通过 `filePath` 自动匹配 `codebase-comp-*` 条目，建立 `ext.semanticDuplicateOf` 引用。
+
+```bash
+# 查看 KG 索引
+maestro wiki list --keyword kg
+
+# 搜索代码实体
+maestro wiki search "AuthMiddleware"
+
+# 代码变更影响分析
+maestro kg diff-wiki
+
+# KG 节点详情（含关联 wiki 条目）
+maestro kg explain <node-id>
+```
+
+---
+
 ## 知识流转全景
 
 ```

@@ -88,7 +88,21 @@ export function tokenize(text: string): string[] {
   return out;
 }
 
+function isKgVirtual(entry: WikiEntry): boolean {
+  const vk = entry.ext?.virtualKind;
+  return vk === 'ua-kg-node' || vk === 'ua-kg-layer' || vk === 'ua-kg-tour-step';
+}
+
 function documentText(entry: WikiEntry): string {
+  // KG virtual entries: index only title + tags to avoid code identifiers
+  // polluting search results for natural-language wiki queries.
+  if (isKgVirtual(entry)) {
+    return [
+      entry.title, entry.title,  // 2x title (vs 3x for regular entries)
+      entry.tags.join(' '),
+      entry.category ?? '',
+    ].join(' ');
+  }
   return [
     entry.title, entry.title, entry.title,  // 3x title weight
     entry.summary,

@@ -181,9 +181,15 @@ b. Update project.md Tech Stack (if exists):
 
 ```
 Display summary: component/feature/requirement/ADR/file counts.
+If KG pipeline ran: include KG node/edge/layer/tour counts.
 If mapper agents failed: log W001.
 If not --skip-commit: suggest committing generated docs.
-Suggest next: manage-status (review) or manage-codebase-refresh (incremental updates).
+Suggest next:
+  - manage-status (review)
+  - manage-codebase-refresh (incremental updates)
+  - maestro kg stats (verify KG)
+  - maestro wiki list --keyword kg (verify wiki integration)
+  - maestro kg diff-wiki (future change impact analysis)
 ```
 
 ---
@@ -294,6 +300,26 @@ Write to: .workflow/codebase/knowledge-graph.json
 Clean up: remove .workflow/codebase/.kg-tmp/ directory
 ```
 
+### Step 18: KG → Wiki Index Integration
+
+```
+When knowledge-graph.json is successfully written:
+  The WikiIndexer will automatically index KG nodes as virtual wiki entries
+  on next wiki access (via adaptUaKgGraph virtual adapter).
+
+  Generated virtual entries:
+    - uakg-{node-id} for each GraphNode (type: knowhow, virtualKind: ua-kg-node)
+    - uakg-layer-{id} for each Layer (virtualKind: ua-kg-layer)
+    - uakg-tour-{order} for each TourStep (virtualKind: ua-kg-tour-step)
+
+  Cross-referencing:
+    - KG nodes are linked to existing codebase-comp-* entries via filePath matching
+    - Edge semantics preserved in ext.kgEdges for downstream semantic traversal
+
+  No manual action required — indexing is lazy and triggered on first wiki access.
+  To verify: run `maestro wiki list --keyword kg` after rebuild.
+```
+
 ---
 
 ## Error Handling
@@ -304,9 +330,10 @@ Clean up: remove .workflow/codebase/.kg-tmp/ directory
 | .workflow/ missing | Fail: "Run /workflow:init first" |
 | File read errors | Log warning, skip file, continue scan |
 | Existing codebase/ without --force | Prompt user for confirmation |
-| UA vendor not installed | Skip Steps 10–17 with warning, continue normally |
+| UA vendor not installed | Skip Steps 10–18 with warning, continue normally |
 | KG batch delegate failed | Log warning, continue with remaining batches |
 | KG validation failed | Write knowledge-graph.json with `"valid": false`, log errors |
+| Wiki index rebuild failed | Non-fatal — KG data still written, wiki indexing retries on next access |
 
 ## Output Files
 
@@ -318,5 +345,6 @@ Clean up: remove .workflow/codebase/.kg-tmp/ directory
 | `.workflow/codebase/feature-maps/_index.md` | Feature index |
 | `.workflow/codebase/feature-maps/{slug}.md` | Per-feature documentation |
 | `.workflow/codebase/knowledge-graph.json` | Knowledge Graph with nodes, edges, layers, and tour (if UA vendor installed) |
+| `.workflow/wiki-index.json` | Updated on next wiki access: KG nodes indexed as virtual entries (automatic) |
 | `.workflow/state.json` | Updated: last_codebase_rebuild timestamp |
 | `.workflow/project.md` | Updated: Tech Stack section refreshed |
