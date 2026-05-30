@@ -1,11 +1,12 @@
 export const meta = {
   name: 'wf-brainstorm',
-  description: 'Multi-role parallel brainstorm with cross-role reviewer synthesis, aligned with maestro-brainstorm',
-  whenToUse: 'Accelerate maestro-brainstorm with parallel role analysis and cross-role conflict/synergy detection',
+  description: 'Multi-role brainstorm with 3-specialist cross-review and adversarial guidance arbitration',
+  whenToUse: 'Accelerate maestro-brainstorm with parallel roles + 3-specialist cross-review + adversarial guidance synthesis',
   phases: [
     { title: 'Analyze', detail: 'Parallel multi-role analysis via role-design-author' },
-    { title: 'CrossReview', detail: 'Cross-role conflict detection via cross-role-reviewer' },
-    { title: 'Synthesize', detail: 'Resolution synthesis into guidance specification' },
+    { title: 'CrossReview', detail: '3 specialized reviewers (conflict-hunter, synergy-finder, gap-detector) in parallel' },
+    { title: 'Compete', detail: '3 independent guidance proposals from competing philosophies' },
+    { title: 'Arbitrate', detail: 'Adversarial arbitrator resolves competing proposals into unified guidance' },
   ],
 }
 
@@ -83,6 +84,7 @@ const ROLE_ANALYSIS_SCHEMA = {
 const CROSS_REVIEW_SCHEMA = {
   type: 'object',
   properties: {
+    reviewer_type: { type: 'string' },
     conflicts: {
       type: 'array',
       items: {
@@ -123,7 +125,45 @@ const CROSS_REVIEW_SCHEMA = {
       },
     },
   },
-  required: ['conflicts', 'synergies', 'gaps'],
+  required: ['reviewer_type', 'conflicts', 'synergies', 'gaps'],
+}
+
+const GUIDANCE_PROPOSAL_SCHEMA = {
+  type: 'object',
+  properties: {
+    philosophy: { type: 'string' },
+    guidelines: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          guideline: { type: 'string' },
+          category: { type: 'string', enum: ['must', 'must-not', 'should', 'should-not', 'may'] },
+          source_roles: { type: 'array', items: { type: 'string' } },
+          rationale: { type: 'string' },
+          resolved_conflict: { type: 'string' },
+        },
+        required: ['id', 'guideline', 'category', 'rationale'],
+      },
+    },
+    conflict_resolutions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          conflict_id: { type: 'string' },
+          resolution: { type: 'string' },
+          rationale: { type: 'string' },
+          winner_role: { type: 'string' },
+        },
+        required: ['conflict_id', 'resolution', 'rationale'],
+      },
+    },
+    trade_off_summary: { type: 'string' },
+    confidence: { type: 'number', minimum: 0, maximum: 100 },
+  },
+  required: ['philosophy', 'guidelines', 'conflict_resolutions', 'confidence'],
 }
 
 const GUIDANCE_SCHEMA = {
@@ -140,6 +180,7 @@ const GUIDANCE_SCHEMA = {
           source_roles: { type: 'array', items: { type: 'string' } },
           rationale: { type: 'string' },
           resolved_conflict: { type: 'string' },
+          source_proposal: { type: 'string' },
         },
         required: ['id', 'guideline', 'category', 'source_roles', 'rationale'],
       },
@@ -153,14 +194,16 @@ const GUIDANCE_SCHEMA = {
           resolution: { type: 'string' },
           rationale: { type: 'string' },
           winner_role: { type: 'string' },
+          dissenting_proposal: { type: 'string' },
         },
         required: ['conflict_id', 'resolution', 'rationale'],
       },
     },
+    arbitration_notes: { type: 'string' },
     open_questions: { type: 'array', items: { type: 'string' } },
     executive_summary: { type: 'string' },
   },
-  required: ['guidelines', 'resolved_conflicts', 'executive_summary'],
+  required: ['guidelines', 'resolved_conflicts', 'arbitration_notes', 'executive_summary'],
 }
 
 const topic = args?.topic || 'the proposed system'
@@ -199,10 +242,6 @@ Be specific and opinionated — take clear stances with rationale.`,
 const validAnalyses = analyses.filter(Boolean)
 log(`${validAnalyses.length}/${selectedRoles.length} role analyses completed`)
 
-// Phase 2: Cross-role review via cross-role-reviewer
-phase('CrossReview')
-log('Cross-role conflict and synergy detection...')
-
 const analysesDigest = validAnalyses.map(a => {
   const decisions = a.decision_digest.map(d => `  ${d.id}: [${d.priority}] ${d.feature} — ${d.stance}`).join('\n')
   const positions = a.cross_cutting_positions.map(p => `  ${p.topic}: ${p.position} [${p.strength}]`).join('\n')
@@ -210,75 +249,208 @@ const analysesDigest = validAnalyses.map(a => {
   return `## ${a.role}\nKey insight: ${a.key_insight}\n\nDecisions:\n${decisions}\n\nPositions:\n${positions}\n\nFindings:\n${findings}`
 }).join('\n\n---\n\n')
 
-const crossReview = await agent(
-  `Compare these ${validAnalyses.length} role analyses for conflicts, gaps, and synergies.
+// Phase 2: 3 specialized cross-reviewers in parallel
+phase('CrossReview')
+log('Launching 3 specialized cross-reviewers in parallel...')
 
+const crossReviews = await parallel([
+  () => agent(
+    `You are the CONFLICT HUNTER. Your sole mission is to find contradictions between roles.
+
+${validAnalyses.length} role analyses:
 ${analysesDigest}
 
-Identify:
-1. CONFLICTS: Same feature/topic with contradictory stances between roles. Include severity (blocking/significant/minor).
-2. SYNERGIES: Compatible positions that reinforce each other when combined.
-3. GAPS: Areas where an important perspective is missing — a topic addressed by one role but not by another that should.
+Focus EXCLUSIVELY on:
+1. Same feature/topic with CONTRADICTORY stances between roles
+2. Incompatible priorities (one role says must-have, another says not needed)
+3. Conflicting cross-cutting positions
+4. Interface mismatches (one produces X, another expects Y)
 
-For each conflict, suggest a resolution direction.`,
-  { label: 'cross-review', phase: 'CrossReview', schema: CROSS_REVIEW_SCHEMA, agentType: 'cross-role-reviewer' }
-)
+Classify each conflict:
+- blocking: fundamental disagreement that prevents progress
+- significant: meaningful disagreement but can be resolved
+- minor: style/preference difference
 
-// Phase 3: Synthesis into guidance specification
-phase('Synthesize')
-log('Synthesizing guidance specification...')
+For each conflict, suggest a resolution direction.
+Set reviewer_type="conflict-hunter".
+Be AGGRESSIVE — surface every possible contradiction, even subtle ones.`,
+    { label: 'review:conflicts', phase: 'CrossReview', schema: CROSS_REVIEW_SCHEMA, agentType: 'cross-role-reviewer' }
+  ),
+  () => agent(
+    `You are the SYNERGY FINDER. Your sole mission is to find reinforcing alignments between roles.
 
-const conflictDigest = crossReview.conflicts.map(c =>
-  `[${c.severity}] ${c.topic}: ${c.stances.map(s => s.role + '→' + s.stance).join(' vs ')}\n  Suggestion: ${c.resolution_suggestion}`
-).join('\n')
+${validAnalyses.length} role analyses:
+${analysesDigest}
 
-const synergyDigest = crossReview.synergies.map(s =>
-  `${s.roles.join(' + ')}: ${s.topic} — ${s.combined_value}`
-).join('\n')
+Focus EXCLUSIVELY on:
+1. Compatible positions that create MORE value when combined
+2. Shared priorities that validate importance
+3. Complementary interfaces (one provides exactly what another needs)
+4. Cross-cutting alignments that reveal strong consensus
+
+For each synergy, explain the combined value — how the combination is more than the sum.
+Set reviewer_type="synergy-finder".
+Be GENEROUS — surface every alignment, including implicit ones.`,
+    { label: 'review:synergies', phase: 'CrossReview', schema: CROSS_REVIEW_SCHEMA, agentType: 'cross-role-reviewer' }
+  ),
+  () => agent(
+    `You are the GAP DETECTOR. Your sole mission is to find MISSING perspectives and blind spots.
+
+${validAnalyses.length} role analyses:
+${analysesDigest}
+
+Focus EXCLUSIVELY on:
+1. Topics addressed by one role but IGNORED by others who should care
+2. Missing role perspectives entirely (security not represented? operations?)
+3. Unstated assumptions that no role challenged
+4. Edge cases and failure modes no one considered
+5. Integration points that fall between role responsibilities
+
+For each gap, identify what perspective is missing and the impact of that blindspot.
+Set reviewer_type="gap-detector".
+Be THOROUGH — missing perspectives are the most dangerous type of oversight.`,
+    { label: 'review:gaps', phase: 'CrossReview', schema: CROSS_REVIEW_SCHEMA, agentType: 'cross-role-reviewer' }
+  ),
+])
+
+const validReviews = crossReviews.filter(Boolean)
+const allConflicts = validReviews.flatMap(r => r.conflicts)
+const allSynergies = validReviews.flatMap(r => r.synergies)
+const allGaps = validReviews.flatMap(r => r.gaps)
+
+log(`Cross-review: ${allConflicts.length} conflicts, ${allSynergies.length} synergies, ${allGaps.length} gaps`)
+
+const crossReviewDigest = `Conflicts (${allConflicts.length}):
+${allConflicts.map(c => `[${c.severity}] ${c.topic}: ${c.stances.map(s => s.role + '→' + s.stance).join(' vs ')}\n  Suggestion: ${c.resolution_suggestion || 'none'}`).join('\n')}
+
+Synergies (${allSynergies.length}):
+${allSynergies.map(s => `${s.roles.join(' + ')}: ${s.topic} — ${s.combined_value}`).join('\n')}
+
+Gaps (${allGaps.length}):
+${allGaps.map(g => `${g.area} — missing: ${g.missing_perspective}${g.impact ? ' (impact: ' + g.impact + ')' : ''}`).join('\n')}`
+
+// Phase 3: 3 competing guidance proposals from different philosophies
+phase('Compete')
+log('Launching 3 competing guidance proposals...')
+
+const proposals = await parallel([
+  () => agent(
+    `You are the CONSERVATIVE proposal author. Generate guidance that MINIMIZES RISK.
+
+Topic: ${topic}
+Role Analyses:\n${analysesDigest}
+
+Cross-Review:\n${crossReviewDigest}
+
+Your philosophy: SAFETY FIRST
+- Resolve conflicts in favor of stability and backward compatibility
+- MUST/MUST-NOT for anything with risk, SHOULD for everything else
+- Prefer proven patterns over innovative approaches
+- When in doubt, require explicit approval (deferred decision)
+- Gaps should be addressed before proceeding
+
+Generate guidelines using RFC-2119 (MUST, MUST NOT, SHOULD, SHOULD NOT, MAY).
+Resolve each conflict with your conservative lens.
+Report trade_off_summary: what you sacrifice for safety.`,
+    { label: 'proposal:conservative', phase: 'Compete', schema: GUIDANCE_PROPOSAL_SCHEMA }
+  ),
+  () => agent(
+    `You are the PROGRESSIVE proposal author. Generate guidance that MAXIMIZES VELOCITY.
+
+Topic: ${topic}
+Role Analyses:\n${analysesDigest}
+
+Cross-Review:\n${crossReviewDigest}
+
+Your philosophy: SHIP FAST, ITERATE
+- Resolve conflicts in favor of speed and user value
+- Use MAY/SHOULD liberally, reserve MUST only for safety-critical items
+- Prefer pragmatic solutions, accept tech debt if it unblocks progress
+- Gaps can be addressed incrementally post-launch
+- Favor the role closest to the user (PM, UX) in conflict resolution
+
+Generate guidelines using RFC-2119 (MUST, MUST NOT, SHOULD, SHOULD NOT, MAY).
+Resolve each conflict with your progressive lens.
+Report trade_off_summary: what risks you accept for velocity.`,
+    { label: 'proposal:progressive', phase: 'Compete', schema: GUIDANCE_PROPOSAL_SCHEMA }
+  ),
+  () => agent(
+    `You are the BALANCED proposal author. Generate guidance that OPTIMIZES FOR SUSTAINABILITY.
+
+Topic: ${topic}
+Role Analyses:\n${analysesDigest}
+
+Cross-Review:\n${crossReviewDigest}
+
+Your philosophy: SUSTAINABLE EXCELLENCE
+- Resolve conflicts by weighing evidence strength from all perspectives
+- Priority: security > correctness > user experience > performance > convenience
+- "must-have" from multiple roles > "must-have" from single role
+- Strong evidence > moderate > weak, regardless of role seniority
+- Address critical gaps, defer minor ones
+- Balance speed and quality based on risk level
+
+Generate guidelines using RFC-2119 (MUST, MUST NOT, SHOULD, SHOULD NOT, MAY).
+Resolve each conflict with your balanced lens.
+Report trade_off_summary: what you optimize for and what you deprioritize.`,
+    { label: 'proposal:balanced', phase: 'Compete', schema: GUIDANCE_PROPOSAL_SCHEMA }
+  ),
+])
+
+const validProposals = proposals.filter(Boolean)
+const proposalDigest = validProposals.map(p =>
+  `### ${p.philosophy} (confidence: ${p.confidence}%)\nGuidelines: ${p.guidelines.length}\nConflict resolutions: ${p.conflict_resolutions.length}\nTrade-offs: ${p.trade_off_summary}\nKey guidelines:\n${p.guidelines.slice(0, 5).map(g => `  [${g.category.toUpperCase()}] ${g.guideline}`).join('\n')}`
+).join('\n\n')
+
+log(`${validProposals.length} competing proposals generated`)
+
+// Phase 4: Adversarial Arbitration
+phase('Arbitrate')
+log('Adversarial arbitrator resolving competing proposals...')
 
 const guidance = await agent(
-  `Synthesize a unified guidance specification from multi-role brainstorm results.
+  `You are the ARBITRATOR. Three competing guidance proposals approach the same problem differently.
 
 Topic: ${topic}
 
-Role Analyses:
-${analysesDigest}
+=== COMPETING PROPOSALS ===
+${proposalDigest}
 
-Cross-Review Findings:
-Conflicts (${crossReview.conflicts.length}):
-${conflictDigest || 'None'}
+=== FULL PROPOSALS ===
+${validProposals.map(p => `## ${p.philosophy}\n${p.guidelines.map(g => `[${g.category}] ${g.id}: ${g.guideline} — ${g.rationale}`).join('\n')}\n\nConflict resolutions:\n${p.conflict_resolutions.map(r => `${r.conflict_id}: ${r.resolution} (winner: ${r.winner_role || 'compromise'})`).join('\n')}`).join('\n\n---\n\n')}
 
-Synergies (${crossReview.synergies.length}):
-${synergyDigest || 'None'}
+=== CROSS-REVIEW DATA ===
+${crossReviewDigest}
 
-Gaps: ${crossReview.gaps.map(g => g.area + ' — missing ' + g.missing_perspective).join('; ') || 'None'}
+ARBITRATE:
+1. For each guideline topic, compare how all 3 proposals handle it
+2. Select the BEST resolution for each conflict — not always the same philosophy
+3. Cherry-pick the strongest guidelines from each proposal
+4. When proposals agree → high-confidence MUST/MUST-NOT
+5. When proposals split 2-1 → go with the 2, note the dissent
+6. When all 3 disagree → evaluate evidence depth and pick the best-argued position
+7. List remaining open_questions that genuinely need user input
+8. Write arbitration_notes explaining your meta-reasoning
+9. Write executive_summary (2-3 paragraphs)
 
-Produce:
-1. Unified guidelines using RFC-2119 categories (MUST, MUST NOT, SHOULD, SHOULD NOT, MAY)
-2. For each conflict: resolve by weighing evidence strength, severity, and downstream impact
-3. Attribute each guideline to source roles
-4. List remaining open questions that need user input
-5. Executive summary (2-3 paragraphs)
-
-Priority rules for conflict resolution:
-- Security > correctness > user experience > performance > convenience
-- "must-have" from multiple roles > "must-have" from single role
-- Stances with strong evidence > moderate > weak`,
-  { label: 'guidance', phase: 'Synthesize', schema: GUIDANCE_SCHEMA }
+Tag each output guideline with source_proposal to trace its origin.`,
+  { label: 'arbitrate', phase: 'Arbitrate', schema: GUIDANCE_SCHEMA }
 )
 
 return {
   analyses: validAnalyses,
-  crossReview: crossReview,
+  crossReviews: validReviews,
+  proposals: validProposals,
   guidance: guidance,
   metadata: {
     topic: topic,
     role_count: selectedRoles.length,
     completed_count: validAnalyses.length,
-    conflict_count: crossReview.conflicts.length,
-    blocking_conflicts: crossReview.conflicts.filter(c => c.severity === 'blocking').length,
-    synergy_count: crossReview.synergies.length,
-    gap_count: crossReview.gaps.length,
+    conflict_count: allConflicts.length,
+    blocking_conflicts: allConflicts.filter(c => c.severity === 'blocking').length,
+    synergy_count: allSynergies.length,
+    gap_count: allGaps.length,
+    proposal_count: validProposals.length,
     guideline_count: guidance ? guidance.guidelines.length : 0,
   },
 }

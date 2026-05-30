@@ -1,15 +1,14 @@
 export const meta = {
   name: 'wf-review',
-  description: 'Multi-dimension parallel code review via workflow-reviewer with adversarial verification',
-  whenToUse: 'Accelerate quality-review with parallel dimension-specific scanning and finding verification',
+  description: 'Multi-dimension code review with 3-vote adversarial verification and multi-perspective verdict',
+  whenToUse: 'Accelerate quality-review with parallel scanning + 3-vote finding verification + 3-perspective verdict arbitration',
   phases: [
     { title: 'Scan', detail: 'Parallel dimension scanning via workflow-reviewer' },
-    { title: 'Verify', detail: 'Adversarial verification of critical findings' },
-    { title: 'Report', detail: 'Consolidated review report with verdict' },
+    { title: 'Verify', detail: '3-vote adversarial verification per critical finding (majority wins)' },
+    { title: 'Report', detail: '3-perspective reporters (strict/lenient/objective) + arbitrated verdict' },
   ],
 }
 
-// Aligned with workflow-reviewer.md dimension definitions
 const REVIEW_DIMENSIONS = [
   { key: 'correctness', prefix: 'COR', prompt: 'Dimension: correctness. Focus: Logic errors, off-by-one, null handling, missing error propagation, type mismatches, unhandled edge cases, broken invariants, incorrect conditions.' },
   { key: 'security', prefix: 'SEC', prompt: 'Dimension: security. Focus: Injection vectors (SQL/command/XSS), auth bypass, hardcoded secrets, missing input validation, data exposure in logs/errors, SSRF, IDOR, insecure crypto.' },
@@ -57,6 +56,19 @@ const VERDICT_SCHEMA = {
   required: ['finding_id', 'is_real', 'confidence', 'reasoning'],
 }
 
+const PERSPECTIVE_REPORT_SCHEMA = {
+  type: 'object',
+  properties: {
+    perspective: { type: 'string' },
+    verdict: { type: 'string', enum: ['APPROVE', 'REQUEST_CHANGES', 'BLOCK'] },
+    overall_quality: { type: 'number', minimum: 1, maximum: 5 },
+    rationale: { type: 'string' },
+    blocking_issues: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, file: { type: 'string' }, severity: { type: 'string' } }, required: ['id', 'title'] } },
+    confidence: { type: 'number', minimum: 0, maximum: 100 },
+  },
+  required: ['perspective', 'verdict', 'overall_quality', 'rationale', 'confidence'],
+}
+
 const REPORT_SCHEMA = {
   type: 'object',
   properties: {
@@ -76,9 +88,10 @@ const REPORT_SCHEMA = {
       },
     },
     blocking_issues: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, file: { type: 'string' }, severity: { type: 'string' }, suggestion: { type: 'string' } }, required: ['id', 'title', 'file', 'severity'] } },
+    adversarial_verdict: { type: 'object', properties: { strict: { type: 'string' }, lenient: { type: 'string' }, objective: { type: 'string' }, decisive_factor: { type: 'string' } }, required: ['strict', 'lenient', 'objective', 'decisive_factor'] },
     summary: { type: 'string' },
   },
-  required: ['verdict', 'overall_quality', 'dimension_summary', 'blocking_issues', 'summary'],
+  required: ['verdict', 'overall_quality', 'dimension_summary', 'blocking_issues', 'adversarial_verdict', 'summary'],
 }
 
 const target = args?.target || 'changed files on current branch'
@@ -89,7 +102,7 @@ const dimensions = args?.dimensions
   ? REVIEW_DIMENSIONS.filter(d => args.dimensions.includes(d.key))
   : (tier === 'quick' ? REVIEW_DIMENSIONS.slice(0, 3) : REVIEW_DIMENSIONS)
 
-// Phase 1: Parallel dimension scanning via workflow-reviewer
+// Phase 1: Parallel dimension scanning
 phase('Scan')
 log(`Scanning ${dimensions.length} dimensions in parallel via workflow-reviewer...`)
 
@@ -121,106 +134,208 @@ const criticalHigh = allFindings.filter(f => f.severity === 'critical' || f.seve
 
 log(`Found ${allFindings.length} total (${criticalHigh.length} critical/high across ${validScans.length} dimensions)`)
 
-// Phase 2: Adversarial verification of critical/high findings
+// Phase 2: 3-vote adversarial verification per critical/high finding
 phase('Verify')
 
+const confirmedFindings = []
+const falsePositives = []
+
 if (criticalHigh.length > 0) {
-  log(`Adversarially verifying ${criticalHigh.length} critical/high findings...`)
+  log(`3-vote adversarial verification of ${criticalHigh.length} critical/high findings...`)
 
   const verified = await pipeline(
     criticalHigh,
-    (finding) => agent(
-      `Adversarially verify this code review finding. Your job is to REFUTE it — find reasons it might be:
-- A false positive (the code is actually correct)
-- Less severe than claimed (downgrade severity)
-- Not applicable in this context
+    (finding) => parallel([
+      () => agent(
+        `VOTE 1 — PROSECUTOR: Argue this finding IS REAL and the severity is justified.
 
 Finding: [${finding.severity}] ${finding.id}: ${finding.title}
 File: ${finding.file}${finding.line ? ':' + finding.line : ''}
 Description: ${finding.description}
 Evidence: ${finding.evidence || 'none provided'}
 
-Read the actual source code at the specified location. Check:
-1. Is the code actually doing what the finding claims?
-2. Is there handling elsewhere that mitigates this?
-3. Is the severity justified?
+Read the actual source code. Build the case that this is a genuine issue:
+- Show the exact code path that triggers the bug/vulnerability
+- Demonstrate the impact with a concrete scenario
+- Argue why the severity rating is correct or should be higher
 
-Default to is_real=false and adjusted_severity=false-positive if uncertain.
-Only confirm findings you can verify in the actual code with high confidence.`,
-      { label: `verify:${finding.id}`, phase: 'Verify', schema: VERDICT_SCHEMA }
-    )
+Default to is_real=true. Only say false if the code clearly doesn't have this issue.`,
+        { label: `vote1:${finding.id}`, phase: 'Verify', schema: VERDICT_SCHEMA }
+      ),
+      () => agent(
+        `VOTE 2 — DEFENSE: Argue this finding is a FALSE POSITIVE or overstated.
+
+Finding: [${finding.severity}] ${finding.id}: ${finding.title}
+File: ${finding.file}${finding.line ? ':' + finding.line : ''}
+Description: ${finding.description}
+Evidence: ${finding.evidence || 'none provided'}
+
+Read the actual source code. Build the case AGAINST this finding:
+- Show handling elsewhere that mitigates the issue
+- Demonstrate why the severity is overstated
+- Find framework guarantees or type safety that prevents the claimed scenario
+
+Default to is_real=false. Only confirm if you genuinely cannot find any defense.`,
+        { label: `vote2:${finding.id}`, phase: 'Verify', schema: VERDICT_SCHEMA }
+      ),
+      () => agent(
+        `VOTE 3 — INDEPENDENT JUDGE: Evaluate this finding objectively, without bias.
+
+Finding: [${finding.severity}] ${finding.id}: ${finding.title}
+File: ${finding.file}${finding.line ? ':' + finding.line : ''}
+Description: ${finding.description}
+Evidence: ${finding.evidence || 'none provided'}
+
+Read the actual source code. Make an independent, evidence-based assessment:
+- Verify the claimed behavior exists in the code
+- Check if there are mitigations the reporter missed
+- Assess the actual severity based on real-world impact
+
+No default bias. Judge purely on evidence. Confidence should reflect evidence strength.`,
+        { label: `vote3:${finding.id}`, phase: 'Verify', schema: VERDICT_SCHEMA }
+      ),
+    ])
   )
 
-  const confirmedFindings = []
-  const falsePositives = []
-
-  verified.filter(Boolean).forEach((verdict, i) => {
+  verified.filter(Boolean).forEach((votes, i) => {
     const finding = criticalHigh[i]
-    if (verdict.is_real && verdict.confidence >= 60) {
-      confirmedFindings.push({ ...finding, verdict: verdict, adjusted_severity: verdict.adjusted_severity || finding.severity })
+    const validVotes = votes.filter(Boolean)
+    const realVotes = validVotes.filter(v => v.is_real)
+    const isConfirmed = realVotes.length >= 2
+
+    if (isConfirmed) {
+      const avgConfidence = Math.round(realVotes.reduce((s, v) => s + v.confidence, 0) / realVotes.length)
+      const maxSeverity = validVotes.reduce((max, v) => {
+        const order = ['false-positive', 'low', 'medium', 'high', 'critical']
+        return order.indexOf(v.adjusted_severity || finding.severity) > order.indexOf(max) ? (v.adjusted_severity || finding.severity) : max
+      }, 'low')
+      confirmedFindings.push({
+        ...finding,
+        vote_count: `${realVotes.length}/${validVotes.length}`,
+        avg_confidence: avgConfidence,
+        adjusted_severity: maxSeverity,
+        verdicts: validVotes,
+      })
     } else {
-      falsePositives.push({ ...finding, verdict: verdict })
+      falsePositives.push({
+        ...finding,
+        vote_count: `${realVotes.length}/${validVotes.length}`,
+        verdicts: validVotes,
+      })
     }
   })
 
-  const lowMedFindings = allFindings.filter(f => f.severity === 'medium' || f.severity === 'low')
+  log(`Verified: ${confirmedFindings.length} confirmed, ${falsePositives.length} false-positives (3-vote majority)`)
+}
 
-  // Phase 3: Consolidated report
-  phase('Report')
+const lowMedFindings = allFindings.filter(f => f.severity === 'medium' || f.severity === 'low')
 
-  const report = await agent(
-    `Generate a consolidated code review report.
+// Phase 3: 3-perspective report generation + arbitrated verdict
+phase('Report')
 
-Confirmed findings (adversarially verified, ${confirmedFindings.length}):
-${confirmedFindings.map(f => `- [${f.adjusted_severity}] ${f.id}: ${f.title} @ ${f.file}:${f.line || '?'} (confidence: ${f.verdict.confidence}%)\n  ${f.description}`).join('\n') || 'None'}
+const findingsDigest = `Confirmed findings (${confirmedFindings.length}, adversarially verified by 3-vote majority):
+${confirmedFindings.map(f => `- [${f.adjusted_severity}] ${f.id}: ${f.title} @ ${f.file}:${f.line || '?'} (votes: ${f.vote_count}, confidence: ${f.avg_confidence}%)`).join('\n') || 'None'}
 
-False positives filtered: ${falsePositives.length}
-${falsePositives.map(f => `- ${f.id}: ${f.title} — ${f.verdict.reasoning}`).join('\n') || ''}
+False positives filtered (${falsePositives.length}):
+${falsePositives.map(f => `- ${f.id}: ${f.title} (votes: ${f.vote_count})`).join('\n') || 'None'}
 
-Low/medium findings (not individually verified, ${lowMedFindings.length}):
-${lowMedFindings.map(f => `- [${f.severity}] ${f.id}: ${f.title} @ ${f.file}`).join('\n') || 'None'}
+Low/medium findings (${lowMedFindings.length}, not individually verified):
+${lowMedFindings.map(f => `- [${f.severity}] ${f.id}: ${f.title} @ ${f.file}`).join('\n') || 'None'}`
 
-Determine verdict:
+log('Launching 3-perspective reporters (strict / lenient / objective)...')
+
+const perspectives = await parallel([
+  () => agent(
+    `You are the STRICT REVIEWER. Apply the highest quality bar.
+
+${findingsDigest}
+
+Your philosophy: ANY confirmed critical/high finding warrants BLOCK. Any confirmed finding warrants REQUEST_CHANGES. Only APPROVE if zero findings exist.
+- Rate quality conservatively
+- List ALL confirmed findings as blocking
+- Consider unverified medium findings as potential risks
+
+Be strict but fair. Provide your verdict and rationale.`,
+    { label: 'report:strict', phase: 'Report', schema: PERSPECTIVE_REPORT_SCHEMA }
+  ),
+  () => agent(
+    `You are the LENIENT REVIEWER. Apply a practical, ship-focused bar.
+
+${findingsDigest}
+
+Your philosophy: Only BLOCK for confirmed critical findings with >80% confidence. REQUEST_CHANGES for confirmed high findings. APPROVE for everything else — medium/low findings can be addressed in follow-ups.
+- Rate quality generously (good code is the norm)
+- Only list truly blocking issues
+- Unverified medium/low findings are informational
+
+Be practical but honest. Provide your verdict and rationale.`,
+    { label: 'report:lenient', phase: 'Report', schema: PERSPECTIVE_REPORT_SCHEMA }
+  ),
+  () => agent(
+    `You are the OBJECTIVE REVIEWER. Apply evidence-based judgment.
+
+${findingsDigest}
+
+Your philosophy: Follow the evidence. No default bias.
+- BLOCK: confirmed critical findings exist
+- REQUEST_CHANGES: confirmed high findings but no critical
 - APPROVE: no confirmed critical/high findings
-- REQUEST_CHANGES: has confirmed high findings but no critical
-- BLOCK: has confirmed critical findings
+- Quality rating based on finding density and severity distribution
+- Weight findings by vote confidence
 
-Rate overall quality (1-5) and summarize per dimension.`,
-    { label: 'report', phase: 'Report', schema: REPORT_SCHEMA }
-  )
+Be analytical and evidence-driven. Provide your verdict and rationale.`,
+    { label: 'report:objective', phase: 'Report', schema: PERSPECTIVE_REPORT_SCHEMA }
+  ),
+])
 
-  return {
-    report: report,
-    confirmed: confirmedFindings,
-    false_positives: falsePositives,
-    low_findings: lowMedFindings,
-    metadata: {
-      target: target,
-      dimensions_scanned: dimensions.length,
-      total_findings: allFindings.length,
-      verified_count: criticalHigh.length,
-      confirmed_count: confirmedFindings.length,
-      false_positive_count: falsePositives.length,
-      verdict: report ? report.verdict : 'UNKNOWN',
-    },
-  }
-} else {
-  phase('Report')
-  log('No critical/high findings — generating clean report')
+const validPerspectives = perspectives.filter(Boolean)
+const verdictCounts = { APPROVE: 0, REQUEST_CHANGES: 0, BLOCK: 0 }
+validPerspectives.forEach(p => { verdictCounts[p.verdict] = (verdictCounts[p.verdict] || 0) + 1 })
 
-  return {
-    report: { verdict: 'APPROVE', overall_quality: 4, dimension_summary: validScans.map(s => ({ dimension: s.dimension, finding_count: s.findings.length, max_severity: s.findings[0]?.severity || 'none', assessment: 'Clean' })), blocking_issues: [], summary: 'No critical or high severity issues found. Code passes review.' },
-    confirmed: [],
-    false_positives: [],
-    low_findings: allFindings,
-    metadata: {
-      target: target,
-      dimensions_scanned: dimensions.length,
-      total_findings: allFindings.length,
-      verified_count: 0,
-      confirmed_count: 0,
-      false_positive_count: 0,
-      verdict: 'APPROVE',
-    },
-  }
+const perspectiveDigest = validPerspectives.map(p =>
+  `${p.perspective}: ${p.verdict} (quality: ${p.overall_quality}/5, confidence: ${p.confidence}%)\n  ${p.rationale}`
+).join('\n\n')
+
+log(`Perspective votes: APPROVE=${verdictCounts.APPROVE} REQUEST_CHANGES=${verdictCounts.REQUEST_CHANGES} BLOCK=${verdictCounts.BLOCK}`)
+log('Arbitrating final verdict...')
+
+const report = await agent(
+  `Generate the final review report by arbitrating 3 reviewer perspectives.
+
+=== 3 REVIEWER PERSPECTIVES ===
+${perspectiveDigest}
+
+Vote tally: APPROVE=${verdictCounts.APPROVE}, REQUEST_CHANGES=${verdictCounts.REQUEST_CHANGES}, BLOCK=${verdictCounts.BLOCK}
+
+=== FINDING DATA ===
+${findingsDigest}
+
+ARBITRATE:
+1. The final verdict follows MAJORITY VOTE among the 3 perspectives
+2. Tie-break rule: if split 3 ways (1-1-1), go with the OBJECTIVE reviewer
+3. If strict and objective agree → use their verdict regardless of lenient
+4. Calculate overall_quality as weighted average (strict .25, lenient .25, objective .50)
+5. Record adversarial_verdict with each perspective's vote and the decisive_factor
+6. Compile dimension_summary from scan phase data
+7. List blocking_issues = confirmed findings with adjusted_severity critical or high
+8. Write summary including the adversarial deliberation outcome`,
+  { label: 'arbitrate', phase: 'Report', schema: REPORT_SCHEMA }
+)
+
+return {
+  report: report,
+  confirmed: confirmedFindings,
+  false_positives: falsePositives,
+  low_findings: lowMedFindings,
+  perspectives: validPerspectives,
+  metadata: {
+    target: target,
+    dimensions_scanned: dimensions.length,
+    total_findings: allFindings.length,
+    verified_count: criticalHigh.length,
+    confirmed_count: confirmedFindings.length,
+    false_positive_count: falsePositives.length,
+    verdict_votes: verdictCounts,
+    verdict: report ? report.verdict : 'UNKNOWN',
+  },
 }

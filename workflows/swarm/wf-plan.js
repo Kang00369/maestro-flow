@@ -1,11 +1,12 @@
 export const meta = {
   name: 'wf-plan',
-  description: 'Parallel context exploration + task decomposition via workflow-planner',
-  whenToUse: 'Accelerate maestro-plan with parallel context gathering and plan generation',
+  description: 'Parallel context + 3-proposal judge panel planning + 3-critic adversarial verification',
+  whenToUse: 'Accelerate maestro-plan with parallel context + competing plan proposals + multi-critic adversarial check',
   phases: [
     { title: 'Context', detail: 'Parallel context exploration from multiple sources' },
-    { title: 'Plan', detail: 'Task decomposition and wave assignment via workflow-planner' },
-    { title: 'Check', detail: 'Plan quality verification via workflow-plan-checker' },
+    { title: 'Compete', detail: '3 independent plan proposals from competing strategies' },
+    { title: 'Select', detail: 'Judge panel scores proposals and selects best' },
+    { title: 'Check', detail: '3 specialized critics (dependency/scope/quality) challenge the selected plan' },
   ],
 }
 
@@ -25,6 +26,7 @@ const CONTEXT_SCHEMA = {
 const PLAN_SCHEMA = {
   type: 'object',
   properties: {
+    strategy: { type: 'string' },
     summary: { type: 'string' },
     approach: { type: 'string' },
     complexity: { type: 'string', enum: ['low', 'medium', 'high'] },
@@ -58,13 +60,39 @@ const PLAN_SCHEMA = {
       },
     },
     total_tasks: { type: 'number' },
+    trade_offs: { type: 'string' },
+    confidence: { type: 'number', minimum: 0, maximum: 100 },
   },
-  required: ['summary', 'approach', 'waves', 'total_tasks'],
+  required: ['strategy', 'summary', 'approach', 'waves', 'total_tasks', 'confidence'],
 }
 
-const CHECK_SCHEMA = {
+const PLAN_SCORE_SCHEMA = {
   type: 'object',
   properties: {
+    proposal_strategy: { type: 'string' },
+    scores: {
+      type: 'object',
+      properties: {
+        coverage: { type: 'number', minimum: 1, maximum: 5 },
+        parallelism: { type: 'number', minimum: 1, maximum: 5 },
+        risk_mitigation: { type: 'number', minimum: 1, maximum: 5 },
+        convergence_quality: { type: 'number', minimum: 1, maximum: 5 },
+        simplicity: { type: 'number', minimum: 1, maximum: 5 },
+      },
+      required: ['coverage', 'parallelism', 'risk_mitigation', 'convergence_quality', 'simplicity'],
+    },
+    total_score: { type: 'number' },
+    strengths: { type: 'array', items: { type: 'string' } },
+    weaknesses: { type: 'array', items: { type: 'string' } },
+    recommendation: { type: 'string' },
+  },
+  required: ['proposal_strategy', 'scores', 'total_score', 'strengths', 'weaknesses'],
+}
+
+const CRITIC_SCHEMA = {
+  type: 'object',
+  properties: {
+    critic_type: { type: 'string' },
     verdict: { type: 'string', enum: ['pass', 'pass-with-notes', 'needs-revision'] },
     issues: {
       type: 'array',
@@ -76,6 +104,41 @@ const CHECK_SCHEMA = {
           description: { type: 'string' },
           affected_tasks: { type: 'array', items: { type: 'string' } },
           suggestion: { type: 'string' },
+        },
+        required: ['severity', 'category', 'description'],
+      },
+    },
+    confidence: { type: 'number', minimum: 0, maximum: 100 },
+    summary: { type: 'string' },
+  },
+  required: ['critic_type', 'verdict', 'issues', 'confidence', 'summary'],
+}
+
+const CHECK_SCHEMA = {
+  type: 'object',
+  properties: {
+    verdict: { type: 'string', enum: ['pass', 'pass-with-notes', 'needs-revision'] },
+    adversarial_outcome: {
+      type: 'object',
+      properties: {
+        dependency_verdict: { type: 'string' },
+        scope_verdict: { type: 'string' },
+        quality_verdict: { type: 'string' },
+        decisive_factor: { type: 'string' },
+      },
+      required: ['dependency_verdict', 'scope_verdict', 'quality_verdict', 'decisive_factor'],
+    },
+    issues: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          severity: { type: 'string', enum: ['critical', 'warning', 'note'] },
+          category: { type: 'string' },
+          description: { type: 'string' },
+          affected_tasks: { type: 'array', items: { type: 'string' } },
+          suggestion: { type: 'string' },
+          source_critic: { type: 'string' },
         },
         required: ['severity', 'category', 'description'],
       },
@@ -92,12 +155,12 @@ const CHECK_SCHEMA = {
     },
     summary: { type: 'string' },
   },
-  required: ['verdict', 'issues', 'summary'],
+  required: ['verdict', 'adversarial_outcome', 'issues', 'summary'],
 }
 
 const contextDir = args?.context_dir || ''
 const fromSource = args?.from || ''
-const phase_num = args?.phase || null
+const phaseNum = args?.phase || null
 const scope = args?.scope || ''
 const specs = args?.specs || ''
 const gaps = args?.gaps || false
@@ -112,7 +175,7 @@ const contextSources = [
     `Load analysis context for planning.
 ${contextDir ? 'Context directory: ' + contextDir + ' — read context.md and context-package.json' : ''}
 ${fromSource ? 'Upstream source: ' + fromSource + ' — resolve and load context-package.json' : ''}
-${phase_num ? 'Phase: ' + phase_num + ' — read roadmap.md for phase definition' : ''}
+${phaseNum ? 'Phase: ' + phaseNum + ' — read roadmap.md for phase definition' : ''}
 ${gaps ? 'Gap-fix mode: load issues from .workflow/issues/issues.jsonl with analysis records' : ''}
 
 Extract:
@@ -124,7 +187,7 @@ Extract:
   ),
   () => agent(
     `Explore existing codebase patterns relevant to the planned work.
-${scope ? 'Scope: ' + scope : phase_num ? 'Phase ' + phase_num + ' scope from roadmap' : 'Full project'}
+${scope ? 'Scope: ' + scope : phaseNum ? 'Phase ' + phaseNum + ' scope from roadmap' : 'Full project'}
 ${specs ? 'Specs to respect: ' + specs : 'Load via: maestro spec load --category arch'}
 
 Find:
@@ -149,10 +212,6 @@ const mergedConstraints = validContexts.flatMap(c => c.constraints || [])
 
 log(`Context gathered: ${mergedDecisions.length} decisions, ${mergedRequirements.length} requirements, ${mergedPatterns.length} patterns`)
 
-// Phase 2: Plan generation via workflow-planner
-phase('Plan')
-log('Generating execution plan with task decomposition...')
-
 const contextDigest = `Decisions (${mergedDecisions.length}):
 ${mergedDecisions.map(d => `- [${d.status}] ${d.decision}${d.rationale ? ' — ' + d.rationale : ''}`).join('\n')}
 
@@ -164,69 +223,245 @@ Constraints: ${mergedConstraints.join('; ') || 'none'}
 Existing patterns:
 ${mergedPatterns.map(p => `- ${p.pattern} @ ${p.file}`).join('\n') || 'none found'}`
 
-const plan = await agent(
-  `Create an execution plan from the following context.
-${phase_num ? 'Phase: ' + phase_num : ''}
-${scope ? 'Scope: ' + scope : ''}
-${quick ? 'MODE: QUICK — one task per feature, minimal waves, fast execution' : 'MODE: STANDARD — full decomposition with convergence criteria'}
-${gaps ? 'MODE: GAP-FIX — tasks fix identified issues, link via issue_id' : ''}
+// Phase 2: 3 competing plan proposals from different strategies
+phase('Compete')
+log('Launching 3 competing plan proposals...')
 
-Context:
-${contextDigest}
+const planProposals = await parallel([
+  () => agent(
+    `Create an execution plan using BREADTH-FIRST strategy.
+${phaseNum ? 'Phase: ' + phaseNum : ''}
+${scope ? 'Scope: ' + scope : ''}
+${quick ? 'QUICK mode: minimize tasks' : ''}
+${gaps ? 'GAP-FIX mode: tasks fix identified issues' : ''}
+
+Context:\n${contextDigest}
+
+Strategy: BREADTH-FIRST
+- Maximize parallelism: put as many tasks as possible in wave 1
+- Minimize dependencies between tasks
+- Prefer many small independent tasks over fewer large sequential ones
+- Trade off: may have more integration work later but faster early progress
+
+Set strategy="breadth-first" in output.
 
 Rules:
-1. Group work into FEATURE-LEVEL tasks (one feature = one task, even if 3-5 files)
-2. Assign independent tasks to same wave (parallel execution)
-3. Dependent tasks in later waves — only add depends_on when truly needed
-4. Each task needs ≥2 testable convergence criteria (grep-verifiable or command-runnable)
-5. Include focus_paths and files[] with specific paths and actions
-6. Respect all Locked decisions — they are non-negotiable
-7. Free decisions are implementer's choice — don't over-specify
-8. Task IDs: TASK-001, TASK-002, etc.
+1. Feature-level tasks (one feature = one task)
+2. Each task needs >=2 testable convergence criteria
+3. Include focus_paths and files[] with specific paths
+4. Respect Locked decisions
+5. Task IDs: TASK-001, TASK-002, etc.`,
+    { label: 'plan:breadth', phase: 'Compete', schema: PLAN_SCHEMA, agentType: 'workflow-planner' }
+  ),
+  () => agent(
+    `Create an execution plan using DEPTH-FIRST strategy.
+${phaseNum ? 'Phase: ' + phaseNum : ''}
+${scope ? 'Scope: ' + scope : ''}
+${quick ? 'QUICK mode: minimize tasks' : ''}
+${gaps ? 'GAP-FIX mode: tasks fix identified issues' : ''}
 
-${quick ? 'Quick mode: single wave unless genuine dependency. Batch unrelated small changes into one task.' : ''}`,
-  { label: 'plan:generate', phase: 'Plan', schema: PLAN_SCHEMA, agentType: 'workflow-planner' }
-)
+Context:\n${contextDigest}
 
-log(`Plan generated: ${plan ? plan.total_tasks : 0} tasks across ${plan ? plan.waves.length : 0} waves`)
+Strategy: DEPTH-FIRST
+- Build foundation first: core infrastructure in wave 1, features on top in wave 2+
+- Strong dependency chains ensure solid base before building up
+- Fewer tasks per wave but each fully tested before moving on
+- Trade off: slower start but less rework and integration issues
 
-// Phase 3: Plan quality check
-phase('Check')
-log('Verifying plan quality...')
+Set strategy="depth-first" in output.
 
-const check = await agent(
-  `Verify this execution plan for quality and completeness.
+Rules:
+1. Feature-level tasks (one feature = one task)
+2. Each task needs >=2 testable convergence criteria
+3. Include focus_paths and files[] with specific paths
+4. Respect Locked decisions
+5. Task IDs: TASK-001, TASK-002, etc.`,
+    { label: 'plan:depth', phase: 'Compete', schema: PLAN_SCHEMA, agentType: 'workflow-planner' }
+  ),
+  () => agent(
+    `Create an execution plan using RISK-FIRST strategy.
+${phaseNum ? 'Phase: ' + phaseNum : ''}
+${scope ? 'Scope: ' + scope : ''}
+${quick ? 'QUICK mode: minimize tasks' : ''}
+${gaps ? 'GAP-FIX mode: tasks fix identified issues' : ''}
 
-Plan:
-${plan ? `Summary: ${plan.summary}\nApproach: ${plan.approach}\nComplexity: ${plan.complexity}\nTasks: ${plan.total_tasks} across ${plan.waves.length} waves` : 'No plan generated'}
+Context:\n${contextDigest}
 
-Task details:
-${plan ? plan.waves.map(w => `Wave ${w.wave_index}: ${w.tasks.map(t => t.task_id + ': ' + t.title + ' [' + (t.convergence_criteria || []).length + ' criteria]').join(', ')}`).join('\n') : 'none'}
+Strategy: RISK-FIRST
+- Tackle highest-risk items first (complex integrations, uncertain requirements, new patterns)
+- Wave 1 = risk spikes and proof-of-concepts
+- Wave 2+ = validated features building on proven foundations
+- Trade off: may seem slow early but catches showstoppers before heavy investment
 
-Check:
-1. DEPENDENCY CORRECTNESS: Are depends_on relationships correct? Any missing?
-2. WAVE EFFICIENCY: Could more tasks be parallelized? Are waves minimized?
-3. CONVERGENCE QUALITY: Are criteria specific and testable (not vague)?
-4. SCOPE COMPLETENESS: Do tasks cover all requirements?
-5. FILE CONFLICTS: Do parallel tasks modify the same files?
-6. MISSING TASKS: Are there requirements without corresponding tasks?
+Set strategy="risk-first" in output.
+
+Rules:
+1. Feature-level tasks (one feature = one task)
+2. Each task needs >=2 testable convergence criteria
+3. Include focus_paths and files[] with specific paths
+4. Respect Locked decisions
+5. Task IDs: TASK-001, TASK-002, etc.`,
+    { label: 'plan:risk', phase: 'Compete', schema: PLAN_SCHEMA, agentType: 'workflow-planner' }
+  ),
+])
+
+const validProposals = planProposals.filter(Boolean)
+log(`${validProposals.length} competing plans generated`)
+
+// Judge panel scores each proposal
+phase('Select')
+log('Judge panel scoring proposals...')
+
+const judgeScores = await parallel(
+  validProposals.map(proposal => () =>
+    agent(
+      `Score this plan proposal objectively.
+
+Strategy: ${proposal.strategy}
+Summary: ${proposal.summary}
+Approach: ${proposal.approach}
+Complexity: ${proposal.complexity}
+Tasks: ${proposal.total_tasks} across ${proposal.waves.length} waves
+Trade-offs: ${proposal.trade_offs || 'not stated'}
+
+Wave breakdown:
+${proposal.waves.map(w => `Wave ${w.wave_index} (${w.tasks.length} tasks): ${w.tasks.map(t => t.task_id + ': ' + t.title).join(', ')}`).join('\n')}
 
 Requirements to cover:
-${mergedRequirements.map(r => r.objective).join('\n')}`,
-  { label: 'check:quality', phase: 'Check', schema: CHECK_SCHEMA, agentType: 'workflow-plan-checker' }
+${mergedRequirements.map(r => r.objective).join('\n')}
+
+Score each dimension 1-5:
+- coverage: do tasks cover all requirements?
+- parallelism: how much work can run concurrently?
+- risk_mitigation: are high-risk items addressed early?
+- convergence_quality: are criteria specific and testable?
+- simplicity: is the plan as simple as possible?
+
+Calculate total_score = sum of all dimensions.
+List specific strengths and weaknesses.`,
+      { label: `judge:${proposal.strategy}`, phase: 'Select', schema: PLAN_SCORE_SCHEMA }
+    )
+  )
+)
+
+const validJudges = judgeScores.filter(Boolean)
+const bestIdx = validJudges.reduce((best, score, idx) => score.total_score > (validJudges[best] ? validJudges[best].total_score : 0) ? idx : best, 0)
+const selectedPlan = validProposals[bestIdx]
+
+const scoreDigest = validJudges.map((s, i) =>
+  `${validProposals[i].strategy}: ${s.total_score}/25 (cov:${s.scores.coverage} par:${s.scores.parallelism} risk:${s.scores.risk_mitigation} conv:${s.scores.convergence_quality} sim:${s.scores.simplicity})`
+).join('\n')
+
+log(`Selected: ${selectedPlan.strategy} (${validJudges[bestIdx].total_score}/25)\n${scoreDigest}`)
+
+// Phase 4: 3 specialized critics challenge the selected plan
+phase('Check')
+log('3 specialized critics challenging the selected plan...')
+
+const criticResults = await parallel([
+  () => agent(
+    `You are the DEPENDENCY CRITIC. Challenge the task dependency structure.
+
+Selected plan (${selectedPlan.strategy}):
+${selectedPlan.waves.map(w => `Wave ${w.wave_index}: ${w.tasks.map(t => t.task_id + ': ' + t.title + ' [depends: ' + (t.depends_on || []).join(',') + ']').join(', ')}`).join('\n')}
+
+Focus:
+1. Are depends_on relationships correct? Any missing dependencies?
+2. Could more tasks be parallelized (false dependencies)?
+3. Are there circular or impossible dependency chains?
+4. Do later waves actually need ALL prior wave completions?
+5. Are file modification conflicts between parallel tasks?
+
+Set critic_type="dependency" in output.
+Be adversarial — assume dependencies are WRONG until proven correct.`,
+    { label: 'critic:dependency', phase: 'Check', schema: CRITIC_SCHEMA, agentType: 'workflow-plan-checker' }
+  ),
+  () => agent(
+    `You are the SCOPE CRITIC. Challenge the plan's coverage and boundaries.
+
+Selected plan (${selectedPlan.strategy}):
+${selectedPlan.waves.map(w => `Wave ${w.wave_index}: ${w.tasks.map(t => t.task_id + ': ' + t.title).join(', ')}`).join('\n')}
+
+Requirements:
+${mergedRequirements.map(r => `- ${r.objective}`).join('\n')}
+
+Focus:
+1. Are there requirements without corresponding tasks?
+2. Are there tasks that don't map to any requirement (scope creep)?
+3. Is each task properly scoped (not too large, not too granular)?
+4. Are edge cases and error paths covered?
+5. Does the plan handle the Free decisions appropriately?
+
+Set critic_type="scope" in output.
+Be adversarial — assume requirements are NOT fully covered.`,
+    { label: 'critic:scope', phase: 'Check', schema: CRITIC_SCHEMA, agentType: 'workflow-plan-checker' }
+  ),
+  () => agent(
+    `You are the QUALITY CRITIC. Challenge the convergence criteria and testability.
+
+Selected plan (${selectedPlan.strategy}):
+${selectedPlan.waves.map(w => `Wave ${w.wave_index}: ${w.tasks.map(t => t.task_id + ': ' + t.title + ' [criteria: ' + (t.convergence_criteria || []).join(' | ') + ']').join('\n')}`).join('\n')}
+
+Focus:
+1. Are convergence criteria SPECIFIC and TESTABLE (grep-verifiable or command-runnable)?
+2. Would a robot be able to verify each criterion unambiguously?
+3. Are there vague criteria ("works correctly", "properly implemented")?
+4. Is each task's convergence achievable within that task's scope?
+5. Are there criteria that should exist but don't?
+
+Set critic_type="quality" in output.
+Be adversarial — assume criteria are VAGUE until proven specific.`,
+    { label: 'critic:quality', phase: 'Check', schema: CRITIC_SCHEMA, agentType: 'workflow-plan-checker' }
+  ),
+])
+
+const validCritics = criticResults.filter(Boolean)
+const criticDigest = validCritics.map(c =>
+  `${c.critic_type}: ${c.verdict} (confidence: ${c.confidence}%)\n${c.issues.map(i => `  [${i.severity}] ${i.category}: ${i.description}`).join('\n')}`
+).join('\n\n')
+
+log('Synthesizing critic feedback into final verdict...')
+
+const check = await agent(
+  `Synthesize 3 critic assessments into a final plan verdict.
+
+Selected plan: ${selectedPlan.strategy}
+
+=== CRITIC ASSESSMENTS ===
+${criticDigest}
+
+=== PLAN COMPETITION SCORES ===
+${scoreDigest}
+
+RESOLVE:
+1. Merge all issues from all critics, tagged with source_critic
+2. Verdict rules:
+   - Any critic has critical issues → "needs-revision"
+   - All critics pass → "pass"
+   - Only warnings/notes → "pass-with-notes"
+3. Record adversarial_outcome with each critic's verdict and decisive_factor
+4. Calculate metrics: task_count, wave_count, avg_convergence_criteria, dependency_depth, estimated_parallelism
+5. Summarize the competition outcome and critic feedback`,
+  { label: 'check:synthesize', phase: 'Check', schema: CHECK_SCHEMA }
 )
 
 return {
   contexts: validContexts,
-  plan: plan,
+  proposals: validProposals,
+  scores: validJudges,
+  selected_plan: selectedPlan,
+  critics: validCritics,
   check: check,
   metadata: {
-    phase: phase_num,
+    phase: phaseNum,
     scope: scope,
     decision_count: mergedDecisions.length,
     requirement_count: mergedRequirements.length,
-    total_tasks: plan ? plan.total_tasks : 0,
-    wave_count: plan ? plan.waves.length : 0,
+    proposals_generated: validProposals.length,
+    selected_strategy: selectedPlan.strategy,
+    selected_score: validJudges[bestIdx] ? validJudges[bestIdx].total_score : null,
+    total_tasks: selectedPlan.total_tasks,
+    wave_count: selectedPlan.waves.length,
     check_verdict: check ? check.verdict : 'unknown',
     critical_issues: check ? check.issues.filter(i => i.severity === 'critical').length : 0,
   },

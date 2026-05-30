@@ -1,10 +1,11 @@
 export const meta = {
   name: 'wf-milestone-audit',
-  description: 'Parallel cross-phase integration audit via workflow-integration-checker',
-  whenToUse: 'Accelerate maestro-milestone-audit with parallel phase coverage, execution completeness, and integration checks',
+  description: 'Parallel milestone audit with adversarial challenge and 3-vote verdict',
+  whenToUse: 'Accelerate maestro-milestone-audit with parallel dimension checks + adversarial challenge + 3-vote verdict',
   phases: [
     { title: 'Audit', detail: 'Parallel 4-dimension milestone audit' },
-    { title: 'Report', detail: 'Consolidated audit verdict' },
+    { title: 'Challenge', detail: 'Adversarial challenge of each audit dimension' },
+    { title: 'Report', detail: '3-vote adversarial verdict (strict/lenient/objective)' },
   ],
 }
 
@@ -86,38 +87,74 @@ const INTEGRATION_SCHEMA = {
   required: ['check_type', 'passed', 'interfaces', 'summary'],
 }
 
+const CHALLENGE_SCHEMA = {
+  type: 'object',
+  properties: {
+    dimension: { type: 'string' },
+    original_passed: { type: 'boolean' },
+    challenge_result: { type: 'string', enum: ['confirmed', 'overturned-to-fail', 'overturned-to-pass'] },
+    counter_evidence: { type: 'array', items: { type: 'object', properties: { point: { type: 'string' }, evidence: { type: 'string' } }, required: ['point', 'evidence'] } },
+    reasoning: { type: 'string' },
+    confidence: { type: 'number', minimum: 0, maximum: 100 },
+  },
+  required: ['dimension', 'original_passed', 'challenge_result', 'reasoning', 'confidence'],
+}
+
+const VERDICT_VOTE_SCHEMA = {
+  type: 'object',
+  properties: {
+    perspective: { type: 'string' },
+    verdict: { type: 'string', enum: ['PASS', 'FAIL'] },
+    rationale: { type: 'string' },
+    confidence: { type: 'number', minimum: 0, maximum: 100 },
+    next_step: { type: 'string', enum: ['milestone-complete', 'plan-gaps', 'execute', 'verify'] },
+  },
+  required: ['perspective', 'verdict', 'rationale', 'confidence', 'next_step'],
+}
+
 const REPORT_SCHEMA = {
   type: 'object',
   properties: {
     verdict: { type: 'string', enum: ['PASS', 'FAIL'] },
     confidence: { type: 'number', minimum: 0, maximum: 100 },
+    adversarial_outcome: {
+      type: 'object',
+      properties: {
+        strict: { type: 'string' },
+        lenient: { type: 'string' },
+        objective: { type: 'string' },
+        challenges_overturned: { type: 'number' },
+        decisive_factor: { type: 'string' },
+      },
+      required: ['strict', 'lenient', 'objective', 'decisive_factor'],
+    },
     dimension_results: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
           dimension: { type: 'string' },
-          passed: { type: 'boolean' },
+          original_passed: { type: 'boolean' },
+          post_challenge_passed: { type: 'boolean' },
           issue_count: { type: 'number' },
         },
-        required: ['dimension', 'passed'],
+        required: ['dimension', 'original_passed', 'post_challenge_passed'],
       },
     },
     blocking_issues: { type: 'array', items: { type: 'object', properties: { dimension: { type: 'string' }, description: { type: 'string' }, remediation: { type: 'string' } }, required: ['dimension', 'description', 'remediation'] } },
     next_step: { type: 'string', enum: ['milestone-complete', 'plan-gaps', 'execute', 'verify'] },
     summary: { type: 'string' },
   },
-  required: ['verdict', 'confidence', 'dimension_results', 'blocking_issues', 'next_step', 'summary'],
+  required: ['verdict', 'confidence', 'adversarial_outcome', 'dimension_results', 'blocking_issues', 'next_step', 'summary'],
 }
 
 const milestone = args?.milestone || ''
 const isAdhoc = args?.is_adhoc || false
 
-// Phase 1: Parallel 4-dimension audit
+// Phase 1: Parallel audit dimensions
 phase('Audit')
 
 const checks = [
-  // Dimension 1: Phase coverage (skip for adhoc milestones)
   () => agent(
     `Phase Coverage Audit${isAdhoc ? ' (ADHOC — skip roadmap phase checks, only verify artifact chain PLN→EXC exists)' : ''}.
 ${milestone ? 'Milestone: ' + milestone : 'Use current_milestone from .workflow/state.json'}
@@ -137,8 +174,6 @@ ${isAdhoc ? `Adhoc milestone: skip roadmap.md parsing. Only check:
 Set check_type="phase-coverage" in output.`,
     { label: 'audit:coverage', phase: 'Audit', schema: COVERAGE_SCHEMA }
   ),
-
-  // Dimension 2: Execution completeness
   () => agent(
     `Execution Completeness Audit.
 ${milestone ? 'Milestone: ' + milestone : 'Use current_milestone from .workflow/state.json'}
@@ -154,8 +189,6 @@ ${milestone ? 'Milestone: ' + milestone : 'Use current_milestone from .workflow/
 Set check_type="execution-completeness" in output.`,
     { label: 'audit:execution', phase: 'Audit', schema: EXECUTION_SCHEMA }
   ),
-
-  // Dimension 3: Cross-phase integration
   () => agent(
     `Cross-Phase Integration Audit.
 ${milestone ? 'Milestone: ' + milestone : 'Use current_milestone from .workflow/state.json'}
@@ -184,9 +217,6 @@ log(`Running ${checks.length} audit dimensions in parallel...`)
 const results = await parallel(checks)
 const validResults = results.filter(Boolean)
 
-// Phase 2: Consolidated report
-phase('Report')
-
 const coverage = validResults.find(r => r.check_type === 'phase-coverage')
 const execution = validResults.find(r => r.check_type === 'execution-completeness')
 const integration = validResults.find(r => r.check_type === 'integration')
@@ -194,27 +224,142 @@ const integration = validResults.find(r => r.check_type === 'integration')
 const auditDigest = `Phase Coverage: ${coverage ? (coverage.passed ? 'PASS' : 'FAIL') + ' — ' + coverage.summary : 'NOT RUN'}
 
 Execution Completeness: ${execution ? (execution.passed ? 'PASS' : 'FAIL') + ' — ' + execution.summary : 'NOT RUN'}
-${execution && !execution.passed ? 'Incomplete plans: ' + execution.plans.filter(p => p.pending_tasks > 0 || p.failed_tasks > 0).map(p => p.plan_id + ' (' + p.pending_tasks + ' pending, ' + p.failed_tasks + ' failed)').join('; ') : ''}
+${execution && !execution.passed ? 'Incomplete: ' + execution.plans.filter(p => p.pending_tasks > 0 || p.failed_tasks > 0).map(p => p.plan_id + ' (' + p.pending_tasks + ' pending, ' + p.failed_tasks + ' failed)').join('; ') : ''}
 
 Integration: ${integration ? (integration.passed ? 'PASS' : 'FAIL') + ' — ' + integration.summary : 'NOT RUN'}
-${integration && !integration.passed ? 'Failed interfaces: ' + integration.interfaces.filter(i => i.status === 'fail').map(i => i.interface_name + ': ' + i.issue).join('; ') : ''}
-${integration && integration.data_contract_issues.length > 0 ? 'Data contract issues: ' + integration.data_contract_issues.map(d => d.contract + ' — ' + d.mismatch).join('; ') : ''}`
+${integration && !integration.passed ? 'Failed: ' + integration.interfaces.filter(i => i.status === 'fail').map(i => i.interface_name + ': ' + i.issue).join('; ') : ''}`
+
+// Phase 2: Adversarial challenge of each audit dimension
+phase('Challenge')
+log('Adversarial challenge of audit dimension results...')
+
+const dimensionData = [
+  { name: 'coverage', result: coverage },
+  { name: 'execution', result: execution },
+  { name: 'integration', result: integration },
+].filter(d => d.result)
+
+const challengeResults = await parallel(
+  dimensionData.map(dim => () =>
+    agent(
+      `ADVERSARIAL CHALLENGE of the "${dim.name}" audit dimension.
+
+Original result: ${dim.result.passed ? 'PASS' : 'FAIL'}
+Summary: ${dim.result.summary}
+
+${dim.name === 'coverage' && dim.result.phases ? 'Phase details:\n' + dim.result.phases.map(p => `  ${p.phase}: ${p.status} (plan:${p.has_plan} execute:${p.has_execute})`).join('\n') : ''}
+${dim.name === 'execution' && dim.result.plans ? 'Plan details:\n' + dim.result.plans.map(p => `  ${p.plan_id}: ${p.completed_tasks}/${p.total_tasks} complete`).join('\n') : ''}
+${dim.name === 'integration' && dim.result.interfaces ? 'Interface details:\n' + dim.result.interfaces.map(i => `  ${i.interface_name}: ${i.status}`).join('\n') : ''}
+
+Your job: Try to OVERTURN the result.
+- If it PASSED: find evidence it should have FAILED (missed checks, false passes, overlooked issues)
+- If it FAILED: find evidence it should have PASSED (issues are minor, not blocking, or already resolved)
+
+Challenge the audit's thoroughness:
+1. Did it check everything it should?
+2. Were the checks actually verifying what they claim?
+3. Is the evidence genuine or superficial?
+
+challenge_result:
+- "confirmed": the original result stands after challenge
+- "overturned-to-fail": was PASS, should be FAIL (found missed issues)
+- "overturned-to-pass": was FAIL, should be PASS (issues are not blocking)
+
+Default to "confirmed" only if you genuinely cannot find counter-evidence.`,
+      { label: `challenge:${dim.name}`, phase: 'Challenge', schema: CHALLENGE_SCHEMA }
+    )
+  )
+)
+
+const validChallenges = challengeResults.filter(Boolean)
+const overturnedCount = validChallenges.filter(c => c.challenge_result !== 'confirmed').length
+
+const challengeDigest = validChallenges.map(c =>
+  `${c.dimension}: ${c.original_passed ? 'PASS' : 'FAIL'} → ${c.challenge_result} (confidence: ${c.confidence}%)\n  ${c.reasoning}`
+).join('\n\n')
+
+log(`Challenges: ${overturnedCount}/${validChallenges.length} dimensions overturned`)
+
+// Phase 3: 3-vote adversarial verdict
+phase('Report')
+log('3-vote adversarial verdict (strict / lenient / objective)...')
+
+const fullContext = `=== ORIGINAL AUDIT ===\n${auditDigest}\n\n=== ADVERSARIAL CHALLENGES ===\n${challengeDigest}`
+
+const verdictVotes = await parallel([
+  () => agent(
+    `STRICT VOTER: Apply the highest quality bar for milestone completion.
+
+${fullContext}
+
+Your philosophy: A milestone is complete ONLY when everything is truly done.
+- If any challenge overturned a PASS to FAIL → FAIL
+- If any dimension was originally FAIL and not overturned → FAIL
+- PASS only if all dimensions pass AND all challenges confirm
+
+Vote with next_step recommendation.`,
+    { label: 'vote:strict', phase: 'Report', schema: VERDICT_VOTE_SCHEMA }
+  ),
+  () => agent(
+    `LENIENT VOTER: Apply a practical bar for milestone completion.
+
+${fullContext}
+
+Your philosophy: Milestones should move forward when substantially complete.
+- If challenges overturned FAILs to PASs → good, count them
+- Minor coverage/execution gaps are acceptable if integration is solid
+- PASS if the core functionality works even with minor gaps
+
+Vote with next_step recommendation.`,
+    { label: 'vote:lenient', phase: 'Report', schema: VERDICT_VOTE_SCHEMA }
+  ),
+  () => agent(
+    `OBJECTIVE VOTER: Apply evidence-based judgment for milestone completion.
+
+${fullContext}
+
+Your philosophy: Follow the evidence, weigh challenge confidence.
+- High-confidence challenges (>80%) override original results
+- Low-confidence challenges (<50%) are noise
+- If the post-challenge picture shows all dimensions pass → PASS
+- If any dimension genuinely fails after challenge → FAIL
+
+Vote with next_step recommendation.`,
+    { label: 'vote:objective', phase: 'Report', schema: VERDICT_VOTE_SCHEMA }
+  ),
+])
+
+const validVotes = verdictVotes.filter(Boolean)
+const voteCounts = { PASS: 0, FAIL: 0 }
+validVotes.forEach(v => { voteCounts[v.verdict] = (voteCounts[v.verdict] || 0) + 1 })
+
+const voteDigest = validVotes.map(v =>
+  `${v.perspective}: ${v.verdict} → ${v.next_step} (confidence: ${v.confidence}%)\n  ${v.rationale}`
+).join('\n\n')
+
+log(`Verdict votes: PASS=${voteCounts.PASS} FAIL=${voteCounts.FAIL}`)
 
 const report = await agent(
-  `Generate consolidated milestone audit report.
+  `Generate final milestone audit report from adversarial deliberation.
 
+=== VOTES ===
+${voteDigest}
+
+Vote tally: PASS=${voteCounts.PASS}, FAIL=${voteCounts.FAIL}
+
+=== CHALLENGE RESULTS ===
+${challengeDigest}
+
+=== ORIGINAL AUDIT ===
 ${auditDigest}
 
-Determine:
-1. Overall verdict: PASS only if ALL dimensions pass
-2. Confidence score (0-100)
-3. List blocking issues with specific remediation
-4. Determine next step:
-   - "milestone-complete": all pass → ready to close milestone
-   - "plan-gaps": integration issues need new plan
-   - "execute": incomplete execution
-   - "verify": missing verification artifacts
-5. Write summary`,
+RESOLVE:
+1. Majority vote wins. Tie: go with OBJECTIVE voter.
+2. Record adversarial_outcome with each voter's position and challenges_overturned count
+3. Build dimension_results with original AND post-challenge status
+4. Compile blocking_issues from dimensions that FAIL after challenges
+5. Determine next_step by majority vote (tie: go with objective)
+6. Write summary including challenge and deliberation outcomes`,
   { label: 'report', phase: 'Report', schema: REPORT_SCHEMA }
 )
 
@@ -222,14 +367,18 @@ return {
   coverage: coverage,
   execution: execution,
   integration: integration,
+  challenges: validChallenges,
+  votes: validVotes,
   report: report,
   metadata: {
     milestone: milestone,
     is_adhoc: isAdhoc,
     dimensions_checked: validResults.length,
+    dimensions_overturned: overturnedCount,
     coverage_passed: coverage ? coverage.passed : null,
     execution_passed: execution ? execution.passed : null,
     integration_passed: integration ? integration.passed : null,
+    vote_counts: voteCounts,
     verdict: report ? report.verdict : 'UNKNOWN',
     next_step: report ? report.next_step : null,
   },

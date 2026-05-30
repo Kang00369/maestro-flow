@@ -1,14 +1,14 @@
 export const meta = {
   name: 'wf-verify',
-  description: 'Three-layer goal-backward verification via workflow-verifier + anti-pattern scan',
-  whenToUse: 'Accelerate maestro-verify with parallel existence/substance/connection checks and convergence validation',
+  description: 'Three-layer verification with prosecutor/defender/judge adversarial aggregation',
+  whenToUse: 'Accelerate maestro-verify with parallel layer checks + adversarial pass/fail determination',
   phases: [
     { title: 'Check', detail: 'Parallel 3-layer verification + anti-pattern scan via workflow-verifier' },
-    { title: 'Aggregate', detail: 'Cross-layer aggregation and gap analysis' },
+    { title: 'Argue', detail: 'Prosecutor argues FAIL, Defender argues PASS — adversarial positions' },
+    { title: 'Judge', detail: 'Judge resolves adversarial debate into final verdict' },
   ],
 }
 
-// Aligned with workflow-verifier.md: Layer 1 Existence, Layer 2 Substance, Layer 3 Connection
 const LAYER_SCHEMA = {
   type: 'object',
   properties: {
@@ -78,11 +78,47 @@ const ANTIPATTERN_SCHEMA = {
   required: ['clean', 'findings'],
 }
 
+const ARGUMENT_SCHEMA = {
+  type: 'object',
+  properties: {
+    role: { type: 'string', enum: ['prosecutor', 'defender'] },
+    stance: { type: 'string', enum: ['pass', 'fail'] },
+    argument: { type: 'string' },
+    key_points: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          point: { type: 'string' },
+          evidence: { type: 'string' },
+          layer: { type: 'string' },
+          strength: { type: 'string', enum: ['strong', 'moderate', 'weak'] },
+        },
+        required: ['point', 'evidence', 'strength'],
+      },
+    },
+    concessions: { type: 'array', items: { type: 'string' } },
+    confidence: { type: 'number', minimum: 0, maximum: 100 },
+  },
+  required: ['role', 'stance', 'argument', 'key_points', 'confidence'],
+}
+
 const AGGREGATE_SCHEMA = {
   type: 'object',
   properties: {
     status: { type: 'string', enum: ['pass', 'fail'] },
     confidence: { type: 'number', minimum: 0, maximum: 100 },
+    adversarial_outcome: {
+      type: 'object',
+      properties: {
+        prosecutor_confidence: { type: 'number' },
+        defender_confidence: { type: 'number' },
+        decisive_factor: { type: 'string' },
+        prosecutor_concessions: { type: 'array', items: { type: 'string' } },
+        defender_concessions: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['prosecutor_confidence', 'defender_confidence', 'decisive_factor'],
+    },
     layers: {
       type: 'array',
       items: {
@@ -123,7 +159,7 @@ const AGGREGATE_SCHEMA = {
     antipattern_blockers: { type: 'number' },
     executive_summary: { type: 'string' },
   },
-  required: ['status', 'confidence', 'layers', 'gaps', 'executive_summary'],
+  required: ['status', 'confidence', 'adversarial_outcome', 'layers', 'gaps', 'executive_summary'],
 }
 
 const goals = args?.goals || ''
@@ -138,7 +174,6 @@ const mustHaves = args?.must_haves || ''
 phase('Check')
 
 const checks = [
-  // Layer 1: Existence — verify all expected artifacts exist
   () => agent(
     `Layer 1 — EXISTENCE verification.
 Goals: ${goals}
@@ -156,8 +191,6 @@ Verify all expected artifacts EXIST:
 Set layer="existence" in output.`,
     { label: 'layer:existence', phase: 'Check', schema: LAYER_SCHEMA, agentType: 'workflow-verifier' }
   ),
-
-  // Layer 2: Substance — verify artifacts are non-trivial
   () => agent(
     `Layer 2 — SUBSTANCE verification.
 Goals: ${goals}
@@ -174,8 +207,6 @@ Verify artifacts contain REAL SUBSTANCE (not stubs):
 Set layer="substance" in output.`,
     { label: 'layer:substance', phase: 'Check', schema: LAYER_SCHEMA, agentType: 'workflow-verifier' }
   ),
-
-  // Layer 3: Connection — verify wiring
   () => agent(
     `Layer 3 — CONNECTION verification.
 Goals: ${goals}
@@ -196,7 +227,6 @@ Set layer="connection" in output.`,
   ),
 ]
 
-// Anti-pattern scan (unless skipped)
 if (!skipAntipattern) {
   checks.push(() => agent(
     `Anti-pattern scan for modified files.
@@ -218,7 +248,6 @@ Severity: "blocker" for stubs/not-implemented/hardcoded-secrets, "warning" for T
   ))
 }
 
-// Per-task convergence validation (if task files provided)
 if (taskFiles.length > 0) {
   checks.push(...taskFiles.map((taskFile, idx) => () => agent(
     `Per-task convergence validation for: ${taskFile}
@@ -242,9 +271,6 @@ const layers = validResults.filter(r => r.layer)
 const antipatterns = validResults.find(r => r.clean !== undefined) || { clean: true, findings: [] }
 const convergenceResults = validResults.filter(r => r.task_id)
 
-// Phase 2: Aggregate
-phase('Aggregate')
-
 const layerDigest = layers.map(l => {
   const passCount = l.checks.filter(c => c.status === 'pass').length
   const failCount = l.checks.filter(c => c.status === 'fail').length
@@ -259,29 +285,98 @@ const antipatternDigest = antipatterns.clean
   ? 'Anti-pattern scan: CLEAN'
   : `Anti-pattern scan: ${antipatterns.findings.length} issues (${antipatterns.findings.filter(f => f.severity === 'blocker').length} blockers)\n${antipatterns.findings.map(f => `  [${f.severity}] ${f.type} @ ${f.file}:${f.line || '?'}: ${f.content}`).join('\n')}`
 
+const evidencePackage = `${layerDigest}\n\n${convergenceDigest}\n\n${antipatternDigest}`
+
+// Phase 2: Adversarial Arguments — Prosecutor vs Defender
+phase('Argue')
+log('Launching adversarial debate: Prosecutor (FAIL) vs Defender (PASS)...')
+
+const arguments_ = await parallel([
+  () => agent(
+    `You are the PROSECUTOR. Argue that this verification should FAIL.
+
+=== VERIFICATION EVIDENCE ===
+${evidencePackage}
+
+Build the STRONGEST case for FAILURE:
+1. Magnify every failed check — explain the downstream consequences
+2. Connect antipattern findings to substance/connection failures
+3. Challenge "pass" checks — are they truly passing or just not checking hard enough?
+4. Highlight convergence gaps as unfinished work
+5. Argue that partial passes are effectively failures
+
+Your job is to convince the Judge that quality is insufficient.
+Concede points where the evidence genuinely supports a pass — admitted concessions strengthen your credibility.
+Confidence reflects how strong your FAIL case actually is.`,
+    { label: 'prosecutor', phase: 'Argue', schema: ARGUMENT_SCHEMA }
+  ),
+  () => agent(
+    `You are the DEFENDER. Argue that this verification should PASS.
+
+=== VERIFICATION EVIDENCE ===
+${evidencePackage}
+
+Build the STRONGEST case for PASSING:
+1. Emphasize passed checks and their coverage
+2. Contextualize failures — are they truly blocking or just minor gaps?
+3. Argue that antipattern warnings don't indicate real quality issues
+4. Show that the core goals are met even if some checks are partial
+5. Demonstrate that failed checks have low real-world impact
+
+Your job is to convince the Judge that quality is sufficient.
+Concede points where the evidence genuinely supports a fail — admitted concessions strengthen your credibility.
+Confidence reflects how strong your PASS case actually is.`,
+    { label: 'defender', phase: 'Argue', schema: ARGUMENT_SCHEMA }
+  ),
+])
+
+const validArguments = arguments_.filter(Boolean)
+const prosecutorArg = validArguments.find(a => a.role === 'prosecutor')
+const defenderArg = validArguments.find(a => a.role === 'defender')
+
+const debateDigest = validArguments.map(a =>
+  `### ${a.role.toUpperCase()} (stance: ${a.stance}, confidence: ${a.confidence}%)\n${a.argument}\n\nKey points:\n${a.key_points.map(p => `- [${p.strength}] ${p.point} (evidence: ${p.evidence})`).join('\n')}\n\nConcessions:\n${a.concessions.map(c => `- ${c}`).join('\n') || '  none'}`
+).join('\n\n---\n\n')
+
+log(`Prosecutor: ${prosecutorArg ? prosecutorArg.confidence : '?'}% confident FAIL | Defender: ${defenderArg ? defenderArg.confidence : '?'}% confident PASS`)
+
+// Phase 3: Judge resolves the adversarial debate
+phase('Judge')
+log('Judge resolving adversarial verification debate...')
+
 const aggregate = await agent(
-  `Aggregate all verification results into a final assessment.
+  `You are the JUDGE. Two advocates have argued for and against passing this verification.
 
-${layerDigest}
+=== ADVERSARIAL DEBATE ===
+${debateDigest}
 
-${convergenceDigest}
+=== RAW EVIDENCE ===
+${evidencePackage}
 
-${antipatternDigest}
+JUDGE the debate:
+1. Evaluate each advocate's key points against the raw evidence
+2. Weigh point strength: strong > moderate > weak
+3. Points conceded by the opposing side have extra weight
+4. Check for arguments NOT backed by evidence (rhetoric without substance)
 
-Determine:
-1. Overall status: "pass" requires ALL layers pass AND no antipattern blockers AND all convergence met
-2. Confidence score (0-100) — based on evidence strength and coverage
-3. Per-layer summary with check counts
-4. Convergence summary (if tasks checked)
-5. Consolidated gap list: extract every failed check and antipattern blocker, assign severity, suggest remediation
-6. Executive summary (what works, what's broken, what to do next)`,
-  { label: 'aggregate', phase: 'Aggregate', schema: AGGREGATE_SCHEMA }
+Decision rules:
+- If ALL layers truly pass AND antipattern clean AND convergence met → PASS
+- If any layer has >50% failed checks → FAIL regardless of defense
+- If antipattern has blockers → FAIL unless defender proves they're false positives
+- If prosecutor confidence > 80% AND defender concedes major points → FAIL
+- If defender confidence > 80% AND prosecutor only has weak points → PASS
+- Otherwise → weigh evidence strength on both sides
+
+Record adversarial_outcome with both confidences, concessions, and the decisive_factor.
+Compile layers, convergence_summary, gaps, and executive_summary.`,
+  { label: 'judge', phase: 'Judge', schema: AGGREGATE_SCHEMA }
 )
 
 return {
   layers: layers,
   convergence: convergenceResults,
   antipatterns: antipatterns,
+  debate: { prosecutor: prosecutorArg, defender: defenderArg },
   aggregate: aggregate,
   metadata: {
     layer_count: layers.length,
@@ -292,6 +387,8 @@ return {
     converged_tasks: convergenceResults.filter(c => c.overall_converged).length,
     antipattern_count: antipatterns.findings.length,
     blocker_count: antipatterns.findings.filter(f => f.severity === 'blocker').length,
+    prosecutor_confidence: prosecutorArg ? prosecutorArg.confidence : null,
+    defender_confidence: defenderArg ? defenderArg.confidence : null,
     overall_status: aggregate ? aggregate.status : 'unknown',
     confidence: aggregate ? aggregate.confidence : 0,
   },

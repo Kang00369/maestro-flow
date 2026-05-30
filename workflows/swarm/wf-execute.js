@@ -1,11 +1,12 @@
 export const meta = {
   name: 'wf-execute',
-  description: 'Wave-based parallel task execution via workflow-executor agents',
-  whenToUse: 'Accelerate maestro-execute with parallel task implementation within waves',
+  description: 'Wave-based parallel execution with adversarial convergence verification and 3-vote status determination',
+  whenToUse: 'Accelerate maestro-execute with parallel task implementation + adversarial convergence checks + 3-vote report',
   phases: [
     { title: 'Load', detail: 'Load plan and resolve task dependencies' },
     { title: 'Execute', detail: 'Wave-based parallel task execution via workflow-executor' },
-    { title: 'Report', detail: 'Execution summary and status collection' },
+    { title: 'VerifyConvergence', detail: 'Adversarial spot-check of convergence claims' },
+    { title: 'Report', detail: '3-vote status determination (optimist/pessimist/realist)' },
   ],
 }
 
@@ -24,6 +25,44 @@ const TASK_RESULT_SCHEMA = {
   required: ['task_id', 'status', 'summary'],
 }
 
+const CONVERGENCE_CHECK_SCHEMA = {
+  type: 'object',
+  properties: {
+    task_id: { type: 'string' },
+    claimed_complete: { type: 'boolean' },
+    actually_complete: { type: 'boolean' },
+    checks: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          criterion: { type: 'string' },
+          claimed: { type: 'boolean' },
+          verified: { type: 'boolean' },
+          evidence: { type: 'string' },
+          discrepancy: { type: 'string' },
+        },
+        required: ['criterion', 'claimed', 'verified', 'evidence'],
+      },
+    },
+    trust_score: { type: 'number', minimum: 0, maximum: 100 },
+    assessment: { type: 'string' },
+  },
+  required: ['task_id', 'claimed_complete', 'actually_complete', 'checks', 'trust_score'],
+}
+
+const STATUS_VOTE_SCHEMA = {
+  type: 'object',
+  properties: {
+    perspective: { type: 'string' },
+    status: { type: 'string', enum: ['DONE', 'DONE_WITH_CONCERNS', 'NEEDS_RETRY'] },
+    rationale: { type: 'string' },
+    confidence: { type: 'number', minimum: 0, maximum: 100 },
+    blocking_concerns: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['perspective', 'status', 'rationale', 'confidence'],
+}
+
 const REPORT_SCHEMA = {
   type: 'object',
   properties: {
@@ -34,10 +73,22 @@ const REPORT_SCHEMA = {
     blocked: { type: 'number' },
     waves_executed: { type: 'number' },
     files_changed: { type: 'array', items: { type: 'string' } },
+    adversarial_outcome: {
+      type: 'object',
+      properties: {
+        optimist: { type: 'string' },
+        pessimist: { type: 'string' },
+        realist: { type: 'string' },
+        convergence_trust: { type: 'number' },
+        decisive_factor: { type: 'string' },
+      },
+      required: ['optimist', 'pessimist', 'realist', 'decisive_factor'],
+    },
+    convergence_discrepancies: { type: 'array', items: { type: 'object', properties: { task_id: { type: 'string' }, criterion: { type: 'string' }, discrepancy: { type: 'string' } }, required: ['task_id', 'criterion'] } },
     failed_tasks: { type: 'array', items: { type: 'object', properties: { task_id: { type: 'string' }, error: { type: 'string' }, unmet_criteria: { type: 'array', items: { type: 'string' } } }, required: ['task_id'] } },
     summary: { type: 'string' },
   },
-  required: ['status', 'total_tasks', 'completed', 'failed', 'summary'],
+  required: ['status', 'total_tasks', 'completed', 'failed', 'adversarial_outcome', 'summary'],
 }
 
 const planDir = args?.plan_dir || ''
@@ -46,7 +97,7 @@ const codebaseContext = args?.codebase_context || ''
 const wikiContext = args?.wiki_context || ''
 const autoCommit = args?.auto_commit !== false
 
-// Phase 1: Load plan and resolve waves
+// Phase 1: Load plan
 phase('Load')
 log('Loading plan and resolving task dependency waves...')
 
@@ -58,11 +109,9 @@ Plan directory: ${planDir || 'Find the most recent pending plan in .workflow/scr
 Steps:
 1. Read plan.json to get task_ids[], waves[], approach
 2. Read each .task/TASK-{NNN}.json to get: description, scope, focus_paths, depends_on, convergence.criteria, files[], implementation[], read_first[], test.commands
-3. Verify dependency order: tasks in wave N must have all depends_on satisfied by waves < N
-4. Filter: only include tasks with status="pending" (skip completed/blocked)
-5. Return the wave structure with full task context for each pending task
-
-Return the complete wave plan as structured data.`,
+3. Verify dependency order
+4. Filter: only tasks with status="pending"
+5. Return the wave structure with full task context`,
   {
     label: 'load:plan',
     phase: 'Load',
@@ -113,7 +162,7 @@ if (!planLoad || !planLoad.waves || planLoad.waves.length === 0) {
 
 log(`Plan loaded: ${planLoad.total_pending} pending tasks across ${planLoad.waves.length} waves`)
 
-// Phase 2: Execute waves sequentially, tasks within each wave in parallel
+// Phase 2: Execute waves
 phase('Execute')
 
 const allResults = []
@@ -147,7 +196,7 @@ ${autoCommit ? '7. Create atomic git commit with message referencing ' + task.ta
 8. Write summary to ${planLoad.plan_dir}/.summaries/${task.task_id}-summary.md
 9. Update task status to "completed" in the task JSON
 
-Stay within scope. Do not modify files outside focus_paths unless explicitly required by the task.`,
+Stay within scope.`,
         { label: `exec:${task.task_id}`, phase: 'Execute', schema: TASK_RESULT_SCHEMA, agentType: 'workflow-executor', isolation: 'worktree' }
       )
     )
@@ -161,17 +210,73 @@ Stay within scope. Do not modify files outside focus_paths unless explicitly req
   }
 }
 
-// Phase 3: Execution report
-phase('Report')
-
 const completed = allResults.filter(r => r.status === 'completed')
 const failed = allResults.filter(r => r.status === 'failed')
 const blocked = allResults.filter(r => r.status === 'blocked')
 
-const report = await agent(
-  `Generate execution report.
+// Phase 3: Adversarial convergence verification
+phase('VerifyConvergence')
 
-Results: ${completed.length} completed, ${failed.length} failed, ${blocked.length} blocked out of ${planLoad.total_pending} total.
+const tasksToVerify = completed.slice(0, Math.min(completed.length, 5))
+
+if (tasksToVerify.length > 0) {
+  log(`Adversarial convergence spot-check of ${tasksToVerify.length} completed tasks...`)
+
+  const convergenceChecks = await parallel(
+    tasksToVerify.map(task => () => {
+      const waveTask = planLoad.waves.flatMap(w => w.tasks).find(t => t.task_id === task.task_id)
+      return agent(
+        `ADVERSARIAL convergence verification for: ${task.task_id}
+
+The executor claims this task is COMPLETED.
+Claimed summary: ${task.summary}
+Files changed: ${(task.files_changed || []).join(', ')}
+
+Convergence criteria to verify:
+${(waveTask ? waveTask.convergence_criteria : []).map((c, i) => `${i + 1}. ${c}`).join('\n')}
+
+Your job: VERIFY each criterion independently.
+- Read the actual files that were supposedly changed
+- Run any grep/search commands to verify claims
+- Check if the implementation actually satisfies the criterion
+- Do NOT trust the executor's self-assessment
+
+For each criterion:
+- claimed: what the executor says (true/false)
+- verified: what YOU find after checking (true/false)
+- evidence: your proof
+- discrepancy: if claimed != verified, explain what's wrong
+
+Set actually_complete=true ONLY if ALL criteria are genuinely met.
+trust_score: 100 = perfect match, 0 = complete fabrication.`,
+        { label: `verify:${task.task_id}`, phase: 'VerifyConvergence', schema: CONVERGENCE_CHECK_SCHEMA, agentType: 'workflow-verifier' }
+      )
+    })
+  )
+
+  var validConvergenceChecks = convergenceChecks.filter(Boolean)
+  var discrepancies = validConvergenceChecks.flatMap(c =>
+    c.checks.filter(ch => ch.claimed !== ch.verified).map(ch => ({
+      task_id: c.task_id,
+      criterion: ch.criterion,
+      discrepancy: ch.discrepancy || 'claimed ' + ch.claimed + ' but verified ' + ch.verified,
+    }))
+  )
+  var avgTrust = validConvergenceChecks.length > 0
+    ? Math.round(validConvergenceChecks.reduce((s, c) => s + c.trust_score, 0) / validConvergenceChecks.length)
+    : 100
+
+  log(`Convergence verification: ${discrepancies.length} discrepancies found, avg trust: ${avgTrust}%`)
+} else {
+  var validConvergenceChecks = []
+  var discrepancies = []
+  var avgTrust = 100
+}
+
+// Phase 4: 3-vote status determination
+phase('Report')
+
+const executionSummary = `Results: ${completed.length} completed, ${failed.length} failed, ${blocked.length} blocked out of ${planLoad.total_pending} total.
 
 Completed tasks:
 ${completed.map(r => `- ${r.task_id}: ${r.summary} (${(r.files_changed || []).length} files)`).join('\n') || 'None'}
@@ -179,18 +284,86 @@ ${completed.map(r => `- ${r.task_id}: ${r.summary} (${(r.files_changed || []).le
 Failed tasks:
 ${failed.map(r => `- ${r.task_id}: ${r.error || r.summary}\n  Unmet: ${(r.unmet_criteria || []).join(', ') || 'unknown'}`).join('\n') || 'None'}
 
-Determine:
-- DONE: all tasks completed, no failures
-- DONE_WITH_CONCERNS: some failures but majority succeeded
-- NEEDS_RETRY: critical failures blocking downstream work
+Convergence verification:
+- Tasks spot-checked: ${validConvergenceChecks.length}
+- Discrepancies: ${discrepancies.length}
+- Average trust score: ${avgTrust}%
+${discrepancies.map(d => `- ${d.task_id}: ${d.criterion} — ${d.discrepancy}`).join('\n')}`
 
-Summarize what was accomplished and what needs attention.`,
+log('3-vote status determination (optimist / pessimist / realist)...')
+
+const statusVotes = await parallel([
+  () => agent(
+    `OPTIMIST: Vote on execution status.
+
+${executionSummary}
+
+Your lens: Focus on progress made. Discount minor convergence discrepancies. Trust high trust scores.
+- DONE: if majority completed, failures are minor, trust is >70%
+- DONE_WITH_CONCERNS: if some failures but not blocking
+- NEEDS_RETRY: only if critical failures make the whole execution invalid`,
+    { label: 'vote:optimist', phase: 'Report', schema: STATUS_VOTE_SCHEMA }
+  ),
+  () => agent(
+    `PESSIMIST: Vote on execution status.
+
+${executionSummary}
+
+Your lens: Focus on failures and convergence discrepancies. Low trust = unreliable results.
+- NEEDS_RETRY: if any failures exist or trust < 80%
+- DONE_WITH_CONCERNS: if all tasks completed but trust < 90%
+- DONE: only if zero failures AND zero discrepancies AND trust > 95%`,
+    { label: 'vote:pessimist', phase: 'Report', schema: STATUS_VOTE_SCHEMA }
+  ),
+  () => agent(
+    `REALIST: Vote on execution status.
+
+${executionSummary}
+
+Your lens: Evidence-based judgment. No bias.
+- DONE: all tasks completed, convergence verified, no critical discrepancies
+- DONE_WITH_CONCERNS: completed with minor issues that don't block downstream
+- NEEDS_RETRY: critical failures or convergence trust below 60%`,
+    { label: 'vote:realist', phase: 'Report', schema: STATUS_VOTE_SCHEMA }
+  ),
+])
+
+const validVotes = statusVotes.filter(Boolean)
+const voteCounts = {}
+validVotes.forEach(v => { voteCounts[v.status] = (voteCounts[v.status] || 0) + 1 })
+
+const voteDigest = validVotes.map(v =>
+  `${v.perspective}: ${v.status} (confidence: ${v.confidence}%)\n  ${v.rationale}`
+).join('\n\n')
+
+log(`Status votes: ${Object.entries(voteCounts).map(([k, v]) => k + '=' + v).join(', ')}`)
+
+const report = await agent(
+  `Generate execution report from 3-vote adversarial determination.
+
+=== VOTES ===
+${voteDigest}
+
+Vote tally: ${Object.entries(voteCounts).map(([k, v]) => k + '=' + v).join(', ')}
+
+=== EXECUTION DATA ===
+${executionSummary}
+
+RESOLVE:
+1. Majority vote wins. Tie-break: go with REALIST.
+2. Record adversarial_outcome with each vote and convergence_trust
+3. Include convergence_discrepancies in report
+4. List failed_tasks with errors and unmet criteria
+5. Compile all files_changed across completed tasks
+6. Summarize execution including adversarial deliberation outcome`,
   { label: 'report', phase: 'Report', schema: REPORT_SCHEMA }
 )
 
 return {
   report: report,
   results: allResults,
+  convergence_checks: validConvergenceChecks,
+  status_votes: validVotes,
   metadata: {
     plan_dir: planLoad.plan_dir,
     waves_executed: waveIndex,
@@ -198,6 +371,9 @@ return {
     completed: completed.length,
     failed: failed.length,
     blocked: blocked.length,
+    convergence_trust: avgTrust,
+    discrepancy_count: discrepancies.length,
+    vote_counts: voteCounts,
     all_files_changed: completed.flatMap(r => r.files_changed || []),
   },
 }
