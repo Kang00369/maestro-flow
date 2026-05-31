@@ -69,7 +69,7 @@ maestro-analyze → maestro-roadmap → maestro-plan
 </context>
 
 <interview_protocol>
-Follows @~/.maestro/workflows/command-authoring.md § Interview Interaction Mechanics standard.
+Follows @~/.maestro/workflows/interview-mechanics.md standard.
 
 **Interaction mode**: convergent menu-driven, depth-first
 **Decision tree** (strict depth-first): scope (full product / feature set / single feature) → spec type (service / api / library / platform) → focus areas → whether to run codebase exploration → requirement priorities

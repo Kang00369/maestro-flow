@@ -55,7 +55,7 @@ $ARGUMENTS -- topic/plan text for interactive mode, or --from source for upstrea
 </context>
 
 <interview_protocol>
-Follows @~/.maestro/workflows/command-authoring.md § Interview Interaction Mechanics standard.
+Follows @~/.maestro/workflows/interview-mechanics.md standard.
 
 **Interaction mode override**: adversarial Socratic — NOT menu-driven
 **Question style**:

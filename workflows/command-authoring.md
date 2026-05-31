@@ -233,7 +233,7 @@ Each command only needs to declare the following elements in its `<interview_pro
 
 ```markdown
 <interview_protocol>
-Follows @~/.maestro/workflows/command-authoring.md § Interview Interaction Mechanics standard.
+Follows @~/.maestro/workflows/interview-mechanics.md standard.
 
 **Interaction mode**: convergent menu-driven
 **Decision tree** (strict order): scope → depth → dimensions → Go/No-Go threshold
@@ -249,7 +249,7 @@ Follows @~/.maestro/workflows/command-authoring.md § Interview Interaction Mech
 
 ```markdown
 <interview_protocol>
-Follows @~/.maestro/workflows/command-authoring.md § Interview Interaction Mechanics standard,
+Follows @~/.maestro/workflows/interview-mechanics.md standard,
 but **overrides interaction mode to adversarial Socratic**.
 
 **Interaction mode**: adversarial Socratic — NOT menu-driven

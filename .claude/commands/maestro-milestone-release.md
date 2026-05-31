@@ -49,7 +49,7 @@ $ARGUMENTS -- optional explicit version string and flags.
 </context>
 
 <interview_protocol>
-Follows @~/.maestro/workflows/command-authoring.md § Interview Interaction Mechanics standard.
+Follows @~/.maestro/workflows/interview-mechanics.md standard.
 
 **Decision points**: version bump type (major / minor / patch / custom), changelog review and confirmation
 **Scope guard**: only release decisions; do not prejudge next milestone scope

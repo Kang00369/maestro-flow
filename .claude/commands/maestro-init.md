@@ -42,7 +42,7 @@ Check for `.workflow/state.json` -- loads context if project already initialized
 </context>
 
 <interview_protocol>
-Follows @~/.maestro/workflows/command-authoring.md § Interview Interaction Mechanics standard.
+Follows @~/.maestro/workflows/interview-mechanics.md standard.
 
 **Interaction mode**: convergent menu-driven
 **Decision tree** (strict order): project type (greenfield / existing codebase onboarding) → tech stack detection and confirmation → directory structure preferences → initial configuration (specs categories, wiki bootstrap)

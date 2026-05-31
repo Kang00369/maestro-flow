@@ -72,7 +72,7 @@ maestro-analyze {phase} → maestro-plan → maestro-execute → maestro-verify
 </context>
 
 <interview_protocol>
-Follows @~/.maestro/workflows/command-authoring.md § Interview Interaction Mechanics standard.
+Follows @~/.maestro/workflows/interview-mechanics.md standard.
 
 **Interaction mode**: convergent menu-driven
 **Decision tree** (strict order): mode (create / revise / review) → requirement scope (MVP / complete / phased) → decomposition strategy (progressive / direct / auto) → milestone boundaries → phase dependencies and order

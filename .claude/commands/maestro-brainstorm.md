@@ -65,7 +65,7 @@ $ARGUMENTS -- topic text for auto mode, or role name for single role mode.
 </context>
 
 <interview_protocol>
-Follows @~/.maestro/workflows/command-authoring.md § Interview Interaction Mechanics standard.
+Follows @~/.maestro/workflows/interview-mechanics.md standard.
 
 **Interaction mode**: convergent menu-driven
 **Decision tree** (flexible order — user may jump between branches): mode (auto / single-role / review-only) → role selection and --count → --from upstream source (grill:ID, blueprint:ID, @file, path) → whether to enable design-research and DESIGN.md sub-pipeline
