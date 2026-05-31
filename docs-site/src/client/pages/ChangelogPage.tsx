@@ -17,6 +17,17 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '0.4.23',
+    date: '2026-05',
+    changes: [
+      { type: 'feat', text_en: 'docs-site: add sidebar navigation for workflow enhancement, security audit, and swarm intelligence guides', text_zh: 'docs-site: 侧边栏导航新增工作流增强、安全审计、蚁群智能指南' },
+      { type: 'refactor', text_en: 'commands: extract interview-mechanics.md to streamline runtime references', text_zh: 'commands: 抽取 interview-mechanics.md 精简运行时引用' },
+      { type: 'docs', text_en: 'commands: add Pipeline command authoring standard and unify 12 commands to spec', text_zh: 'commands: 新增 Pipeline 命令撰写标准并统一 12 个命令至规范' },
+      { type: 'docs', text_en: 'guide: add workflow enhancement, security audit, and swarm intelligence guide docs', text_zh: 'guide: 添加工作流增强、安全审计、蚁群智能指南文档' },
+      { type: 'chore', text_en: 'swarm: add scoring and pheromone modules for team adversarial swarm', text_zh: 'swarm: 新增 team adversarial swarm 评分和信息素模块' },
+    ],
+  },
+  {
     version: '0.4.22',
     date: '2026-05',
     changes: [
