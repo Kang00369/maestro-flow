@@ -295,16 +295,17 @@ For each wave in execution_queue (sequential):
     IF executor == "agent":
       Spawn workflow-executor agent (fresh 200k context) with:
         task definition, phase context, prior wave summaries, specs_content, context.md, analysis.md
-      Agent: implement task → verify convergence → auto-fix (max 3) → checkpoint if blocked
-      On success: atomic commit (if auto-commit), write .summaries/${task_id}-summary.md
-      Update .task/${task_id}.json: status = "completed" | "blocked"
+      Agent internally handles full lifecycle:
+        implement → verify convergence → auto-fix (max 3) → commit → write .summaries/${task_id}-summary.md → update .task/${task_id}.json status
+        (checkpoint if blocked)
+      Main flow: verify agent wrote summary + updated status, collect result
 
     ELSE (CLI path via maestro delegate):
       fixedId = "${PHASE_NUM || 'scratch'}-${PHASE_SLUG}-${task_id}"
       Store fixedId in index.json.execution.delegate_ids[task_id]
       Dispatch: maestro delegate "${prompt}" --to ${executor} --mode write --id ${fixedId}
-      Post-dispatch: verify convergence criteria against file state
-      Write summary, update task status, auto-commit if enabled
+      Main flow post-dispatch: verify convergence criteria against file state
+      Main flow writes: .summaries/${task_id}-summary.md, update .task/${task_id}.json status, auto-commit if enabled
 
     Collect result: { task_id, status, executor, summary_path, commit_hash, delegate_id }
     Clear state.json.current_task_id
