@@ -17,6 +17,14 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '0.4.24',
+    date: '2026-06',
+    changes: [
+      { type: 'refactor', text_en: 'codebase-rebuild: remove UA external graph tool legacy, migrate to native kg index', text_zh: '移除 UA 外部图工具遗留，迁移至原生 kg index' },
+      { type: 'fix', text_en: 'execute: clarify summary/commit/status ownership in E2 Agent path', text_zh: '明确 E2 Agent 路径中 summary/commit/status 的职责归属' },
+    ],
+  },
+  {
     version: '0.4.23',
     date: '2026-05',
     changes: [
