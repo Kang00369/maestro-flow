@@ -1,0 +1,224 @@
+
+                <!DOCTYPE html>
+                <html lang="zh-CN">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>[开源]CCW(claude-code-workflow)V7.X版本新增Cadence team和 codex csv spawn 工作流&&下一代工作流(maestro-flow)展望</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        .post-content { max-width: 800px; margin: 0 auto; }
+                        img { max-width: 100%; height: auto; }
+                    </style>
+                </head>
+                <body>
+                    <div class="post-content">
+                        <h1>[开源]CCW(claude-code-workflow)V7.X版本新增Cadence team和 codex csv spawn 工作流&&下一代工作流(maestro-flow)展望</h1>
+                        <h4 dir="auto"><a name="p-15549146-h-1" class="anchor" href="#p-15549146-h-1" aria-label="标题链接"></a>本帖使用社区开源推广，符合推广要求。我申明并遵循社区要求的以下内容：</h4>
+<ul dir="auto">
+<li><strong>我的帖子已经打上 <a class="hashtag-cooked" href="/tag/2234-tag/2234" data-type="tag" data-slug="开源推广" data-id="2234" data-style-type="icon" data-icon="tag" aria-label="开源推广"><svg class="fa d-icon d-icon-tag svg-icon fa-width-auto hashtag-color--tag-2234 svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#tag"></use></svg><span>开源推广</span></a> 标签：</strong> 是</li>
+<li><strong>我的开源项目完整开源，无未开源部分：</strong> 是</li>
+<li><strong>我的开源项目已链接认可 LINUX DO 社区：</strong> 是</li>
+<li><strong>我帖子内的项目介绍，AI生成、润色内容部分已截图发出：</strong> 是</li>
+<li><strong>以上选择我承诺是永久有效的，接受社区和佬友监督：</strong> 是</li>
+</ul>
+<p dir="auto"><em>以下为项目介绍正文内容，AI生成、润色内容已使用截图方式发出</em></p>
+<hr>
+<p dir="auto"><strong>Claude Code Workflow (CCW)</strong> 是一个 JSON 驱动的多智能体开发框架，具有智能 CLI 编排（Gemini/Qwen/Codex）、上下文优先架构和自动化工作流执行。</p>
+<h1 dir="auto"><a name="p-15549146-h-2" class="anchor" href="#p-15549146-h-2" aria-label="标题链接"></a>安装方式</h1>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-css" data-highlighted="yes">npm install -<span class="hljs-selector-tag">g</span> claude-<span class="hljs-selector-tag">code</span>-workflow
+
+ccw install #安装工作流
+</code></pre>
+<hr>
+<h1 dir="auto"><a name="p-15549146-ccw-claude-code-workflow-7x-3" class="anchor" href="#p-15549146-ccw-claude-code-workflow-7x-3" aria-label="标题链接"></a>CCW (claude-code-workflow) 7.X 新增</h1>
+<h2 dir="auto"><a name="p-15549146-spec-4" class="anchor" href="#p-15549146-spec-4" aria-label="标题链接"></a>▍Spec 系统</h2>
+<p dir="auto">将整个 workflow 划分为六个阶段，基于各个阶段进行注入 spec 约束，无需 hook。</p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">/workflow:spec:setup   <span class="hljs-comment"># 初始化 spec</span>
+/workflow:spec:add     <span class="hljs-comment"># 创建 spec</span>
+</code></pre>
+<p dir="auto">spec 内容可通过看板（ccw view启动）进行管理、查看。</p>
+<hr>
+<h2 dir="auto"><a name="p-15549146-cadence-team-5" class="anchor" href="#p-15549146-cadence-team-5" aria-label="标题链接"></a>▍Cadence Team</h2>
+<p dir="auto">灵感来源于工厂流水线，用节拍图来描述 team 工作，并利用共享 skill 形式，为每个 team 成员智能路由 role、command，通过 <code>ccw-tools_team_msg</code> 工具实现 team 状态监测。</p>
+<div class="md-table fullscreen-table-wrapper" dir="auto" data-table-index="0">
+<div class="fullscreen-table-wrapper__buttons"></div><table>
+<thead>
+<tr>
+<th>技能名</th>
+<th>描述</th>
+<th>角色</th>
+<th>流程</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>team-coordinate</strong></td>
+<td>通用团队协调，动态角色生成</td>
+<td>coordinator + 动态 team-worker</td>
+<td>任务分析 → 角色生成 → 执行</td>
+</tr>
+<tr>
+<td><strong>team-executor</strong></td>
+<td>轻量会话执行，加载已有会话</td>
+<td>executor (从会话加载)</td>
+<td>纯执行模式</td>
+</tr>
+<tr>
+<td><strong>team-designer</strong></td>
+<td>生成完整 team 技能包，v4 架构</td>
+<td>orchestrator + phase agents</td>
+<td>需求 → 脚手架 → 内容 → 验证</td>
+</tr>
+<tr>
+<td><strong>team-lifecycle-v4</strong></td>
+<td>完整生命周期，beat model 驱动</td>
+<td>analyst, writer, planner, executor, tester, reviewer, supervisor</td>
+<td>RESEARCH → DRAFT → PLAN → IMPL → TEST → REVIEW → CHECKPOINT</td>
+</tr>
+<tr>
+<td><strong>team-arch-opt</strong></td>
+<td>架构优化，多代理分析-设计-重构</td>
+<td>analyzer, designer, refactorer, validator, reviewer</td>
+<td>ANALYZE → DESIGN → REFACTOR → VALIDATE → REVIEW</td>
+</tr>
+<tr>
+<td><strong>team-brainstorm</strong></td>
+<td>头脑风暴，Generator-Critic 循环</td>
+<td>ideator, challenger, synthesizer, evaluator</td>
+<td>IDEA → CHALLENGE → SYNTH → EVAL</td>
+</tr>
+<tr>
+<td><strong>team-ultra-analyze</strong></td>
+<td>深度协作分析，支持讨论循环</td>
+<td>explorer, analyst, discussant, synthesizer</td>
+<td>EXPLORE → ANALYZE → DISCUSS → SYNTH</td>
+</tr>
+<tr>
+<td><strong>team-planex</strong></td>
+<td>计划-执行管道，基于 issue 开发</td>
+<td>planner, executor</td>
+<td>PLAN → EXEC (迭代)</td>
+</tr>
+<tr>
+<td><strong>team-roadmap-dev</strong></td>
+<td>路线图驱动开发，分阶段执行</td>
+<td>planner, executor, verifier</td>
+<td>PLAN-N → EXEC-N → VERIFY-N</td>
+</tr>
+<tr>
+<td><strong>team-iterdev</strong></td>
+<td>迭代开发，GC 循环最多 3 轮</td>
+<td>architect, developer, tester, reviewer</td>
+<td>DESIGN → DEV → VERIFY → REVIEW</td>
+</tr>
+<tr>
+<td><strong>team-issue</strong></td>
+<td>问题解决，Quick/Full/Batch</td>
+<td>explorer, planner, reviewer, integrator, implementer</td>
+<td>EXPLORE → SOLVE → AUDIT → MARSHAL → BUILD</td>
+</tr>
+<tr>
+<td><strong>team-frontend</strong></td>
+<td>前端开发，内置 ui-ux-pro-max</td>
+<td>analyst, architect, developer, qa</td>
+<td>ANALYZE → ARCH → DEV → QA</td>
+</tr>
+<tr>
+<td><strong>team-frontend-debug</strong></td>
+<td>前端调试，Chrome DevTools MCP</td>
+<td>tester, reproducer, analyzer, fixer, verifier</td>
+<td>TEST/REPRODUCE → ANALYZE → FIX → VERIFY</td>
+</tr>
+<tr>
+<td><strong>team-uidesign</strong></td>
+<td>UI 设计，系统化设计令牌管理</td>
+<td>researcher, designer, reviewer, implementer</td>
+<td>RESEARCH → DESIGN → AUDIT → BUILD</td>
+</tr>
+<tr>
+<td><strong>team-ux-improve</strong></td>
+<td>UX 改进，发现并修复交互问题</td>
+<td>scanner, diagnoser, designer, implementer, tester</td>
+<td>SCAN → DIAG → DESIGN → IMPL → TEST</td>
+</tr>
+<tr>
+<td><strong>team-review</strong></td>
+<td>代码审查，3 角色 review-fix 循环</td>
+<td>scanner, reviewer, fixer</td>
+<td>SCAN → REV → FIX</td>
+</tr>
+<tr>
+<td><strong>team-quality-assurance</strong></td>
+<td>质量保证，闭环 QA</td>
+<td>scout, strategist, generator, executor, analyst</td>
+<td>SCOUT → QASTRAT → QAGEN → QARUN → QAANA</td>
+</tr>
+<tr>
+<td><strong>team-testing</strong></td>
+<td>渐进式测试覆盖，L1/L2/L3 分层</td>
+<td>strategist, generator, executor, analyst</td>
+<td>STRATEGY → TESTGEN → TESTRUN → TESTANA</td>
+</tr>
+<tr>
+<td><strong>team-perf-opt</strong></td>
+<td>性能优化，单/扇出/并行模式</td>
+<td>profiler, strategist, optimizer, benchmarker, reviewer</td>
+<td>PROFILE → STRATEGY → IMPL → BENCH + REVIEW</td>
+</tr>
+<tr>
+<td><strong>team-tech-debt</strong></td>
+<td>技术债识别与补救</td>
+<td>scanner, assessor, planner, executor, validator</td>
+<td>TDSCAN → TDEVAL → TDPLAN → TDFIX → TDVAL</td>
+</tr>
+</tbody>
+</table>
+</div><hr>
+<h2 dir="auto"><a name="p-15549146-codex-6" class="anchor" href="#p-15549146-codex-6" aria-label="标题链接"></a>▍Codex 工作模式</h2>
+<p dir="auto">ccw codex工作流中 尽管移植了 team（可以尝试 <strong>team-lifecycle</strong> 一步梭哈），但这里推荐 <strong>CSV Wave 工作模式</strong>（更常用）：</p>
+<ol dir="auto">
+<li><code>analyze-with-file</code> → <code>csv-wave-pipeline</code> 分析 → 规划执行</li>
+<li><code>roadmap-with-file</code> → <code>csv-wave-pipeline</code> 需求分解 → 规划执行</li>
+<li><code>workflow-lite-plan</code></li>
+</ol>
+<p dir="auto">Codex 需要进行额外配置：</p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-ini" data-highlighted="yes"><span class="hljs-section">[features]</span>
+<span class="hljs-attr">enable_fanout</span> = <span class="hljs-literal">true</span>
+</code></pre>
+<h2 dir="auto"><a name="p-15549146-h-7" class="anchor" href="#p-15549146-h-7" aria-label="标题链接"></a>▍更多命令探索（感谢某位佬友做的命令图解）</h2>
+<p dir="auto"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABICAMAAABiM0N1AAAAM1BMVEVHcEz/3F3/3F3/3F3/3F3/3F3/3F3/3F3/3F3/3F3/3F3/3F3/3F3/3F3/3F3/3F3/3F1+CBIDAAAAEXRSTlMAEDAgj9//72CvUJ9wgEDPv8JfMp0AAAESSURBVHgB7dQFoh0hEETRwqpx2P9m4y5M50GSL3MWcHGgcrsZiwOcD6Rsp2LiB4IduQg/y3iQrYnfanhAr0lI7oRcr2XwVyrUbJv8PQsdUwNXpjLThEtioJED14aDhueFZKBgBtdCxonOiNjvhFQdlCZ/Mjr+XOOZUOcmKQbvDW4LBkDkAQVA4AlA5hFA4hEwPEJOrazA84RhMLlPmgGEWsFihXpiDoVYToXkVIhPLpSwEKjXsZCo5rHSqCQVS5Y60+BCoE7EBa9/IGtOf2YX5qlQp47DlUKNiUtG9lemX1yERuNaKA46Rfc17pcs1DxXKvSyqI5MwSXdO1PoU3f2Cr0IfyIRj8htfhcbzeB2e7XeAreyNLlRfuHjAAAAAElFTkSuQmCC" title=":point_right:" class="emoji" alt=":point_right:" loading="lazy" width="20" height="20" style="aspect-ratio: 20 / 20;"> <a href="https://ccw-command-explorer.vercel.app/" rel="noopener nofollow ugc" data-clicks="85" aria-label="ccw-command-explorer 链接已点击 85 次" class="normal-external-link-icon" target="_blank">ccw-command-explorer</a></p>
+<h2 dir="auto"><a name="p-15549146-h-8" class="anchor" href="#p-15549146-h-8" aria-label="标题链接"></a>▍项目地址</h2>
+<p dir="auto"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABICAMAAABiM0N1AAAAM1BMVEVHcEyImaaImaaImaaImaaImaaImaaImaaImaaImaaImaaImaaImaaImaaImaaImaaImaYYrlkHAAAAEHRSTlMAz0AggDAQn2Dvv9+PUK9wIxOF1QAAAeZJREFUeNqlmNuWgyAMRUMIN0Hl/792HmbKlB6LGPYjdm0Tm8S0pMDtIsKW1thDqr/ksuCKub4TlCpn6gcpkgKpFwR6TKiXBIVHb0KP3oQeJCo96RAJ+f3AajxJPJRUUHhMu7s3tWGfePDeWzsuSx7yLbus8zQi5KbzELWQWOfBy7LmIZkUnWV3RGT3kMADojn8SVccL9FON3AUOdl/06eXyI2jaBVnTj/MLI00krpOFQJsmmi2M9UPDIRv6u0j8i0pnPTQtIMOcXligm1wDrg0moVYq+bWg/BV7u7Wg2SPHpnxGBEx9Y3y+XxqmPBs9rdeQu2napj0YMyc3krGP40nXl2ISk+DVzyB6Z/y5zEKTxeUX/DUrRtiek//chCtpxVyQ+/5SE7hKbg06OpHBmvMwOOxDrvJ1har3oMY8BBX4N4j6CEqzz0WPIp1GIe4fkF34BmaZGJzgT0hDl6SSPvwRoDtg8qRvsPjNdCW/CrMsM/9djroC5ZFZHd0wzF87To8vf3y+boHc2FPRByDU4qwlydFu86DZVTWPHS2ueN1HuyQY8HTj7C45CEZLA0THpyzuMagZ0zExWrSg10CqDzkjcKjWIcVJr2nYU1FEtNzfAFP8KSC+6A2JjXc6iAXR2tw1P4z+AMxRHAal9CZVQAAAABJRU5ErkJggg==" title=":link:" class="emoji" alt=":link:" loading="lazy" width="20" height="20" style="aspect-ratio: 20 / 20;"> <a href="https://github.com/catlog22/Claude-Code-Workflow" rel="noopener nofollow ugc" data-clicks="209" aria-label="catlog22/Claude-Code-Workflow 链接已点击 209 次" class="normal-external-link-icon" target="_blank">catlog22/Claude-Code-Workflow</a></p>
+<hr>
+<h1 dir="auto"><a name="p-15549146-maestro-flow-9" class="anchor" href="#p-15549146-maestro-flow-9" aria-label="标题链接"></a>Maestro Flow 介绍</h1>
+<h2 dir="auto"><a name="p-15549146-h-10" class="anchor" href="#p-15549146-h-10" aria-label="标题链接"></a>▍背景</h2>
+<p dir="auto">CCW 7.0 版本半个月前就已发布，但总觉得缺了点什么，迟迟没有发帖介绍。期间尝试设计了不同形式的工作流（DDD、IDAW 等，最新版本已移除），但直觉告诉我那不是最终答案。直到最近学习了 GSD 工作流，想明白 CCW 缺了什么——重新梳理了 CCW 的定位以及下一代工作流的构想。</p>
+<h2 dir="auto"><a name="p-15549146-h-11" class="anchor" href="#p-15549146-h-11" aria-label="标题链接"></a>▍思考</h2>
+<p dir="auto">在我看来，当前 CCW 与 Superpowers 很像：依靠 ACE、CodexLens 等向量搜索能力，以 <strong>代码为唯一真理源</strong> 进行即时规划，执行。定位是——适合 <strong>中小型项目和科研场景</strong>，所开发代码前后依赖较少。</p>
+<p dir="auto">对比 GSD，CCW 主要缺少两样东西：<strong>规范化的产物复用</strong> 和 <strong>严格的步骤执行</strong>。GSD 以路线图和代码为双重真相源进行设计，从理论上讲，这套规范更适合 <strong>大型项目和团队协作</strong>，但实际上体验还有待优化。</p>
+<h2 dir="auto"><a name="p-15549146-h-12" class="anchor" href="#p-15549146-h-12" aria-label="标题链接"></a>▍对比体验</h2>
+<ul dir="auto">
+<li><strong>Superpower</strong>：前期有关注过，并没有深入体验，最近发现 5.0 版本也采用多 agent 规划执行，可能是殊途同归吧（CCW 在三个月前就这样设计了）。CCW 在不同复杂度开发都有灵活入口以及在 Codex 命令设计、Team 设计上还有优势。体验过 Superpower 的佬们，可以对比尝试 CCW 中的 <code>analyze-with-file</code> → <code>workflow-lite-plan</code> 进行模块化开发，体验更佳。</li>
+<li><strong>GSD</strong>：深入体验了 GSD，从架构设计来说，很完美，是我理想的架构。深入体验后发现几个问题，导致实际体验并不好：起手入口太单一，导致往往杀鸡用牛刀，这也是许多工作流设计的问题所在。文档拆分过细，我认为写文档其实跟写代码差不多，文档拆分过细也会导致后续执行偏差，这里的平衡还需要进行优化。</li>
+</ul>
+<hr>
+<h2 dir="auto"><a name="p-15549146-maestro-flow-13" class="anchor" href="#p-15549146-maestro-flow-13" aria-label="标题链接"></a>▍融合：Maestro Flow</h2>
+<p dir="auto">工作流命名为 <strong>Maestro Flow</strong>，名称灵感来源于音乐的演奏，有快有慢，类似软件开发流程。 <strong>灵活</strong>、<strong>规范</strong>是Maestro的设计宗旨，我希望Maestro可以应对不同复杂度的任务。</p>
+<p dir="auto">Maestro Flow 专注于 <strong>Claude 与 Codex</strong> 工作流设计（目前它俩比较好用），融合了：</p>
+<ul dir="auto">
+<li><strong>GSD</strong> 的路线图驱动 + 阶段管线</li>
+<li><strong>CCW</strong> 的多阶段 Spec 规范约束、头脑风暴、Issue 闭环工作流、全自动推进命令</li>
+</ul>
+<p dir="auto">其中 Codex 工作流进行了针对性的重新设计，采用csv wave模式 更稳定的使用多agent系统。</p>
+<blockquote dir="auto">
+<p>新增了 <strong>Supervisor 控制 agent</strong>——你可以将 Supervisor 理解为一个特异化的 OpenClaw，用于控制工作流自动推进，具备长期记忆和自学习能力。</p>
+</blockquote>
+<p dir="auto"><strong>当前工作流已设计完毕，等待看板优化完毕后即可正式发布。</strong></p>
+<p dir="auto"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABICAMAAABiM0N1AAAARVBMVEVHcEzh6O3M1t3h6O3M1t3M1t3M1t3h6O3M1t3M1t3M1t3h6O2ZqrWzwMmmtb+5xs6jsr3P2d/G0di5xc6crbi9ydHL1dwyChrxAAAACnRSTlMAUBDfv2DvYCDPCvisuQAAAOJJREFUeF7t2EtuwzAMRVG7kSyLpGzn0+5/qW0GgQcPMSkTyKS8CzgAgTfisJcTHSR/8WUc1OZKpELMRXUmskC6VMkC6VImE6RLyQbpEtkgVfrqg7h4IV0yQiD5IS4+CCU/xMUNoYRQE6gBhBJCgglAIPkhLo7TUOrf0VWRzNA3Yzx2QstT+mHs0gmt8ux+RalzR7TJmzp3RLeHG3pJmwLpp71aFx1y9N+gJubaISQdfQDynhY7wmJHsaPYUewodhQ7CiigdN5J8PY5WYZH1LkqvsZONc3Ks85YBQfeh5ZS3oFfoX+pXR3hF1QAAAAASUVORK5CYII=" title=":page_facing_up:" class="emoji" alt=":page_facing_up:" loading="lazy" width="20" height="20" style="aspect-ratio: 20 / 20;"> 命令全景图：<a href="https://github.com/catlog22/Maestro-Flow/blob/master/guide/command-usage-guide.md" rel="noopener nofollow ugc" data-clicks="114" aria-label="Maestro-Flow Command Usage Guide 链接已点击 114 次" class="normal-external-link-icon" target="_blank">Maestro-Flow Command Usage Guide</a></p>
+<p dir="auto"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABICAMAAABiM0N1AAAAM1BMVEVHcEyImaaImaaImaaImaaImaaImaaImaaImaaImaaImaaImaaImaaImaaImaaImaaImaYYrlkHAAAAEHRSTlMAz0AggDAQn2Dvv9+PUK9wIxOF1QAAAeZJREFUeNqlmNuWgyAMRUMIN0Hl/792HmbKlB6LGPYjdm0Tm8S0pMDtIsKW1thDqr/ksuCKub4TlCpn6gcpkgKpFwR6TKiXBIVHb0KP3oQeJCo96RAJ+f3AajxJPJRUUHhMu7s3tWGfePDeWzsuSx7yLbus8zQi5KbzELWQWOfBy7LmIZkUnWV3RGT3kMADojn8SVccL9FON3AUOdl/06eXyI2jaBVnTj/MLI00krpOFQJsmmi2M9UPDIRv6u0j8i0pnPTQtIMOcXligm1wDrg0moVYq+bWg/BV7u7Wg2SPHpnxGBEx9Y3y+XxqmPBs9rdeQu2napj0YMyc3krGP40nXl2ISk+DVzyB6Z/y5zEKTxeUX/DUrRtiek//chCtpxVyQ+/5SE7hKbg06OpHBmvMwOOxDrvJ1har3oMY8BBX4N4j6CEqzz0WPIp1GIe4fkF34BmaZGJzgT0hDl6SSPvwRoDtg8qRvsPjNdCW/CrMsM/9djroC5ZFZHd0wzF87To8vf3y+boHc2FPRByDU4qwlydFu86DZVTWPHS2ueN1HuyQY8HTj7C45CEZLA0THpyzuMagZ0zExWrSg10CqDzkjcKjWIcVJr2nYU1FEtNzfAFP8KSC+6A2JjXc6iAXR2tw1P4z+AMxRHAal9CZVQAAAABJRU5ErkJggg==" title=":link:" class="emoji" alt=":link:" loading="lazy" width="20" height="20" style="aspect-ratio: 20 / 20;"> 项目地址：<a href="https://github.com/catlog22/Maestro-Flow" rel="noopener nofollow ugc" data-clicks="157" aria-label="catlog22/Maestro-Flow 链接已点击 157 次" class="normal-external-link-icon" target="_blank">catlog22/Maestro-Flow</a></p>
+<h2 dir="auto"><a name="p-15549146-maestro-scholar-14" class="anchor" href="#p-15549146-maestro-scholar-14" aria-label="标题链接"></a>后续计划：Maestro-scholar 敬请期待</h2><div class="cooked-selection-barrier" aria-hidden="true"><br></div><button id="toggleVisibilityBtn" style="background-color: rgb(51, 51, 51); color: rgb(255, 255, 255); border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; padding: 8px 16px; margin-left: 10px; border-radius: 5px; cursor: pointer;">当前查看全部</button><div class="save-buttons-container" style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;"><button class="save-to-image-btn" style="padding: 10px 20px; font-size: 15px; font-weight: 600; background-color: rgb(76, 175, 80); color: white; border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; border-radius: 8px; cursor: pointer; box-shadow: rgba(76, 175, 80, 0.3) 0px 4px 12px; transition: 0.3s; transform: translateY(0px);">🖼️ 保存为图片</button></div>
+                    </div>
+                </body>
+                </html>
+            
