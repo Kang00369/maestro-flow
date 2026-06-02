@@ -1,6 +1,6 @@
 # Maestro Commands Quick Reference
 
-> Auto-generated cross-checked card layout — 70 commands, 9 categories
+> Auto-generated cross-checked card layout — 65 active commands + 4 deprecated, 9 categories
 
 ---
 
@@ -147,13 +147,9 @@
 
 ---
 
-### `maestro-coordinate` — CLI 协调器
+### ~~`maestro-coordinate`~~ — 已废弃
 
-**Usage:** `/maestro-coordinate "intent text" [-y] [-c] [--dry-run] [--chain <name>] [--tool <tool>]`
-
-CLI 协调器：分析用户意图 → 选择命令链 → 通过 maestro delegate 顺序执行，支持自动确认和非阻塞后台执行
-
-**Flags:** "intent text" (意图文本) · -y (自动模式) · -c (恢复会话) · --dry-run (演练) · --chain <name> (指定命令链) · --tool <tool> (指定工具)
+> **已废弃**：功能已由 `maestro-ralph` 和 `maestro-next` 替代。使用 `/maestro-ralph` 或 `/maestro-next` 替代。
 
 ---
 
@@ -319,7 +315,7 @@ Ralph session 单步执行器：每次调用定位 session → 找下一步 → 
 
 ### ~~`maestro-link-coordinate`~~ — 已废弃
 
-> **已废弃**：功能已由 `maestro-coordinate` 和 `maestro-ralph` 替代。使用 `/maestro-coordinate` 或 `/maestro-ralph` 替代。
+> **已废弃**：功能已由 `maestro-ralph` 替代。使用 `/maestro-ralph` 替代。
 
 ---
 
@@ -414,7 +410,7 @@ Load registered tool specs and execute step-by-step. Supports direct invocation 
 
 ---
 
-## Quality (12 commands)
+## Quality (11 commands)
 *Testing, debugging, code review, refactoring, security, and quality assurance*
 
 ### `quality-review` — 代码审查
@@ -506,16 +502,6 @@ Load registered tool specs and execute step-by-step. Supports direct invocation 
 OWASP Top 10 和 STRIDE 安全审计，含供应链分析。三级深度控制：quick（OWASP+依赖）、standard（+密钥+CI/CD）、deep（+STRIDE+Git History）
 
 **Flags:** [quick|standard|deep] (审计深度) · --scope <path> (限定扫描目录)
-
----
-
-### `maestro-guard` — 编辑边界
-
-**Usage:** `/maestro-guard <on|off|status|allow <path>|deny <path>>`
-
-目录级写入边界管理：由 workflow-guard PreToolUse hook 强制执行。启用时 Write/Edit 工具对允许路径外的文件调用被阻断
-
-**Flags:** on (启用) · off (禁用) · status (显示状态) · allow <path> (允许路径) · deny <path> (拒绝路径)
 
 ---
 
