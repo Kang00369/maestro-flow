@@ -1,0 +1,503 @@
+
+                <!DOCTYPE html>
+                <html lang="zh-CN">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>【长期贴】 Claude-code-workflow(CCW) –使用技巧分享-自认为最工程化的harness workflow</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        .post-content { max-width: 800px; margin: 0 auto; }
+                        img { max-width: 100%; height: auto; }
+                    </style>
+                </head>
+                <body>
+                    <div class="post-content">
+                        <h1>【长期贴】 Claude-code-workflow(CCW) –使用技巧分享-自认为最工程化的harness workflow</h1>
+                        <h4 dir="auto"><a name="p-15949146-h-1" class="anchor" href="#p-15949146-h-1" aria-label="标题链接"></a>本帖使用社区开源推广，符合推广要求。我申明并遵循社区要求的以下内容：</h4>
+<ul dir="auto">
+<li><strong>我的帖子已经打上 <a class="hashtag-cooked" href="/tag/2234-tag/2234" data-type="tag" data-slug="开源推广" data-id="2234" data-style-type="icon" data-icon="tag" data-ref="开源推广::tag" aria-label="开源推广"><svg class="fa d-icon d-icon-tag svg-icon fa-width-auto hashtag-color--tag-2234 svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#tag"></use></svg><span>开源推广</span></a> 标签：</strong> 是</li>
+<li><strong>我的开源项目完整开源，无未开源部分：</strong> 是</li>
+<li><strong>我的开源项目已链接认可 LINUX DO 社区：</strong> 是</li>
+<li><strong>我帖子内的项目介绍，AI生成、润色内容部分已截图发出：</strong> 是</li>
+<li><strong>以上选择我承诺是永久有效的，接受社区和佬友监督：</strong> 是</li>
+</ul>
+<p dir="auto"><em>以下为项目介绍正文内容，AI生成、润色内容已使用截图方式发出</em></p>
+<hr>
+<h2 dir="auto"><a name="p-15949146-surperpower-2" class="anchor" href="#p-15949146-surperpower-2" aria-label="标题链接"></a>与常见工作流 Surperpower对比(两者最像)：</h2>
+<ul dir="auto">
+<li>claude-code-workflow 存在不同复杂度任务入口，可实现 半自动，全自动运行，精细化推进，覆盖软件开发各个环节</li>
+<li><strong>自认为 claude-code-workflow 中team  skill 是现在所有工作流中最稳定的(包括codex)</strong></li>
+<li>cc和 codex的工作流单独维护，并针对codex特性设计wave pipeline 专用工作流</li>
+<li>多cli协作，语义编排</li>
+</ul>
+<h2 dir="auto"><a name="p-15949146-h-3" class="anchor" href="#p-15949146-h-3" aria-label="标题链接"></a>项目地址：</h2>
+<p dir="auto"><a href="https://github.com/catlog22/Claude-Code-Workflow" rel="noopener nofollow ugc" data-clicks="1.1k" aria-label="catlog22/Claude-Code-Workflow: JSON-driven multi-agent cadence-team development framework with intelligent CLI orchestration (Gemini/Qwen/Codex), context-first architecture, and automated workflow execution 链接已点击 1113 次" class="normal-external-link-icon" target="_blank">catlog22/Claude-Code-Workflow: JSON-driven multi-agent cadence-team development framework with intelligent CLI orchestration (Gemini/Qwen/Codex), context-first architecture, and automated workflow execution</a></p>
+<h2 dir="auto"><a name="p-15949146-h-4" class="anchor" href="#p-15949146-h-4" aria-label="标题链接"></a>注意事项</h2>
+<h2 dir="auto"><a name="p-15949146-codex-multi_agent-v20117-5" class="anchor" href="#p-15949146-codex-multi_agent-v20117-5" aria-label="标题链接"></a>codex 指令采用最新multi_agent V2架构设计，需要更新到0.117，设置下述参数</h2>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-ini" data-highlighted="yes"><span class="hljs-section">[features]</span>
+<span class="hljs-attr">enable_fanout</span> = <span class="hljs-literal">true</span>
+<span class="hljs-attr">suppress_unstable_features_warning</span> = <span class="hljs-literal">true</span>
+<span class="hljs-attr">default_mode_request_user_input</span> = <span class="hljs-literal">true</span>
+<span class="hljs-attr">multi_agent_v2</span>=<span class="hljs-literal">true</span>
+</code></pre>
+<h2 dir="auto"><a name="p-15949146-h-6" class="anchor" href="#p-15949146-h-6" aria-label="标题链接"></a>安装使用:</h2>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">npm install -g claude-code-workflow 
+ccw install <span class="hljs-comment">#安装工作流</span>
+ccw view <span class="hljs-comment">#在工作空间启动看板</span>
+</code></pre>
+<h2 dir="auto"><a name="p-15949146-h-7" class="anchor" href="#p-15949146-h-7" aria-label="标题链接"></a>命令参考：</h2>
+<p dir="auto"><a class="mention" href="/u/wuyan">@wuyan<span class="user-status-message-wrapper">    <span class="fk-d-tooltip__trigger user-status-message" role="button" data-identifier="user-status-message-tooltip" data-trigger="" aria-expanded="false" id="ember53">
+  <span class="fk-d-tooltip__trigger-container">
+      <img width="20" height="20" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABICAMAAABiM0N1AAAAllBMVEVHcEyIyfmIyfmIyfmIyfmIyfmIyflckTtckTuIyfmIyfmIyfmIyfmIyfmIyflckTtckTtckTtckTtglkxhl1BckTtckTtckTtflUpimFNckTtnn2tgl05flUhyrZpzr6ByrZqIyflckTt9u8qFxu1nn2tyrZpflUdtpoKDwuGAv9V4tLJknF9qo3Z6uL51saZvqo5imFP91bIXAAAAIXRSTlMAjyCfgFDfIJ/vr0DPv2DvUN+Ar4+/YI/PgM9An+8g70BQY/rOAAADBUlEQVR4XrWY13riMBBGhQ1OSChp2+uoFlfe/+XWicefyXokBOyeK64Ooxn7lywWIdsttgUgxXaxy9gFrPICZhT56jxLtlhDgPUiva77O4hyd5+kubnlPaaDCHlCVV/2fAB6Si0EvcDlqXI+8xEtnX0zWuiRQpSlkJNqEy3qYc8JrLCHQW66xgOyjgzwiadgVK21AIDg8m75GbQAkF/lQWpA05Ue4wFNVH/SqQYP0aeH5M7IivNawshfs7vZp4mgRxxKmFi/j4SvaR4LczaXNMhL4Wam5fkL48rweh4s2UWTV0QWMOTbeQ/inDGfns8RNVTSYYfSLZ1uJRAMXfqU7nElkCzeRPtUj4WSezow8eVIbrPlAkhW58y+A1CGahGmwGOq6ACga6ApXmdm6kSTAMct0GTsI1dNokjLmnOg2fXDVz41phurHdAs2AduwHDElA7AhnokIcz2tdfeYZdwuBUt8hChYG9zxcVh8rWkp4QobJirPfKAwIAXBzIcaRgaSnP0l+M65bhIUzeQIjINgPSTvR6D3puhNgknYWPhUkyjbaZzDdaWKEI6GKlGEXSoTBBRcexUL3LQ4y8RdTDRGFyQThU9kh4AJyT+0G2Cp2AfYg9cOlv2Eve4RP+ijxF8kkgwpRW3EqLshs0olKCY0iX+VYRsiFoFIRSvPb7Fra99uNeMfcd9mACnXzmnDVfecdMJHwz/h2hFshriwddjULWh7Yj9QFGARutmKq+nUp2gNkj2gqI4TjiQWuM3gKa27JvTItlWY2bLRoBQXLn5IYI9nxA5i7HUKYXpV+pyfqxhv6MiafkxtQwftNhtRCTM7KxOzB75+QtClHxGFT6MsmWaB7HU8RjZpC0M6YIHdpatgUaTJVELQ1ZA01Ei/f7lQOJtqmIi+nM0BwKHJZSGOGvj5FNM0wbpj0tzlCdusr2majFPRjrSE++T4kqg081mtmRBVmt4j/Ozvtv4BQKSbSCI1AY9eKURZ7mOqIQW1CULTZbDSfLsH19EXX819v8v666/PvwDBjMaMphLxjwAAAAASUVORK5CYII=" alt="earth_asia" class="emoji">
+<!---->    </span></span><!---->
+
+</span><!----></a> 感谢佬的维护！！</p>
+<aside class="onebox allowlistedgeneric" data-onebox-src="https://ccw-explorer.7841784.xyz/" dir="auto">
+  <header class="source">
+      <img src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIj8+CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgYXJpYS1oaWRkZW49InRydWUiIHJvbGU9ImltZyIgY2xhc3M9Imljb25pZnkgaWNvbmlmeS0tbG9nb3MiIHdpZHRoPSIzMS44OCIgaGVpZ2h0PSIzMiIgcHJlc2VydmVBc3BlY3RSYXRpbz0ieE1pZFlNaWQgbWVldCIgdmlld0JveD0iMCAwIDI1NiAyNTciPgogIDxkZWZzPgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJJY29uaWZ5SWQxODEzMDg4ZmUxZmJjMDFmYjQ2NiIgeDE9Ii0uODI4JSIgeDI9IjU3LjYzNiUiIHkxPSI3LjY1MiUiIHkyPSI3OC40MTElIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iIzQxRDFGRiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNCRDM0RkUiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9Ikljb25pZnlJZDE4MTMwODhmZTFmYmMwMWZiNDY3IiB4MT0iNDMuMzc2JSIgeDI9IjUwLjMxNiUiIHkxPSIyLjI0MiUiIHkyPSI4OS4wMyUiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjRkZFQTgzIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iOC4zMzMlIiBzdG9wLWNvbG9yPSIjRkZERDM1Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI0ZGQTgwMCIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+CiAgPHBhdGggZmlsbD0idXJsKCNJY29uaWZ5SWQxODEzMDg4ZmUxZmJjMDFmYjQ2NikiIGQ9Ik0yNTUuMTUzIDM3LjkzOEwxMzQuODk3IDI1Mi45NzZjLTIuNDgzIDQuNDQtOC44NjIgNC40NjYtMTEuMzgyLjA0OEwuODc1IDM3Ljk1OGMtMi43NDYtNC44MTQgMS4zNzEtMTAuNjQ2IDYuODI3LTkuNjdsMTIwLjM4NSAyMS41MTdhNi41MzcgNi41MzcgMCAwIDAgMi4zMjItLjAwNGwxMTcuODY3LTIxLjQ4M2M1LjQzOC0uOTkxIDkuNTc0IDQuNzk2IDYuODc3IDkuNjJaIi8+CiAgPHBhdGggZmlsbD0idXJsKCNJY29uaWZ5SWQxODEzMDg4ZmUxZmJjMDFmYjQ2NykiIGQ9Ik0xODUuNDMyLjA2M0w5Ni40NCAxNy41MDFhMy4yNjggMy4yNjggMCAwIDAtMi42MzQgMy4wMTRsLTUuNDc0IDkyLjQ1NmEzLjI2OCAzLjI2OCAwIDAgMCAzLjk5NyAzLjM3OGwyNC43NzctNS43MThjMi4zMTgtLjUzNSA0LjQxMyAxLjUwNyAzLjkzNiAzLjgzOGwtNy4zNjEgMzYuMDQ3Yy0uNDk1IDIuNDI2IDEuNzgyIDQuNSA0LjE1MSAzLjc4bDE1LjMwNC00LjY0OWMyLjM3Mi0uNzIgNC42NTIgMS4zNiA0LjE1IDMuNzg4bC0xMS42OTggNTYuNjIxYy0uNzMyIDMuNTQyIDMuOTc5IDUuNDczIDUuOTQzIDIuNDM3bDEuMzEzLTIuMDI4bDcyLjUxNi0xNDQuNzJjMS4yMTUtMi40MjMtLjg4LTUuMTg2LTMuNTQtNC42NzJsLTI1LjUwNSA0LjkyMmMtMi4zOTYuNDYyLTQuNDM1LTEuNzctMy43NTktNC4xMTRsMTYuNjQ2LTU3LjcwNWMuNjc3LTIuMzUtMS4zNy00LjU4My0zLjc2OS00LjExM1oiLz4KPC9zdmc+Cg==" class="site-icon" alt="" data-dominant-color="" width="32" height="32" loading="lazy" style="aspect-ratio: 32 / 32;">
+
+      <a href="https://ccw-explorer.7841784.xyz/" target="_blank" rel="noopener nofollow ugc" class="normal-external-link-icon">ccw-explorer.7841784.xyz</a>
+  </header>
+
+  <article class="onebox-body">
+    
+
+<h3><a href="https://ccw-explorer.7841784.xyz/" target="_blank" rel="noopener nofollow ugc" data-clicks="383" aria-label="ccw-command-explorer 链接已点击 383 次" class="normal-external-link-icon">ccw-command-explorer</a></h3>
+
+
+
+  </article>
+
+  <div class="onebox-metadata">
+    
+    
+  </div>
+
+  <div style="clear: both"></div>
+</aside>
+
+<h2 dir="auto"><a name="p-15949146-h-8" class="anchor" href="#p-15949146-h-8" aria-label="标题链接"></a>使用技巧介绍</h2>
+<p dir="auto">下面按照软件开发过程中常见场景进行分类</p>
+<h2 dir="auto"><a name="p-15949146-h-1-100-9" class="anchor" href="#p-15949146-h-1-100-9" aria-label="标题链接"></a>一. 从1-100软件开发</h2>
+<h3 dir="auto"><a name="p-15949146-h-11-10" class="anchor" href="#p-15949146-h-11-10" aria-label="标题链接"></a>1.1 软件开发:新增功能或者功能变更</h3>
+<blockquote dir="auto">
+<p>与其他工作流不同，ccw将explore环节单独摘出来，放到analyze步骤中，一个完整功能新增流程如下：流程如下: analyze-&gt;plan-&gt;execute-&gt;review。</p>
+</blockquote>
+<h4 dir="auto"><a name="p-15949146-h-112-11" class="anchor" href="#p-15949146-h-112-11" aria-label="标题链接"></a>1.1.2 使用方法：</h4>
+<h4 dir="auto"><a name="p-15949146-analyze-with-file-12" class="anchor" href="#p-15949146-analyze-with-file-12" aria-label="标题链接"></a>通过analyze-with-file 入口命令传递需求就行</h4>
+<p dir="auto"><strong>claude</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes"><span class="hljs-comment">#路径1</span>
+/workflow:analyze-with-file  <span class="hljs-string">"需求,bug"</span> -&gt;（askuser后自动调用）/workflow-lite-plan-&gt;(自动)/workflow-lite-execute-&gt;(自动)/workflow-lite-test-review
+<span class="hljs-comment">#路径2</span>
+/team-lifecycleV4  <span class="hljs-string">"需求,bug"</span>
+<span class="hljs-comment">#路径3 </span>
+语义调用Gemini codex进行分析，获取足够信息 -&gt;(手动)/workflow-lite-plan-&gt;(自动)/workflow-lite-execute-&gt;(自动)/workflow-lite-test-review
+<span class="hljs-comment">#路径4 </span>
+语义调用Gemini codex进行分析，获取足够信息 -&gt;直接执行 或 语义调用多agent执行
+</code></pre>
+<p dir="auto"><strong>codex</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes"><span class="hljs-comment">#路径1</span>
+<span class="hljs-variable">$analyze</span>-with-file  <span class="hljs-string">"需求,bug"</span> -&gt;<span class="hljs-variable">$csv</span>-wave-pipeline
+<span class="hljs-comment">#路径2</span>
+<span class="hljs-variable">$team</span>-lifecycleV4
+</code></pre>
+<h3 dir="auto"><a name="p-15949146-h-12-bug-13" class="anchor" href="#p-15949146-h-12-bug-13" aria-label="标题链接"></a>1.2 bug修复</h3>
+<blockquote dir="auto">
+<p>简单强力的命令，自动打日志分析，解决bug</p>
+</blockquote>
+<p dir="auto"><strong>claude</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-csharp" data-highlighted="yes">/workflow:debug-<span class="hljs-keyword">with</span>-<span class="hljs-keyword">file</span> <span class="hljs-string">"问题描述"</span>
+</code></pre>
+<p dir="auto"><strong>codex</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-csharp" data-highlighted="yes">$debug-<span class="hljs-keyword">with</span>-<span class="hljs-keyword">file</span> <span class="hljs-string">"问题描述"</span>
+</code></pre>
+<hr>
+<h3 dir="auto"><a name="p-15949146-h-0-1-14" class="anchor" href="#p-15949146-h-0-1-14" aria-label="标题链接"></a>二. 从0-1开发</h3>
+<h4 dir="auto"><a name="p-15949146-h-21-15" class="anchor" href="#p-15949146-h-21-15" aria-label="标题链接"></a>2.1 只有想法，不知道怎么做</h4>
+<p dir="auto"><strong>claude</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes"><span class="hljs-comment">#路径1</span>
+/brainstorm <span class="hljs-string">"想法"</span> -&gt;（可选）spec-generator-&gt;(手动，清除会话)workflow-plan-&gt;(compact或清除会话)workflow-execute
+<span class="hljs-comment">#路径2</span>
+brainstorm <span class="hljs-string">"想法"</span> -&gt; team-lifecycleV4 (需安装ui-pro-max skill)
+<span class="hljs-comment">#路径3</span>
+team-lifecycleV4
+</code></pre>
+<p dir="auto"><strong>codex</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes"><span class="hljs-comment">#路径1</span>
+<span class="hljs-variable">$brainstorm</span>  <span class="hljs-string">"想法"</span> -&gt;（可选）<span class="hljs-variable">$spec</span>-generator-&gt;(手动，清除会话)<span class="hljs-variable">$workflow</span>-plan-&gt;(compact或清除会话)<span class="hljs-variable">$workflow</span>-execute
+<span class="hljs-comment">#路径2</span>
+brainstorm  <span class="hljs-string">"想法"</span> -&gt; team-lifecycleV4 (需安装ui-pro-max skill)
+</code></pre>
+<h4 dir="auto"><a name="p-15949146-h-22-16" class="anchor" href="#p-15949146-h-22-16" aria-label="标题链接"></a>2.2 想法明确，但是细节缺失</h4>
+<p dir="auto"><strong>claude</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes"><span class="hljs-comment">#路径1</span>
+/spec-generator-&gt;(手动，清除会话)workflow-plan-&gt;(compact或清除会话)workflow-execute
+<span class="hljs-comment">#路径2</span>
+/spec-generator-&gt; team-lifecycleV4 (需安装ui-pro-max skill)
+
+<span class="hljs-comment">#路径3</span>
+team-lifecycleV4
+</code></pre>
+<p dir="auto"><strong>codex</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes"><span class="hljs-comment">#路径1 (详细的需求文档撰写)</span>
+<span class="hljs-variable">$spec</span>-generator-&gt;(手动，清除会话)<span class="hljs-variable">$workflow</span>-plan-&gt;(compact或清除会话)<span class="hljs-variable">$workflow</span>-execute
+<span class="hljs-comment">#路径2 (轻量快速)</span>
+<span class="hljs-variable">$roadmap</span>-with-file-&gt; <span class="hljs-variable">$csv</span>-wave-pipeline
+<span class="hljs-comment">#路径3</span>
+<span class="hljs-variable">$team</span>-lifecycleV4
+
+</code></pre>
+<h4 dir="auto"><a name="p-15949146-h-23-17" class="anchor" href="#p-15949146-h-23-17" aria-label="标题链接"></a>2.3 需求文档明确</h4>
+<p dir="auto"><strong>claude</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">需求文档-&gt;&gt; /workflow-plan-&gt;(compact或清除会话)/workflow-execute
+</code></pre>
+<p dir="auto"><strong>codex</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">需求文档-&gt;&gt; <span class="hljs-variable">$workflow</span>-plan-&gt;(直接执行)<span class="hljs-variable">$workflow</span>-execute
+</code></pre>
+<hr>
+<h3 dir="auto"><a name="p-15949146-h-18" class="anchor" href="#p-15949146-h-18" aria-label="标题链接"></a>三. 全自动交付</h3>
+<p dir="auto"><strong>claude</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">/ccw-coordinate <span class="hljs-string">"复杂想法需求 0-1"</span>
+/ccw  <span class="hljs-string">"中等规模需求想法 0-1 或功能新增"</span>
+/team-lifecycleV4 <span class="hljs-string">"0-1 或功能新增"</span>
+
+</code></pre>
+<p dir="auto"><strong>codex</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes"><span class="hljs-variable">$team</span>-lifecycleV4 <span class="hljs-string">"0-1 或功能新增"</span>
+
+</code></pre>
+<hr>
+<h3 dir="auto"><a name="p-15949146-h-19" class="anchor" href="#p-15949146-h-19" aria-label="标题链接"></a>四.其他需求</h3>
+<blockquote dir="auto">
+<p>通过 team-coordinate 实现任务分解，角色生成及自动委派，中间产物自动流转，实现多种复杂任务。其次，也可以根据需求查找最相近的team skill。</p>
+</blockquote>
+<p dir="auto"><strong>claude</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">/team-coordinate <span class="hljs-string">"XXX"</span>
+
+</code></pre>
+<p dir="auto"><strong>codex</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes"><span class="hljs-variable">$team</span>-coordinate <span class="hljs-string">"XXX"</span>
+
+</code></pre>
+<h3 dir="auto"><a name="p-15949146-h-20" class="anchor" href="#p-15949146-h-20" aria-label="标题链接"></a>五 .规范系统</h3>
+<p dir="auto">通过spec 可以约束项目按照自定义风格。spec:add命令会根据规范要求，自动分配加载阶段，在使用工作流时自动加载。</p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">/workflow:spec:setup                 <span class="hljs-comment"># 完整初始化</span>
+/workflow:spec:add <span class="hljs-string">"Use async/await instead of callbacks"</span>   <span class="hljs-comment"># 添加规范</span>
+</code></pre>
+<details id="post-cooked-html__details-1863021-1-0" dir="auto">
+<summary>
+Claude code skill 预览</summary>
+<div class="md-table fullscreen-table-wrapper --has-overflow" data-table-index="0">
+<div class="fullscreen-table-wrapper__buttons"><button class="open-popup-link btn-default btn btn-icon no-text btn-expand-table" title="展开表"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto expand-table-icon svg-node" width="1em" height="1em" aria-hidden="true"><use href="#discourse-expand"></use></svg></button></div><table>
+<thead>
+<tr>
+<th>技能名</th>
+<th>描述</th>
+<th>角色</th>
+<th>流程</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>brainstorm</strong></td>
+<td>双模式头脑风暴 (auto/single-role)，含框架生成</td>
+<td>单角色</td>
+<td>Mode routing → Framework generation (auto) / Role analysis → Synthesis</td>
+</tr>
+<tr>
+<td><strong>ccw-help</strong></td>
+<td>CCW 命令帮助系统，支持搜索、推荐、浏览</td>
+<td>单角色</td>
+<td>Detect mode (Search/Recommend/Doc/Onboard/Orchestration/Issue/Browsing) → Execute → Output</td>
+</tr>
+<tr>
+<td><strong>delegation-check</strong></td>
+<td>检查工作流委派 prompt 与 agent 角色定义的冲突</td>
+<td>单角色</td>
+<td>Determine scope → Discover pairs → Parse prompts → Parse definitions → 7-dimension conflict check</td>
+</tr>
+<tr>
+<td><strong>investigate</strong></td>
+<td>Iron Law 系统化调试 (无确认根因不修复)</td>
+<td>单角色</td>
+<td>Investigation → Pattern analysis → Hypothesis testing → Implementation (gated) → Verification</td>
+</tr>
+<tr>
+<td><strong>issue-manage</strong></td>
+<td>交互式问题管理，菜单驱动 CRUD 操作</td>
+<td>单角色</td>
+<td>Main menu → Select operation (List/View/Edit/Delete/History/Bulk) → Execute → Update state</td>
+</tr>
+<tr>
+<td><strong>memory-capture</strong></td>
+<td>统一记忆捕获，路由到 compact 或 tips 模式</td>
+<td>单角色</td>
+<td>Parse input → Detect mode → Read phase doc → Execute → Save via core_memory</td>
+</tr>
+<tr>
+<td><strong>memory-manage</strong></td>
+<td>统一记忆管理，CLAUDE.md 更新与文档生成</td>
+<td>单角色</td>
+<td>Parse input → Interactive assessment → Select phase → Execute → Output artifacts</td>
+</tr>
+<tr>
+<td><strong>prompt-generator</strong></td>
+<td>生成/转换 Claude Code prompt 文件，GSD 内容分离</td>
+<td>单角色</td>
+<td>Determine type → Validate → Resolve path → Read spec → Generate → Quality validate</td>
+</tr>
+<tr>
+<td><strong>review-code</strong></td>
+<td>多维度代码审查，6 个分析维度</td>
+<td>单角色</td>
+<td>Read specs → Collect context → Quick scan → Deep review → Report → Complete</td>
+</tr>
+<tr>
+<td><strong>review-cycle</strong></td>
+<td>统一代码审查编排器，session/module/fix 模式路由</td>
+<td>单角色</td>
+<td>Detect mode → Read phase → Execute 5 phases → Generate report</td>
+</tr>
+<tr>
+<td><strong>security-audit</strong></td>
+<td>OWASP Top 10 + STRIDE 安全审计，含供应链分析</td>
+<td>单角色</td>
+<td>Supply chain scan → OWASP review → Threat modeling → Report &amp; tracking</td>
+</tr>
+<tr>
+<td><strong>ship</strong></td>
+<td>结构化发布流水线：预检、审查、版本、变更日志、PR</td>
+<td>单角色</td>
+<td>Pre-flight → Code review → Version bump → Changelog → PR creation</td>
+</tr>
+<tr>
+<td><strong>skill-generator</strong></td>
+<td>元技能：创建新 Claude Code 技能，可配置模式</td>
+<td>单角色</td>
+<td>Spec analysis → Requirement gathering → Directory creation → Generation → Validation</td>
+</tr>
+<tr>
+<td><strong>skill-tuning</strong></td>
+<td>通用技能诊断与优化，含 Gemini CLI 分析</td>
+<td>单角色</td>
+<td>Read taxonomy → Orchestrator state-driven → 6 diagnosis types → Fix &amp; verify</td>
+</tr>
+<tr>
+<td><strong>spec-generator</strong></td>
+<td>7 阶段规格文档生成器，多 CLI 分析</td>
+<td>单角色</td>
+<td>Discovery → Req expansion → Brief → PRD → Architecture → Epics → Readiness</td>
+</tr>
+<tr>
+<td><strong>wf-composer</strong></td>
+<td>语义工作流编排：自然语言 → DAG → JSON 模板</td>
+<td>单角色</td>
+<td>Parse → Resolve → Enrich → Confirm → Persist template</td>
+</tr>
+<tr>
+<td><strong>wf-player</strong></td>
+<td>工作流模板播放器：加载 JSON、绑定变量、执行 DAG</td>
+<td>单角色</td>
+<td>Route → Load &amp; bind → Instantiate → Execute → Complete</td>
+</tr>
+<tr>
+<td><strong>workflow-execute</strong></td>
+<td>工作流任务执行协调，自动会话发现</td>
+<td>单角色</td>
+<td>Discovery → Validation → TodoWrite gen → Execute tasks → Completion</td>
+</tr>
+<tr>
+<td><strong>workflow-lite-execute</strong></td>
+<td>轻量执行引擎，多模式输入，批量执行</td>
+<td>单角色</td>
+<td>Mode detection → Selection → Execution → Code review (optional) → Test-review chain</td>
+</tr>
+<tr>
+<td><strong>workflow-lite-plan</strong></td>
+<td>轻量规划：探索、澄清、规划、确认</td>
+<td>单角色</td>
+<td>Init → Exploration → Clarification → Planning → Confirmation → Execute handoff</td>
+</tr>
+<tr>
+<td><strong>workflow-lite-test-review</strong></td>
+<td>执行后测试审查与修复，收敛验证</td>
+<td>单角色</td>
+<td>Mode detection → Framework detection → Convergence verify → Tests &amp; fixes → Report</td>
+</tr>
+<tr>
+<td><strong>workflow-multi-cli-plan</strong></td>
+<td>多 CLI 协作规划，迭代交叉验证</td>
+<td>单角色</td>
+<td>Context gathering → Multi-CLI discussion → Present options → User decision → Plan gen &amp; execute</td>
+</tr>
+<tr>
+<td><strong>workflow-plan</strong></td>
+<td>统一规划：4 阶段工作流，验证与重规划</td>
+<td>单角色</td>
+<td>Mode detection (plan/verify/replan) → Phase 1-4 → Confirmation → Execution handoff</td>
+</tr>
+<tr>
+<td><strong>workflow-skill-designer</strong></td>
+<td>元技能：设计 orchestrator+phases 结构化工作流技能</td>
+<td>单角色</td>
+<td>Requirement analysis → Orchestrator design → Phase generation → Validation</td>
+</tr>
+<tr>
+<td><strong>workflow-tdd-plan</strong></td>
+<td>统一 TDD 规划：6 阶段 Red-Green-Refactor 任务生成</td>
+<td>单角色</td>
+<td>Session → Context → Test coverage → Task gen → Verification → Confirm &amp; execute</td>
+</tr>
+<tr>
+<td><strong>workflow-test-fix</strong></td>
+<td>统一测试修复：生成与迭代执行</td>
+<td>单角色</td>
+<td>Session → Context → Analysis → Task gen → Execute cycle → Complete</td>
+</tr>
+<tr>
+<td><strong>team-arch-opt</strong></td>
+<td>架构优化团队</td>
+<td>coordinator, analyzer, designer, refactorer, validator, reviewer</td>
+<td>Analyze → Dispatch → Refactoring cycle → Validation → Complete</td>
+</tr>
+<tr>
+<td><strong>team-brainstorm</strong></td>
+<td>头脑风暴团队</td>
+<td>coordinator, ideator, challenger, synthesizer, evaluator</td>
+<td>Analyze → Dispatch → 4 worker roles → Callbacks → Complete</td>
+</tr>
+<tr>
+<td><strong>team-coordinate</strong></td>
+<td>通用团队协调，动态角色生成</td>
+<td>coordinator (builtin), dynamic workers</td>
+<td>Analyze → Generate role-specs → Init session → Spawn workers → Callbacks → Complete</td>
+</tr>
+<tr>
+<td><strong>team-designer</strong></td>
+<td>元技能：生成遵循 v4 架构的团队技能</td>
+<td>单角色</td>
+<td>Requirements analysis → Scaffold generation → Content generation → Validation</td>
+</tr>
+<tr>
+<td><strong>team-executor</strong></td>
+<td>轻量会话执行，恢复已有 team-coordinate 会话</td>
+<td>单角色</td>
+<td>Validate session → Reconcile state → Spawn workers → Callbacks → Complete</td>
+</tr>
+<tr>
+<td><strong>team-frontend</strong></td>
+<td>前端开发团队，内置 ui-ux-pro-max 设计智能</td>
+<td>coordinator, analyst, architect, developer, qa</td>
+<td>Analyze → Dispatch → 4 worker roles → GC loops → Complete</td>
+</tr>
+<tr>
+<td><strong>team-frontend-debug</strong></td>
+<td>前端调试团队，Chrome DevTools MCP 双模式</td>
+<td>coordinator, tester, reproducer, analyzer, fixer, verifier</td>
+<td>Analyze → Select pipeline (test/debug) → Dispatch → Execute → Complete</td>
+</tr>
+<tr>
+<td><strong>team-interactive-craft</strong></td>
+<td>交互组件团队：研究-设计-构建-无障碍</td>
+<td>coordinator, researcher, interaction-designer, builder, a11y-tester</td>
+<td>Research → Design → Build → A11y test → GC loops → Complete</td>
+</tr>
+<tr>
+<td><strong>team-issue</strong></td>
+<td>问题解决流水线：探索-规划-审查-集成-实现</td>
+<td>coordinator, explorer, planner, reviewer, integrator, implementer</td>
+<td>Clarify → Dispatch → Workers → Review-fix cycles → Complete</td>
+</tr>
+<tr>
+<td><strong>team-lifecycle-v4</strong></td>
+<td>全生命周期团队：规划-开发-测试-审查</td>
+<td>coordinator, analyst, writer, planner, executor, tester, reviewer, supervisor</td>
+<td>Analyze → Dispatch → Workers + supervisor → Checkpoints → Complete</td>
+</tr>
+<tr>
+<td><strong>team-motion-design</strong></td>
+<td>动效设计团队：研究-编排-动画-测试</td>
+<td>coordinator, motion-researcher, choreographer, animator, motion-tester</td>
+<td>Research → Choreography → Animation → Performance testing → Complete</td>
+</tr>
+<tr>
+<td><strong>team-perf-opt</strong></td>
+<td>性能优化团队</td>
+<td>coordinator, profiler, strategist, optimizer, benchmarker, reviewer</td>
+<td>Dispatch → Single/fan-out/independent modes → Optimization cycle → Complete</td>
+</tr>
+<tr>
+<td><strong>team-planex</strong></td>
+<td>计划执行流水线，基于 issue 开发</td>
+<td>coordinator, planner, executor</td>
+<td>Dispatch → Planner → Executor → Callbacks → Complete</td>
+</tr>
+<tr>
+<td><strong>team-quality-assurance</strong></td>
+<td>质量保障团队，结合问题发现与测试</td>
+<td>coordinator, scout, strategist, generator, executor, analyst</td>
+<td>Dispatch → Discovery/testing/full modes → Execute → Complete</td>
+</tr>
+<tr>
+<td><strong>team-review</strong></td>
+<td>代码审查团队：扫描-审查-修复</td>
+<td>coordinator, scanner, reviewer, fixer</td>
+<td>Dispatch → Scanner → Reviewer → Fixer → GC loops → Complete</td>
+</tr>
+<tr>
+<td><strong>team-roadmap-dev</strong></td>
+<td>路线图驱动开发，分阶段执行</td>
+<td>coordinator, planner, executor, verifier</td>
+<td>Roadmap discussion → Phase 1-N pipeline → Per-phase workers → Complete</td>
+</tr>
+<tr>
+<td><strong>team-tech-debt</strong></td>
+<td>技术债识别与修复</td>
+<td>coordinator, scanner, assessor, planner, executor, validator</td>
+<td>Scan → Assess → Plan → Execute → Validate → Complete</td>
+</tr>
+<tr>
+<td><strong>team-testing</strong></td>
+<td>测试团队：策略-生成-执行-分析</td>
+<td>coordinator, strategist, generator, executor, analyst</td>
+<td>Strategist → Generator → Executor → Analyst → GC loops → Complete</td>
+</tr>
+<tr>
+<td><strong>team-ui-polish</strong></td>
+<td>UI 打磨团队：扫描-诊断-优化-验证</td>
+<td>coordinator, scanner, diagnostician, optimizer, verifier</td>
+<td>Scan → Diagnose → Optimize → Verify → GC loops → Complete</td>
+</tr>
+<tr>
+<td><strong>team-uidesign</strong></td>
+<td>UI 设计团队：研究-设计-实现</td>
+<td>coordinator, researcher, designer, implementer</td>
+<td>Research → Design → Implement → Complete</td>
+</tr>
+<tr>
+<td><strong>team-ultra-analyze</strong></td>
+<td>深度协作分析：探索-分析-讨论-综合</td>
+<td>coordinator, explorer, analyst, discussant, synthesizer</td>
+<td>Explore → Analyze → Iterative discussion → Synthesize → Complete</td>
+</tr>
+<tr>
+<td><strong>team-ux-improve</strong></td>
+<td>UX 改进团队：扫描-诊断-设计-实现-测试</td>
+<td>coordinator, scanner, diagnoser, designer, implementer, tester</td>
+<td>Scan → Diagnose → Design → Implement → Test → Complete</td>
+</tr>
+<tr>
+<td><strong>team-visual-a11y</strong></td>
+<td>视觉无障碍团队：颜色/字体/焦点并行审计</td>
+<td>coordinator, color-auditor, typo-auditor, focus-auditor, remediation-planner, fix-implementer</td>
+<td>3 audits parallel → Plan remediation → Implement → Re-audit → Complete</td>
+</tr>
+</tbody>
+</table>
+</div></details>
+<h3 dir="auto"><a name="p-15949146-h-21" class="anchor" href="#p-15949146-h-21" aria-label="标题链接"></a>未完待续… 如果有想法，问题，可以在评论区尽情探讨，一起进步！！</h3><div class="cooked-selection-barrier" aria-hidden="true"><br></div><div class="save-buttons-container" style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;"><button class="save-to-image-btn" style="padding: 10px 20px; font-size: 15px; font-weight: 600; background-color: rgb(76, 175, 80); color: white; border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; border-radius: 8px; cursor: pointer; box-shadow: rgba(76, 175, 80, 0.3) 0px 4px 12px; transition: 0.3s; transform: translateY(0px);">🖼️ 保存为图片</button><button id="toggleVisibilityBtn" style="background-color: rgb(51, 51, 51); color: rgb(255, 255, 255); border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; padding: 8px 16px; margin-left: 10px; border-radius: 5px; cursor: pointer;">当前查看全部</button></div>
+                    </div>
+                </body>
+                </html>
+            

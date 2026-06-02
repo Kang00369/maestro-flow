@@ -1,0 +1,74 @@
+
+                <!DOCTYPE html>
+                <html lang="zh-CN">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>【开源自荐】助我迭代，我将Maestro-Flow打包到一个skill，Maestro-Flow-One——软件全生命周期自动推进</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        .post-content { max-width: 800px; margin: 0 auto; }
+                        img { max-width: 100%; height: auto; }
+                    </style>
+                </head>
+                <body>
+                    <div class="post-content">
+                        <h1>【开源自荐】助我迭代，我将Maestro-Flow打包到一个skill，Maestro-Flow-One——软件全生命周期自动推进</h1>
+                        <h4 dir="auto"><a name="p-17544763-h-1" class="anchor" href="#p-17544763-h-1" aria-label="标题链接"></a>本帖使用社区开源推广，符合推广要求。我申明并遵循社区要求的以下内容：</h4>
+<ul dir="auto">
+<li><strong>我的帖子已经打上 <a class="hashtag-cooked" href="/tag/2234-tag/2234" data-type="tag" data-slug="开源推广" data-id="2234" data-style-type="icon" data-icon="tag" aria-label="开源推广"><svg class="fa d-icon d-icon-tag svg-icon fa-width-auto hashtag-color--tag-2234 svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#tag"></use></svg><span>开源推广</span></a> 标签：</strong> 是</li>
+<li><strong>我的开源项目完整开源，无未开源部分：</strong> 是</li>
+<li><strong>我的开源项目已链接认可 LINUX DO 社区：</strong> 是</li>
+<li><strong>我帖子内的项目介绍，AI生成、润色内容部分已截图发出：</strong> 是</li>
+<li><strong>以上选择我承诺是永久有效的，接受社区和佬友监督：</strong> 是</li>
+</ul>
+<p dir="auto"><em>以下为项目介绍正文内容，AI生成、润色内容已使用截图方式发出</em></p>
+<hr>
+<h2 dir="auto"><a name="p-17544763-one-skillmaestro-flow-2" class="anchor" href="#p-17544763-one-skillmaestro-flow-2" aria-label="标题链接"></a>借助这个one skill，邀请佬友们品尝一下，认识Maestro-flow，助我迭代</h2>
+<h3 dir="auto"><a name="p-17544763-h-3" class="anchor" href="#p-17544763-h-3" aria-label="标题链接"></a>项目介绍：</h3>
+<ul dir="auto">
+<li>only one skill ，打包Maestro-flow，</li>
+<li><strong>关键词：全自动推进、0-1、1-100、头脑风暴、路线图、行动规划、多agent开发、测试、debug、知识规范管理。</strong></li>
+<li>claude：采用结对，循环迭代skill设计，稳步推进。</li>
+<li>codex：采用spawn_agent_on_csv机制，稳定挂起，子agent再也不会开小差。</li>
+</ul>
+<h3 dir="auto"><a name="p-17544763-h-4" class="anchor" href="#p-17544763-h-4" aria-label="标题链接"></a>安装</h3>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-css" data-highlighted="yes">npm install -<span class="hljs-selector-tag">g</span> maestro-<span class="hljs-attribute">flow</span> #需要使用Maestro delegate 多cli功能
+
+npm install -<span class="hljs-selector-tag">g</span> maestro-<span class="hljs-attribute">flow</span>-one 
+
+maestro-<span class="hljs-attribute">flow</span> install #默认安装到全局
+
+</code></pre>
+<h3 dir="auto"><a name="p-17544763-codex-5" class="anchor" href="#p-17544763-codex-5" aria-label="标题链接"></a>codex配置</h3>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-ini" data-highlighted="yes"><span class="hljs-section">[features]</span>
+<span class="hljs-attr">enable_fanout</span> = <span class="hljs-literal">true</span>
+<span class="hljs-attr">multi_agent_v2</span>=<span class="hljs-literal">true</span>
+<span class="hljs-attr">default_mode_request_user_input</span> = <span class="hljs-literal">true</span>
+<span class="hljs-attr">goals</span> = <span class="hljs-literal">true</span>
+</code></pre>
+<h3 dir="auto"><a name="p-17544763-h-6" class="anchor" href="#p-17544763-h-6" aria-label="标题链接"></a>项目结构</h3>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">+-- codex/maestro-flow/            <span class="hljs-comment"># Codex variant -&gt; .codex/skills/</span>
+|   +-- SKILL.md                   <span class="hljs-comment"># spawn_agents_on_csv executor</span>
+|   +-- commands/ (49)
+|   +-- chains/templates.json
++-- claude/maestro-flow/           <span class="hljs-comment"># Claude variant -&gt; .claude/skills/</span>
+|   +-- SKILL.md                   <span class="hljs-comment"># Skill() + delegate executor</span>
+|   +-- commands/ (49)
+|   +-- chains/templates.json
+</code></pre>
+<h3 dir="auto"><a name="p-17544763-h-7" class="anchor" href="#p-17544763-h-7" aria-label="标题链接"></a>如何使用</h3>
+<p dir="auto"><strong>很简单,only one skill，支持单步command路由和多步command跟踪执行</strong></p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">/maestro-flow <span class="hljs-string">"XXXXXXXXXXXXX"</span> 
+</code></pre>
+<h3 dir="auto"><a name="p-17544763-maestro-flow-8" class="anchor" href="#p-17544763-maestro-flow-8" aria-label="标题链接"></a>配合以下焚诀以及Maestro flow全面介绍 食用</h3>
+<p dir="auto"><a href="https://linux.do/t/topic/2109656" data-clicks="134" aria-label="Maestro-FLow codex 焚诀~~~配合/goal 闭环长时多agent推进 - 开发调优 - LINUX DO 链接已点击 134 次">Maestro-FLow codex 焚诀~~~配合/goal 闭环长时多agent推进 - 开发调优 - LINUX DO</a></p>
+<p dir="auto"><a href="https://linux.do/t/topic/2102464" data-clicks="101" aria-label="【开源自荐】Maestro-FLow 工作流-实现Claude code&amp;&amp;Codex 自动推进/闭环治理/知识复用/团队协作/worktree并行/多cli调用 - 开发调优 - LINUX DO 链接已点击 101 次">【开源自荐】Maestro-FLow 工作流-实现Claude code&amp;&amp;Codex 自动推进/闭环治理/知识复用/团队协作/worktree并行/多cli调用 - 开发调优 - LINUX DO</a></p>
+<h2 dir="auto"><a name="p-17544763-h-9" class="anchor" href="#p-17544763-h-9" aria-label="标题链接"></a>项目地址：</h2>
+<p dir="auto"><a href="https://github.com/catlog22/maestro-flow" rel="noopener nofollow ugc" data-clicks="119" aria-label="catlog22/maestro-flow: Workflow orchestration CLI with MCP endpoint support and multi-agent dashboard 链接已点击 119 次" class="normal-external-link-icon" target="_blank">catlog22/maestro-flow: Workflow orchestration CLI with MCP endpoint support and multi-agent dashboard</a></p>
+<p dir="auto"><a href="https://github.com/catlog22/maestro-flow-one" rel="noopener nofollow ugc" data-clicks="148" aria-label="catlog22/maestro-flow-one: All Maestro workflow commands packaged as a single Claude Code skill — intent routing, decision gates, minimal closed-loop chains 链接已点击 148 次" class="normal-external-link-icon" target="_blank">catlog22/maestro-flow-one: All Maestro workflow commands packaged as a single Claude Code skill — intent routing, decision gates, minimal closed-loop chains</a></p>
+<h2 dir="auto"><a name="p-17544763-h-10" class="anchor" href="#p-17544763-h-10" aria-label="标题链接"></a>佬友们帮忙给项目点一下<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABICAMAAABiM0N1AAAAM1BMVEVHcEz/rDP/rDP/rDP/rDP/rDP/rDP/rDP/rDP/rDP/rDP/rDP/rDP/rDP/rDP/rDP/rDPIzIGKAAAAEXRSTlMAMK/v/78gcM8QYFDfgECfjzPxc0MAAAFZSURBVHgB7djVYsUwCIBhEoin8v4vO2WeM0jpfN/t0Z+mCif45zyid2DmkG6gA6tAdwIYRWIRbBKxBDaZWLaXsWguY8lcxoK9jBVzGavmMubtZayYy1g1lzFvL2PFXMaquYx5exkr5jJWzWXM28tUba2TSW/8PWTW4FYnsw43Cp2gnPVFp6WdO2xoSCbYgBVPBr7Ak4R0ECZ4wWU6JDt4baEDFhhYO03qKwwVb5gyYw3nN/pYDKQUoniAVUkgclm90QXFq6cskL8IVAqJCmhUElXQ2Ei0gQaSCEGhkULTl9nbuvZoL3Ck4kCyk8oOkkwqGQSRlA4cRTAlnD+O5OEhw+XZtnJpqvvkjlsvHpjX13l15lAUCjwqYeagNB7oeEOod9js3j+cN+Wy3gu8UXbl4g7i6a+hakjp1ZQHStAsyYj8HsXixyg+5MlOcQrt0oFkTSuI1rrCt3cNofAlUpDr+CkAAAAASUVORK5CYII=" title=":star:" class="emoji" alt=":star:" loading="lazy" width="20" height="20" style="aspect-ratio: 20 / 20;">，非常感谢</h2><div class="cooked-selection-barrier" aria-hidden="true"><br></div><button id="toggleVisibilityBtn" style="background-color: rgb(51, 51, 51); color: rgb(255, 255, 255); border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; padding: 8px 16px; margin-left: 10px; border-radius: 5px; cursor: pointer;">当前查看全部</button><div class="save-buttons-container" style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;"><button class="save-to-image-btn" style="padding: 10px 20px; font-size: 15px; font-weight: 600; background-color: rgb(76, 175, 80); color: white; border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; border-radius: 8px; cursor: pointer; box-shadow: rgba(76, 175, 80, 0.3) 0px 4px 12px; transition: 0.3s; transform: translateY(0px);">🖼️ 保存为图片</button></div>
+                    </div>
+                </body>
+                </html>
+            
