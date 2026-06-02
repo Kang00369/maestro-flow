@@ -1,0 +1,357 @@
+
+                <!DOCTYPE html>
+                <html lang="zh-CN">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>【开源自荐】详解Maestro-Flow中的知识管理系统—约束和沉淀 && 实践场景-前后端 API 开发闭环</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        .post-content { max-width: 800px; margin: 0 auto; }
+                        img { max-width: 100%; height: auto; }
+                    </style>
+                </head>
+                <body>
+                    <div class="post-content">
+                        <h1>【开源自荐】详解Maestro-Flow中的知识管理系统—约束和沉淀 && 实践场景-前后端 API 开发闭环</h1>
+                        <h2 dir="auto"><a name="p-17694407-h-1" class="anchor" href="#p-17694407-h-1" aria-label="标题链接"></a>历史回顾：</h2>
+<p dir="auto"><a href="https://linux.do/t/topic/2102464/20" data-clicks="37" aria-label="【开源自荐】Maestro-FLow 工作流-实现Claude code&amp;&amp;Codex 自动推进/闭环治理/知识复用/团队协作/worktree并行/多cli调用 - 开发调优 - LINUX DO 链接已点击 37 次">【开源自荐】Maestro-FLow 工作流-实现Claude code&amp;&amp;Codex 自动推进/闭环治理/知识复用/团队协作/worktree并行/多cli调用 - 开发调优 - LINUX DO</a><br>
+<a href="https://linux.do/t/topic/2109656/26" data-clicks="12" aria-label="Maestro-FLow codex 焚诀~~~配合/goal 闭环长时多agent推进 - 开发调优 - LINUX DO 链接已点击 12 次">Maestro-FLow codex 焚诀~~~配合/goal 闭环长时多agent推进 - 开发调优 - LINUX DO</a><br>
+<a href="https://linux.do/t/topic/2122097/15" data-clicks="14" aria-label="【开源自荐】助我迭代，我将Maestro-Flow打包到一个skill，Maestro-Flow-One——软件全生命周期自动推进 - 开发调优 - LINUX DO 链接已点击 14 次">【开源自荐】助我迭代，我将Maestro-Flow打包到一个skill，Maestro-Flow-One——软件全生命周期自动推进 - 开发调优 - LINUX DO</a></p>
+<h1 dir="auto"><a name="p-17694407-maestro-flow-2" class="anchor" href="#p-17694407-maestro-flow-2" aria-label="标题链接"></a>Maestro-Flow 的知识管理系统详解</h1>
+<p dir="auto">Maestro-Flow 经过多个版本的迭代，现已经完善定型，向大家分享设计及使用说明。</p>
+<p dir="auto">Maestro-Flow 中的知识沉淀主要分两种：<strong>约束</strong> 和 <strong>积累</strong>。约束是编码规范、架构决策、质量规则——规定"不能做什么"。积累是操作步骤、设计资产、调试经验——记录"怎么做过"。前者需要强制加载，后者需要按需检索，典型产物结构如下:</p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">.workflow/
+├── specs/                          <span class="hljs-comment"># 约束层：基于 category 的规则索引</span>
+│   ├── coding-conventions.md       <span class="hljs-comment"># category: coding</span>
+│   ├── architecture-constraints.md <span class="hljs-comment"># category: arch</span>
+│   ├── review-standards.md         <span class="hljs-comment"># category: review</span>
+│   ├── debug-notes.md              <span class="hljs-comment"># category: debug</span>
+│   ├── test-conventions.md         <span class="hljs-comment"># category: test</span>
+│   └── learnings.md                <span class="hljs-comment"># category: learning（经验教训）</span>
+├── knowhow/                        <span class="hljs-comment"># 积累层：完整知识文档</span>
+│   ├── KNW-*.md                    <span class="hljs-comment"># 会话压缩记录</span>
+│   ├── RCP-*.md                    <span class="hljs-comment"># 操作配方（步骤指南，可标记 tool: true）</span>
+│   ├── TPL-*.md                    <span class="hljs-comment"># 代码/配置模板</span>
+│   ├── REF-*.md                    <span class="hljs-comment"># 外部文档摘要</span>
+│   ├── DCS-*.md                    <span class="hljs-comment"># 架构决策记录</span>
+│   ├── TIP-*.md                    <span class="hljs-comment"># 快速提示</span>
+│   ├── AST-*.md                    <span class="hljs-comment"># 代码资产（API 契约、数据模型）</span>
+│   ├── BLP-*.md                    <span class="hljs-comment"># 架构蓝图</span>
+│   └── DOC-*.md                    <span class="hljs-comment"># 长文档（通用兜底）</span>
+└── wiki-index.json                 <span class="hljs-comment"># 统一索引（WikiIndexer 自动生成）</span>
+</code></pre>
+<h2 dir="auto"><a name="p-17694407-h-3" class="anchor" href="#p-17694407-h-3" aria-label="标题链接"></a>相关命令</h2>
+<h3 dir="auto"><a name="p-17694407-h-4" class="anchor" href="#p-17694407-h-4" aria-label="标题链接"></a>写入类</h3>
+<div class="md-table fullscreen-table-wrapper" dir="auto" data-table-index="0">
+<div class="fullscreen-table-wrapper__buttons"></div><table>
+<thead>
+<tr>
+<th>命令</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/spec-add</code></td>
+<td>向 specs 文件追加 <code>&lt;spec-entry&gt;</code> 条目，支持 inline 和 ref 两种模式</td>
+</tr>
+<tr>
+<td><code>/manage-knowhow-capture</code></td>
+<td>捕获 6 种类型知识文档到 knowhow/（compact、template、recipe、reference、decision、tip）</td>
+</tr>
+<tr>
+<td><code>/maestro-tools-register</code></td>
+<td>将可复用业务流程注册为 knowhow 工具文档（YAML 头 <code>tool: true</code> + <code>category</code>）</td>
+</tr>
+<tr>
+<td><code>/manage-learn</code></td>
+<td>捕获原子洞察到 <code>learnings.md</code>（pattern、gotcha、technique、tip）</td>
+</tr>
+<tr>
+<td><code>/manage-harvest</code></td>
+<td>从工作流产物中提取知识碎片，路由到 wiki/spec/issue 三个存储</td>
+</tr>
+</tbody>
+</table>
+</div><h3 dir="auto"><a name="p-17694407-h-5" class="anchor" href="#p-17694407-h-5" aria-label="标题链接"></a>读取类</h3>
+<div class="md-table fullscreen-table-wrapper" dir="auto" data-table-index="1">
+<div class="fullscreen-table-wrapper__buttons"></div><table>
+<thead>
+<tr>
+<th>命令</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/spec-load</code></td>
+<td>按 category 加载主文档 + 跨文件 keyword 匹配条目 + 自动发现 knowhow 工具</td>
+</tr>
+<tr>
+<td><code>/maestro-tools-execute</code></td>
+<td>从 knowhow 加载工具文档并逐步执行</td>
+</tr>
+<tr>
+<td><code>/manage-knowhow</code></td>
+<td>跨 workflow knowhow 和 system memory 两个存储做 list/search/view/edit/delete</td>
+</tr>
+<tr>
+<td><code>/manage-wiki</code></td>
+<td>Wiki 图健康度、搜索、清理、统计</td>
+</tr>
+</tbody>
+</table>
+</div><h3 dir="auto"><a name="p-17694407-h-6" class="anchor" href="#p-17694407-h-6" aria-label="标题链接"></a>分析类</h3>
+<div class="md-table fullscreen-table-wrapper" dir="auto" data-table-index="2">
+<div class="fullscreen-table-wrapper__buttons"></div><table>
+<thead>
+<tr>
+<th>命令</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/wiki-digest</code></td>
+<td>语义主题聚类 + 知识覆盖热力图 + gap 分析</td>
+</tr>
+<tr>
+<td><code>/wiki-connect</code></td>
+<td>发现孤立节点和缺失连接，修复图联通性</td>
+</tr>
+<tr>
+<td><code>/learn-decompose</code></td>
+<td>从代码中提取设计模式，写入 spec 和 wiki</td>
+</tr>
+<tr>
+<td><code>/learn-follow</code></td>
+<td>引导式阅读代码/wiki，提取 pattern 并构建理解</td>
+</tr>
+</tbody>
+</table>
+</div><h3 dir="auto"><a name="p-17694407-h-7" class="anchor" href="#p-17694407-h-7" aria-label="标题链接"></a>初始化</h3>
+<div class="md-table fullscreen-table-wrapper" dir="auto" data-table-index="3">
+<div class="fullscreen-table-wrapper__buttons"></div><table>
+<thead>
+<tr>
+<th>命令</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/spec-setup</code></td>
+<td>扫描项目结构，初始化 specs 骨架文件（6 个种子文件）</td>
+</tr>
+</tbody>
+</table>
+</div><h2 dir="auto"><a name="p-17694407-tool-8" class="anchor" href="#p-17694407-tool-8" aria-label="标题链接"></a>Tool — 可执行知识</h2>
+<p dir="auto">Tool 是标记了 <code>tool: true</code> 的 knowhow 文档，存储在 <code>.workflow/knowhow/</code> 中，定义<strong>可执行的业务流程</strong>。</p>
+<p dir="auto"><strong>简单来说：Tool 可以理解为轻量化的 workflow（针对业务需求，沉淀在项目目录下，具有自发现自使用特性）</strong></p>
+<p dir="auto">任何 knowhow 文档都可以成为 Tool，只需在 YAML 头中加入 <code>tool: true</code> 和 <code>category</code>：</p>
+<pre data-code-wrap="yaml" dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="lang-yaml hljs language-yaml" data-highlighted="yes"><span class="hljs-meta">---</span>
+<span class="hljs-attr">title:</span> <span class="hljs-string">Payment</span> <span class="hljs-string">Gateway</span> <span class="hljs-string">Idempotency</span> <span class="hljs-string">Verification</span>
+<span class="hljs-attr">type:</span> <span class="hljs-string">recipe</span>
+<span class="hljs-attr">category:</span> <span class="hljs-string">test</span>
+<span class="hljs-attr">keywords:</span> [<span class="hljs-string">payment</span>, <span class="hljs-string">gateway</span>, <span class="hljs-string">idempotency</span>]
+<span class="hljs-attr">tool:</span> <span class="hljs-literal">true</span>
+<span class="hljs-attr">summary:</span> <span class="hljs-string">"Use when testing payment endpoints for retry safety."</span>
+<span class="hljs-meta">---
+</span>
+<span class="hljs-comment">## Steps</span>
+<span class="hljs-number">1</span><span class="hljs-string">.</span> <span class="hljs-string">Generate</span> <span class="hljs-string">idempotency</span> <span class="hljs-string">key</span> <span class="hljs-string">(UUID</span> <span class="hljs-string">v4)</span>
+<span class="hljs-number">2</span><span class="hljs-string">.</span> <span class="hljs-string">Submit</span> <span class="hljs-string">charge</span> <span class="hljs-string">request</span> <span class="hljs-string">with</span> <span class="hljs-string">key</span>
+<span class="hljs-number">3</span><span class="hljs-string">.</span> <span class="hljs-string">Retry</span> <span class="hljs-string">same</span> <span class="hljs-string">request</span> <span class="hljs-string">—</span> <span class="hljs-string">assert</span> <span class="hljs-string">identical</span> <span class="hljs-string">response</span>
+<span class="hljs-number">4</span><span class="hljs-string">.</span> <span class="hljs-string">Submit</span> <span class="hljs-string">different</span> <span class="hljs-string">amount</span> <span class="hljs-string">with</span> <span class="hljs-string">same</span> <span class="hljs-string">key</span> <span class="hljs-string">—</span> <span class="hljs-string">assert</span> <span class="hljs-number">409</span>
+<span class="hljs-number">5</span><span class="hljs-string">.</span> <span class="hljs-string">Verify</span> <span class="hljs-string">webhook</span> <span class="hljs-string">delivers</span> <span class="hljs-string">exactly</span> <span class="hljs-string">once</span>
+</code></pre>
+<p dir="auto"><code>spec load --category test</code> 会自动扫描 knowhow/ 中 <code>category=test</code> 且 <code>tool=true</code> 的文档，将工具摘要与 spec 一起注入 agent 上下文。</p>
+<h3 dir="auto"><a name="p-17694407-h-9" class="anchor" href="#p-17694407-h-9" aria-label="标题链接"></a>注册时机</h3>
+<p dir="auto">通过 <code>/maestro-tools-register</code> 注册：</p>
+<div class="md-table fullscreen-table-wrapper" dir="auto" data-table-index="4">
+<div class="fullscreen-table-wrapper__buttons"></div><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>场景示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>规划期间</td>
+<td>标准化业务流程（支付对账流程、OAuth 集成步骤）</td>
+</tr>
+<tr>
+<td>执行之后</td>
+<td>捕获经过验证的操作步骤（数据库迁移回滚、部署流程）</td>
+</tr>
+<tr>
+<td>测试之前</td>
+<td>注册验证方法给 test agent（E2E 结算流程、API 幂等性验证）</td>
+</tr>
+</tbody>
+</table>
+</div><h3 dir="auto"><a name="p-17694407-h-10" class="anchor" href="#p-17694407-h-10" aria-label="标题链接"></a>示例：</h3>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">业务需求 ──→ 规划阶段注册 tool ──→ <span class="hljs-built_in">test</span> agent 自动发现 ──→ 执行验证
+                   ↑                                       │
+                   └──── 执行后优化 ←── 发现新 edge <span class="hljs-keyword">case</span> ←──┘
+</code></pre>
+<h2 dir="auto"><a name="p-17694407-h-11" class="anchor" href="#p-17694407-h-11" aria-label="标题链接"></a>知识流转全景</h2>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">执行产物                    提取                      存储                    消费
+─────────                  ─────                    ─────                  ─────
+分析会话 ─────┐                              ┌─→ specs/     ─→ spec-injector → agent
+调试记录 ─────┼──→ /manage-harvest ──────────┼─→ knowhow/   ─→ wiki load → 按需
+规划文档 ─────┤    /quality-retrospective    ├─→ issues/    ─→ manage-issue → 追踪
+代码变更 ─────┘    /learn-decompose          └─→ learnings  ─→ keyword-injector → 上下文
+                                                    ↑
+                                     /manage-learn ─┘  (原子洞察直写)
+</code></pre>
+<h3 dir="auto"><a name="p-17694407-progressive-fill-12" class="anchor" href="#p-17694407-progressive-fill-12" aria-label="标题链接"></a>Progressive Fill</h3>
+<p dir="auto">Spec 内容由流水线各阶段逐步丰富：</p>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">maestro-init       → spec-setup（骨架 + 扫描）
+maestro-analyze    → 锁定决策 → <span class="hljs-built_in">arch</span>，代码模式 → coding
+maestro-plan       → 设计约定 → coding/arch，测试策略 → <span class="hljs-built_in">test</span>
+maestro-execute    → 经验教训 → learning，根因 → debug
+maestro-verify     → 质量发现 → review
+</code></pre>
+<p dir="auto">每个阶段执行完毕，产生的知识自动沉淀到对应 category 的 spec 文件中，下一阶段的 agent 即可通过 category 加载获取前序阶段的积累。<code>spec load</code> 同时扫描 knowhow/ 中匹配 category 的工具文档，将可执行流程一并注入。</p>
+<h2 dir="auto"><a name="p-17694407-api-13" class="anchor" href="#p-17694407-api-13" aria-label="标题链接"></a>实践场景：前后端 API 开发闭环</h2>
+<p dir="auto">以用户管理模块（注册、登录、JWT 鉴权、用户 CRUD）为例，演示知识系统如何贯穿前后端开发全周期。</p>
+<h3 dir="auto"><a name="p-17694407-h-14" class="anchor" href="#p-17694407-h-14" aria-label="标题链接"></a>闭环全景</h3>
+<pre dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="hljs language-bash" data-highlighted="yes">开发过程（产出产物）           知识回收            补充 &amp; 注册              消费
+─────────────────           ─────────          ────────────            ──────
+/workflow-lite-plan  ─┐                    ┌→ AST-*  (API 契约)      code-developer
+/maestro-analyze     ─┼→ /manage-harvest ──┤  category: coding       自动注入
+/workflow-lite-execute┘   提取被动知识      │
+                          pattern/decision  ├→ RCP-*  (验证流程)      test-fix-agent
+                                           │  category: <span class="hljs-built_in">test</span>         自动发现
+                          补充主动流程 ─────┤  tool: <span class="hljs-literal">true</span>
+                          /manage-knowhow-capture
+                          /maestro-tools-register
+                                           └→ specs/  (规范/决策)     keyword-injector
+                                              coding/arch             上下文匹配
+
+                                  反哺
+                          测试发现新边界 → /maestro-tools-register optimize
+                          测试失败根因   → /manage-learn → learnings.md
+</code></pre>
+<h3 dir="auto"><a name="p-17694407-h-15" class="anchor" href="#p-17694407-h-15" aria-label="标题链接"></a>步骤详解</h3>
+<p dir="auto"><strong>Step 1 — 规划，产出 API 设计产物</strong> (CCW 相关命令 举个例子)</p>
+<pre data-code-wrap="bash" dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="lang-bash hljs language-bash" data-highlighted="yes">/workflow-lite-plan 用户管理模块 API：注册、登录、JWT 鉴权、用户 CRUD
+</code></pre>
+<p dir="auto">产物进入 <code>.workflow/.lite-plan/</code>，包含 API 端点列表、依赖关系、设计决策。</p>
+<p dir="auto"><strong>Step 2 — 分析（可选，产出更丰富产物）</strong></p>
+<pre data-code-wrap="bash" dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="lang-bash hljs language-bash" data-highlighted="yes">/maestro-analyze API 端点设计模式分析：路由结构、错误处理、响应格式
+</code></pre>
+<p dir="auto">产物进入 <code>.workflow/.analysis/ANL-*/</code>，包含 findings、recommendations。</p>
+<p dir="auto"><strong>Step 3 — 实现前后端</strong></p>
+<pre data-code-wrap="bash" dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="lang-bash hljs language-bash" data-highlighted="yes">/workflow-lite-execute
+</code></pre>
+<p dir="auto"><strong>Step 4 — harvest 提取 API 知识</strong></p>
+<pre data-code-wrap="bash" dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="lang-bash hljs language-bash" data-highlighted="yes">/manage-harvest --<span class="hljs-built_in">source</span> lite-plan --to auto
+</code></pre>
+<p dir="auto">harvest 从 plan 产物中提取并自动路由：</p>
+<div class="md-table fullscreen-table-wrapper" dir="auto" data-table-index="5">
+<div class="fullscreen-table-wrapper__buttons"></div><table>
+<thead>
+<tr>
+<th>提取内容</th>
+<th>分类</th>
+<th>路由目标</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>API 命名规范</td>
+<td>pattern</td>
+<td>spec → coding</td>
+<td>“所有端点使用 <code>/api/v1/</code> 前缀 + RESTful 命名”</td>
+</tr>
+<tr>
+<td>鉴权方案决策</td>
+<td>decision</td>
+<td>spec → arch</td>
+<td>“密码 bcrypt(12)，token RS256 签名”</td>
+</tr>
+<tr>
+<td>响应格式知识</td>
+<td>knowhow</td>
+<td>wiki → knowhow</td>
+<td>“统一返回 <code>{ data, error, meta }</code> 结构”</td>
+</tr>
+<tr>
+<td>缺失功能</td>
+<td>task</td>
+<td>issue</td>
+<td>“缺少 rate limiting 中间件”</td>
+</tr>
+</tbody>
+</table>
+</div><blockquote dir="auto">
+<p><strong>关键认知</strong>：harvest 提取的是<strong>被动知识</strong>（pattern/decision），不是可执行的 tool。要让 test agent 使用，需要后续步骤。</p>
+</blockquote>
+<p dir="auto"><strong>Step 5 — 捕获 API 契约资产</strong></p>
+<pre data-code-wrap="bash" dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="lang-bash hljs language-bash" data-highlighted="yes">/manage-knowhow-capture asset <span class="hljs-string">"User Management API Contract"</span> \
+  --asset-type api-contract --code-paths <span class="hljs-string">"src/api/users/"</span>
+</code></pre>
+<p dir="auto">产出 <code>AST-user-api-contract.md</code>（<code>category: coding</code>），开发 agent 实现时自动注入：</p>
+<pre data-code-wrap="yaml" dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="lang-yaml hljs language-yaml" data-highlighted="yes"><span class="hljs-meta">---</span>
+<span class="hljs-attr">title:</span> <span class="hljs-string">User</span> <span class="hljs-string">Management</span> <span class="hljs-string">API</span> <span class="hljs-string">Contract</span>
+<span class="hljs-attr">type:</span> <span class="hljs-string">asset</span>
+<span class="hljs-attr">category:</span> <span class="hljs-string">coding</span>
+<span class="hljs-attr">keywords:</span> [<span class="hljs-string">user</span>, <span class="hljs-string">api</span>, <span class="hljs-string">auth</span>, <span class="hljs-string">crud</span>, <span class="hljs-string">jwt</span>]
+<span class="hljs-attr">codePaths:</span> [<span class="hljs-string">src/api/users/</span>]
+<span class="hljs-meta">---
+</span>
+<span class="hljs-comment">## Endpoints</span>
+<span class="hljs-string">|</span> <span class="hljs-string">Method</span> <span class="hljs-string">|</span> <span class="hljs-string">Path</span> <span class="hljs-string">|</span> <span class="hljs-string">Auth</span> <span class="hljs-string">|</span> <span class="hljs-string">Description</span> <span class="hljs-string">|</span>
+<span class="hljs-string">|--------|------|------|-------------|</span>
+<span class="hljs-string">|</span> <span class="hljs-string">POST</span> <span class="hljs-string">|</span> <span class="hljs-string">/api/v1/auth/register</span> <span class="hljs-string">|</span> <span class="hljs-literal">No</span> <span class="hljs-string">|</span> <span class="hljs-string">用户注册</span> <span class="hljs-string">|</span>
+<span class="hljs-string">|</span> <span class="hljs-string">POST</span> <span class="hljs-string">|</span> <span class="hljs-string">/api/v1/auth/login</span> <span class="hljs-string">|</span> <span class="hljs-literal">No</span> <span class="hljs-string">|</span> <span class="hljs-string">用户登录</span> <span class="hljs-string">|</span>
+<span class="hljs-string">|</span> <span class="hljs-string">POST</span> <span class="hljs-string">|</span> <span class="hljs-string">/api/v1/auth/refresh</span> <span class="hljs-string">|</span> <span class="hljs-literal">Yes</span> <span class="hljs-string">|</span> <span class="hljs-string">刷新</span> <span class="hljs-string">token</span> <span class="hljs-string">|</span>
+<span class="hljs-string">|</span> <span class="hljs-string">GET</span> <span class="hljs-string">|</span> <span class="hljs-string">/api/v1/users/me</span> <span class="hljs-string">|</span> <span class="hljs-literal">Yes</span> <span class="hljs-string">|</span> <span class="hljs-string">获取当前用户</span> <span class="hljs-string">|</span>
+<span class="hljs-string">|</span> <span class="hljs-string">PUT</span> <span class="hljs-string">|</span> <span class="hljs-string">/api/v1/users/me</span> <span class="hljs-string">|</span> <span class="hljs-literal">Yes</span> <span class="hljs-string">|</span> <span class="hljs-string">更新资料</span> <span class="hljs-string">|</span>
+<span class="hljs-string">|</span> <span class="hljs-string">DELETE</span> <span class="hljs-string">|</span> <span class="hljs-string">/api/v1/users/me</span> <span class="hljs-string">|</span> <span class="hljs-literal">Yes</span> <span class="hljs-string">|</span> <span class="hljs-string">注销账号</span> <span class="hljs-string">|</span>
+</code></pre>
+<p dir="auto"><strong>Step 6 — 注册 API 验证流程为 Tool</strong></p>
+<pre data-code-wrap="bash" dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="lang-bash hljs language-bash" data-highlighted="yes">/maestro-tools-register generate User API E2E 验证：注册 → 登录 → token 刷新 → CRUD → 异常
+</code></pre>
+<p dir="auto">产出 <code>RCP-user-api-verify.md</code>（<code>category: test</code>, <code>tool: true</code>）：</p>
+<pre data-code-wrap="yaml" dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="lang-yaml hljs language-yaml" data-highlighted="yes"><span class="hljs-meta">---</span>
+<span class="hljs-attr">title:</span> <span class="hljs-string">User</span> <span class="hljs-string">API</span> <span class="hljs-string">E2E</span> <span class="hljs-string">Verification</span>
+<span class="hljs-attr">type:</span> <span class="hljs-string">recipe</span>
+<span class="hljs-attr">category:</span> <span class="hljs-string">test</span>
+<span class="hljs-attr">keywords:</span> [<span class="hljs-string">user</span>, <span class="hljs-string">api</span>, <span class="hljs-string">auth</span>, <span class="hljs-string">e2e</span>, <span class="hljs-string">verification</span>]
+<span class="hljs-attr">tool:</span> <span class="hljs-literal">true</span>
+<span class="hljs-attr">summary:</span> <span class="hljs-string">"Use when verifying user management API after implementation or refactoring."</span>
+<span class="hljs-meta">---
+</span>
+<span class="hljs-comment">## Steps</span>
+<span class="hljs-number">1</span><span class="hljs-string">.</span> <span class="hljs-string">POST</span> <span class="hljs-string">/api/v1/auth/register</span> <span class="hljs-string">—</span> <span class="hljs-string">新用户</span> <span class="hljs-string">→</span> <span class="hljs-string">assert</span> <span class="hljs-number">201</span>
+<span class="hljs-number">2</span><span class="hljs-string">.</span> <span class="hljs-string">POST</span> <span class="hljs-string">/api/v1/auth/register</span> <span class="hljs-string">—</span> <span class="hljs-string">重复邮箱</span> <span class="hljs-string">→</span> <span class="hljs-string">assert</span> <span class="hljs-number">409</span>
+<span class="hljs-number">3</span><span class="hljs-string">.</span> <span class="hljs-string">POST</span> <span class="hljs-string">/api/v1/auth/login</span> <span class="hljs-string">—</span> <span class="hljs-string">正确凭证</span> <span class="hljs-string">→</span> <span class="hljs-string">assert</span> <span class="hljs-number">200</span> <span class="hljs-string">+</span> <span class="hljs-string">token</span>
+<span class="hljs-number">4</span><span class="hljs-string">.</span> <span class="hljs-string">POST</span> <span class="hljs-string">/api/v1/auth/login</span> <span class="hljs-string">—</span> <span class="hljs-string">错误密码</span> <span class="hljs-string">→</span> <span class="hljs-string">assert</span> <span class="hljs-number">401</span>
+<span class="hljs-number">5</span><span class="hljs-string">.</span> <span class="hljs-string">GET</span> <span class="hljs-string">/api/v1/users/me</span> <span class="hljs-string">+</span> <span class="hljs-string">Bearer</span> <span class="hljs-string">token</span> <span class="hljs-string">→</span> <span class="hljs-string">assert</span> <span class="hljs-number">200</span>
+<span class="hljs-number">6</span><span class="hljs-string">.</span> <span class="hljs-string">PUT</span> <span class="hljs-string">/api/v1/users/me</span> <span class="hljs-string">—</span> <span class="hljs-string">更新</span> <span class="hljs-string">name</span> <span class="hljs-string">→</span> <span class="hljs-string">assert</span> <span class="hljs-number">200</span>
+<span class="hljs-number">7</span><span class="hljs-string">.</span> <span class="hljs-string">POST</span> <span class="hljs-string">/api/v1/auth/refresh</span> <span class="hljs-string">→</span> <span class="hljs-string">assert</span> <span class="hljs-string">new</span> <span class="hljs-string">token</span> <span class="hljs-string">pair</span>
+<span class="hljs-number">8</span><span class="hljs-string">.</span> <span class="hljs-string">GET</span> <span class="hljs-string">/api/v1/users/me</span> <span class="hljs-string">+</span> <span class="hljs-string">expired</span> <span class="hljs-string">token</span> <span class="hljs-string">→</span> <span class="hljs-string">assert</span> <span class="hljs-number">401</span>
+<span class="hljs-number">9</span><span class="hljs-string">.</span> <span class="hljs-string">DELETE</span> <span class="hljs-string">/api/v1/users/me</span> <span class="hljs-string">→</span> <span class="hljs-string">assert</span> <span class="hljs-number">204</span>
+<span class="hljs-number">10</span><span class="hljs-string">.</span> <span class="hljs-string">GET</span> <span class="hljs-string">/api/v1/users/me</span> <span class="hljs-string">+</span> <span class="hljs-string">deleted</span> <span class="hljs-string">token</span> <span class="hljs-string">→</span> <span class="hljs-string">assert</span> <span class="hljs-number">401</span>
+</code></pre>
+<p dir="auto">也可以从已有 knowhow 文档原地提升：</p>
+<pre data-code-wrap="bash" dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="lang-bash hljs language-bash" data-highlighted="yes">/maestro-tools-register promote RCP-user-api-verify as <span class="hljs-built_in">test</span> tool
+</code></pre>
+<p dir="auto"><strong>Step 7 — 验证发现链路</strong></p>
+<pre data-code-wrap="bash" dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="lang-bash hljs language-bash" data-highlighted="yes">maestro spec load --category <span class="hljs-built_in">test</span> --keyword api
+</code></pre>
+<p dir="auto">确认输出包含 tool 摘要和加载命令。</p>
+<p dir="auto"><strong>Step 8 — 测试 agent 消费</strong></p>
+<pre data-code-wrap="bash" dir="auto" class="codeblock-buttons"><div class="codeblock-button-wrapper" style="right: 0px;"><button class="btn nohighlight copy-cmd btn-flat" aria-label="将代码复制到剪贴板"><svg class="fa d-icon d-icon-copy svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#copy"></use></svg></button><button class="btn nohighlight fullscreen-cmd btn-flat" aria-label="全屏显示代码"><svg class="fa d-icon d-icon-discourse-expand svg-icon fa-width-auto svg-string" width="1em" height="1em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#discourse-expand"></use></svg></button></div><code class="lang-bash hljs language-bash" data-highlighted="yes">/quality-auto-test --keyword user-api    <span class="hljs-comment"># 自动测试：发现 tool → 生成测试代码</span>
+/quality-test user management API        <span class="hljs-comment"># 会话式 UAT：按 tool 步骤逐项验证</span>
+</code></pre><div class="cooked-selection-barrier" aria-hidden="true"><br></div><button id="toggleVisibilityBtn" style="background-color: rgb(51, 51, 51); color: rgb(255, 255, 255); border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; padding: 8px 16px; margin-left: 10px; border-radius: 5px; cursor: pointer;">当前查看全部</button><div class="save-buttons-container" style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;"><button class="save-to-image-btn" style="padding: 10px 20px; font-size: 15px; font-weight: 600; background-color: rgb(76, 175, 80); color: white; border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; border-radius: 8px; cursor: pointer; box-shadow: rgba(76, 175, 80, 0.3) 0px 4px 12px; transition: 0.3s;">🖼️ 保存为图片</button></div>
+                    </div>
+                </body>
+                </html>
+            
