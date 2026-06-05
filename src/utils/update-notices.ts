@@ -327,3 +327,15 @@ registerNotice({
   ],
   actions: [],
 });
+
+registerNotice({
+  version: '0.4.25',
+  title: 'Spec 范围过滤 + Codegraph 图模块集成',
+  highlights: [
+    'spec load 新增范围过滤：按项目或全局维度加载规范',
+    'codegraph 增强功能集成至原生 graph 模块（DB 迁移 + 查询优化）',
+    '新增多个命令及中文描述，快速启动页面功能增强',
+    '修复 AskUserQuestion 括注式写法导致交互被跳过的问题',
+  ],
+  actions: [],
+});
