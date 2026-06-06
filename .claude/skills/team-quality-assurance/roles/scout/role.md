@@ -37,7 +37,7 @@ Scan codebase from multiple perspectives (bug, security, test-coverage, code-qua
 
 ## Phase 3: Multi-Perspective Scan
 
-**Low complexity**: Use `` for quick pattern-based scan.
+**Low complexity**: Use `mcp__fast-context__fast_context_search` for quick pattern-based scan.
 
 **Medium/High complexity**: Multi-prompt `maestro explore` (preferred for read-only scan):
 

@@ -1,7 +1,7 @@
 ---
 name: team-review
 description: "Unified team skill for code review. 3-role pipeline: scanner, reviewer, fixer. Triggers on team-review."
-allowed-tools: TeamCreate(*), TeamDelete(*), SendMessage(*), TaskCreate(*), TaskUpdate(*), TaskList(*), TaskGet(*), Agent(*), AskUserQuestion(*), Read(*), Write(*), Edit(*), Bash(*), Glob(*), Grep(*), mcp__maestro__team_msg(*)
+allowed-tools: TeamCreate(*), TeamDelete(*), SendMessage(*), TaskCreate(*), TaskUpdate(*), TaskList(*), TaskGet(*), Agent(*), AskUserQuestion(*), Read(*), Write(*), Edit(*), Bash(*), Glob(*), Grep(*), mcp__fast-context__fast_context_search(*), mcp__maestro-tools__team_msg(*)
 ---
 
 # Team Review
@@ -51,7 +51,7 @@ Parse `$ARGUMENTS`:
 - **Session path**: `.workflow/.team/RV-<slug>-<date>/`
 - **Team name**: `review`
 - **CLI tools**: `maestro delegate --mode analysis` (read-only), `maestro delegate --mode write` (modifications)
-- **Message bus**: `mcp__maestro__team_msg(session_id=<session-id>, ...)`
+- **Message bus**: `mcp__maestro-tools__team_msg(session_id=<session-id>, ...)`
 
 ## Worker Spawn Template
 
