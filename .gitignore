@@ -8,6 +8,10 @@ dist-server/
 .DS_Store
 Thumbs.db
 
+# Python cache
+__pycache__/
+*.py[cod]
+
 # Local tool/workflow state (not for distribution)
 .ace-tool/
 .ccw/
