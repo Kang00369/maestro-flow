@@ -339,3 +339,14 @@ registerNotice({
   ],
   actions: [],
 });
+
+NOTICES.push({
+  version: '0.4.26',
+  title: 'Delegate 代理配置 + Codex Adapter 修复',
+  highlights: [
+    'cli-tools.json 新增 proxy 配置：per-tool 代理开关，仅注入子进程环境变量',
+    'Codex adapter 修复：Rust tracing stderr（RMCP/MCP 错误）归类为非致命诊断信息',
+    'wiki/spec list 和 search 输出增强：增加上下文和描述显示',
+  ],
+  actions: [],
+});
