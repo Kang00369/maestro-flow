@@ -65,6 +65,8 @@ export interface InstallFlowResult {
   extraMcpRegistered: string[];
   extraMcpFailed: string[];
   manifestPath: string;
+  codegraphInstalled: boolean;
+  codegraphError: string | null;
   statuslineInstalled: boolean;
   backupPath: string | null;
   migrationWarnings: string[];
@@ -105,6 +107,8 @@ export function InstallExecution({ config, pkgRoot, version, onComplete }: Insta
         let agyHooksInstalled = 0;
         const extraMcpRegistered: string[] = [];
         const extraMcpFailed: string[] = [];
+        let codegraphInstalled = false;
+        let codegraphError: string | null = null;
         let statuslineInstalled = false;
         let backupPath: string | null = null;
         const warnings: string[] = [];
@@ -293,6 +297,22 @@ export function InstallExecution({ config, pkgRoot, version, onComplete }: Insta
           }
         }
 
+        // --- CodeGraph (optional tree-sitter dependency) ---
+        if (config.installCodeGraph) {
+          if (cancelled) return;
+          setStatus(t.install.execInstallingCodeGraph);
+          try {
+            const { execSync } = await import('node:child_process');
+            execSync('npm install -g @colbymchenry/codegraph', {
+              stdio: 'pipe',
+              timeout: 120_000,
+            });
+            codegraphInstalled = true;
+          } catch (err) {
+            codegraphError = err instanceof Error ? err.message : String(err);
+          }
+        }
+
         // --- CLI tools config ---
         if (!cancelled) {
           const { initCliToolsConfig } = await import('../../config/cli-tools-config.js');
@@ -312,6 +332,7 @@ export function InstallExecution({ config, pkgRoot, version, onComplete }: Insta
           codexHooksInstalled, codexMcpRegistered,
           agyHooksInstalled,
           extraMcpRegistered, extraMcpFailed,
+          codegraphInstalled, codegraphError,
           manifestPath,
           statuslineInstalled, backupPath, migrationWarnings: warnings,
         });

@@ -228,9 +228,9 @@ Schema: matches `recipe` type defined in `~/.maestro/workflows/knowhow.md` Part 
 
 **Skip rule:** If signals are missing, skip the recipe — do NOT generate placeholders.
 
-**Idempotency rule:** Before writing, glob `.workflow/knowhow/RCP-*-{slug}.md`. If a file matching the slug exists, do NOT overwrite — write `.workflow/knowhow/RCP-{YYYYMMDD-HHMM}-{slug}.proposed.md` instead and mention it in Step 7 summary so the user can diff and merge manually.
+**Idempotency rule:** Before writing, glob `.workflow/knowhow/RCP-*-{slug}.md`. If a file matching the slug exists, do NOT overwrite — write `.workflow/knowhow/RCP-{YYYYMMDD}-{slug}.proposed.md` instead and mention it in Step 7 summary so the user can diff and merge manually.
 
-**Filename:** `.workflow/knowhow/RCP-{YYYYMMDD-HHMM}-{slug}.md` (timestamp aligns with rest of knowhow store, slug disambiguates).
+**Filename:** `.workflow/knowhow/RCP-{YYYYMMDD}-{slug}.md` (date + semantic slug for readability).
 
 **Tags rule:** Match content language (English codebase → English tags). Always include `workflow`, the slug, and the detected framework (e.g. `vitest`, `pytest`). Add `auto-generated` so users can identify spec-setup output for later pruning.
 

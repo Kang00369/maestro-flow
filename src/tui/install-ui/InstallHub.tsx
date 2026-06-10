@@ -94,7 +94,7 @@ export function InstallHub({ items, onToggle, onEnter, onInstall, onBack }: Inst
 // ---------------------------------------------------------------------------
 
 export function buildHubItems(
-  enabled: { components: boolean; hooks: boolean; mcp: boolean; codexHooks: boolean; codexMcp: boolean; agyHooks: boolean; extraMcp: boolean; statusline: boolean; backup: boolean },
+  enabled: { components: boolean; hooks: boolean; mcp: boolean; codexHooks: boolean; codexMcp: boolean; agyHooks: boolean; extraMcp: boolean; statusline: boolean; codegraph: boolean; backup: boolean },
   summaries: {
     componentCount: number; fileCount: number; hookLevel: HookLevel;
     mcpToolCount: number; mcpEnabled: boolean;
@@ -102,6 +102,7 @@ export function buildHubItems(
     agyHookLevel: HookLevel;
     extraMcpTargetCount: number;
     statuslineDetected: string | null;
+    codegraphAvailable: boolean;
     backupClaudeMd: boolean; backupAll: boolean;
   },
 ): HubItem[] {
@@ -181,6 +182,16 @@ export function buildHubItems(
       label: 'Statusline',
       enabled: enabled.statusline,
       summary: statuslineSummary,
+    },
+    {
+      id: 'codegraph',
+      label: 'CodeGraph',
+      enabled: enabled.codegraph,
+      summary: enabled.codegraph
+        ? (summaries.codegraphAvailable
+          ? 'already installed — will verify'
+          : 'npm install -g @colbymchenry/codegraph')
+        : t.install.hubSkipped,
     },
     {
       id: 'backup',

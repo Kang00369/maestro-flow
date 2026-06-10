@@ -246,7 +246,7 @@ type: ${asset.category}`;
     for (let i = 0; i < asset.entries.length; i++) {
       const entry = asset.entries[i];
       const entryId = `${asset.prefix}-${manifest.slug}-${String(i + 1).padStart(3, '0')}`;
-      body += `\n\n<knowhow-entry keywords="${entry.category},${entry.keywords}" date="${today}" id="${entryId}" roles="${manifest.roles.join(',')}" source="codify-to-knowhow">
+      body += `\n\n<knowhow-entry keywords="${entry.category},${entry.keywords}" date="${today}" title="${entry.title}" description="${entry.description || ''}" id="${entryId}" roles="${manifest.roles.join(',')}" source="codify-to-knowhow">
 
 ### ${entry.title}
 

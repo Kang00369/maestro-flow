@@ -27,11 +27,13 @@ import {
   recordCodexHooks,
   recordAgyHooks,
   recordCodexMcp,
+  recordStatusline,
 } from '../core/manifest.js';
 import {
   installHooksByLevel,
   installCodexHooksByLevel,
   installAgyHooksByLevel,
+  installStatusline as installStatuslineFn,
   HOOK_LEVELS,
   type HookLevel,
 } from './hooks.js';
@@ -52,17 +54,19 @@ import {
 import { t } from '../i18n/index.js';
 import { registerFontsSubcommand } from './font-guide.js';
 import { isCodeGraphAvailable } from '../graph/codegraph-adapter.js';
+import { execSync } from 'node:child_process';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
 
-function printCodeGraphHint(): void {
-  if (!isCodeGraphAvailable()) {
-    console.error('');
-    console.error('  Optional: @colbymchenry/codegraph (tree-sitter code analysis)');
-    console.error('  Enables function-level KG with callers/callees for `maestro kg` commands.');
-    console.error('  Install: npm install -g @colbymchenry/codegraph');
+function installCodeGraph(): { installed: boolean; error?: string } {
+  if (isCodeGraphAvailable()) return { installed: true };
+  try {
+    execSync('npm install -g @colbymchenry/codegraph', { stdio: 'pipe', timeout: 120_000 });
+    return { installed: true };
+  } catch (err) {
+    return { installed: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -159,7 +163,9 @@ export function registerInstallCommand(program: Command): void {
     .option('--codex-mcp', 'Register Codex MCP server in --force mode')
     .option('--agy-hooks <level>', 'Agy (Antigravity) hook level for --force mode: none, minimal, standard, full')
     .option('--components <ids>', 'Comma-separated component IDs to install (with --force)')
-    .action(async (opts: { force?: boolean; global?: boolean; path?: string; hooks?: string; codexHooks?: string; codexMcp?: boolean; agyHooks?: string; components?: string }) => {
+    .option('--codegraph', 'Install @colbymchenry/codegraph for function-level KG (with --force)')
+    .option('--statusline [theme]', 'Install statusline with optional theme (with --force)')
+    .action(async (opts: { force?: boolean; global?: boolean; path?: string; hooks?: string; codexHooks?: string; codexMcp?: boolean; agyHooks?: string; components?: string; codegraph?: boolean; statusline?: boolean | string }) => {
       const pkgRoot = getPackageRoot();
 
       // Validate package root
@@ -176,7 +182,6 @@ export function registerInstallCommand(program: Command): void {
         forceInstall(pkgRoot, version, opts);
       } else {
         await runInstallFlow(pkgRoot, version);
-        printCodeGraphHint();
       }
     });
 
@@ -204,7 +209,7 @@ export function registerInstallCommand(program: Command): void {
 function forceInstall(
   pkgRoot: string,
   version: string,
-  opts: { global?: boolean; path?: string; hooks?: string; codexHooks?: string; codexMcp?: boolean; agyHooks?: string; components?: string },
+  opts: { global?: boolean; path?: string; hooks?: string; codexHooks?: string; codexMcp?: boolean; agyHooks?: string; components?: string; codegraph?: boolean; statusline?: boolean | string },
 ): void {
   console.error(t.install.forceVersion.replace('{version}', version));
   console.error('');
@@ -323,6 +328,17 @@ function forceInstall(
       .replace('{path}', hookResult.settingsPath));
   }
 
+  // Statusline installation
+  if (opts.statusline) {
+    const theme = typeof opts.statusline === 'string' ? opts.statusline : 'notion';
+    const settingsPath = installStatuslineFn({
+      project: mode === 'project',
+      theme,
+    });
+    recordStatusline(manifest, { settingsPath, theme });
+    console.error(`  Statusline: installed (${theme}) → ${settingsPath}`);
+  }
+
   // Codex hook installation
   const codexHookLevel = (opts.codexHooks ?? 'none') as HookLevel;
   if (codexHookLevel !== 'none' && HOOK_LEVELS.includes(codexHookLevel)) {
@@ -387,7 +403,20 @@ function forceInstall(
     console.error(`  cli-tools.json: added missing tools → ${cliToolsResult.added.join(', ')}`);
   }
 
-  printCodeGraphHint();
+  // CodeGraph installation
+  if (opts.codegraph) {
+    const cgResult = installCodeGraph();
+    if (cgResult.installed) {
+      console.error('  CodeGraph: installed (function-level KG enabled)');
+    } else {
+      console.error(`  CodeGraph: failed — ${cgResult.error}`);
+      console.error('  Run manually: npm install -g @colbymchenry/codegraph');
+    }
+  } else if (!isCodeGraphAvailable()) {
+    console.error('');
+    console.error('  Optional: @colbymchenry/codegraph (tree-sitter code analysis)');
+    console.error('  Use --codegraph flag or toggle in interactive install to enable.');
+  }
 
   console.error('');
   console.error(t.install.forceDone);

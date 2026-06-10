@@ -18,6 +18,7 @@ import { detectStatusline, CODEX_HOOK_LEVEL_DESCRIPTIONS, type HookLevel } from 
 import { findManifest, type Manifest } from '../../core/manifest.js';
 import { paths } from '../../config/paths.js';
 import { t } from '../../i18n/index.js';
+import { isCodeGraphAvailable } from '../../graph/codegraph-adapter.js';
 
 // ---------------------------------------------------------------------------
 // InstallFlow — hub-based interactive install
@@ -75,6 +76,8 @@ export function InstallFlow({
   // Derive "was previously enabled" flags from lastManifest records so the
   // installer remembers user intent across runs. Each section knows whether
   // it was installed last time by checking the relevant manifest field.
+  // For statusline, also check actual settings.json — forceInstall writes
+  // statusLine but doesn't record it in manifest, so manifest alone misses it.
   const prior = useMemo(() => ({
     claudeHooks: !!(lastManifest?.hooks?.claude?.installed?.length),
     codexHooks: !!(lastManifest?.hooks?.codex?.installed?.length),
@@ -82,7 +85,7 @@ export function InstallFlow({
     claudeMcp: !!lastManifest?.mcp?.claude,
     codexMcp: !!lastManifest?.mcp?.codex,
     extraMcp: !!(lastManifest?.mcp?.extras?.length),
-    statusline: !!lastManifest?.statusline,
+    statusline: !!lastManifest?.statusline || !!detectStatusline(),
   }), [lastManifest]);
 
   // Which categories are enabled
@@ -95,6 +98,7 @@ export function InstallFlow({
     agyHooks: initialStepIds ? initialStepIds.includes('agyHooks') : prior.agyHooks,
     extraMcp: initialStepIds ? initialStepIds.includes('extraMcp') : prior.extraMcp,
     statusline: initialStepIds ? initialStepIds.includes('statusline') : prior.statusline,
+    codegraph: initialStepIds ? initialStepIds.includes('codegraph') : !isCodeGraphAvailable(),
     backup: initialStepIds ? initialStepIds.includes('backup') : true,
   });
 
@@ -135,8 +139,11 @@ export function InstallFlow({
     () => (lastManifest?.mcp?.extras?.map((e) => e.targetId as ExtraMcpTargetId)) ?? [],
   );
 
-  // Statusline — restore previous on/off + theme
-  const [installStatusline, setInstallStatusline] = useState(() => prior.statusline);
+  // Statusline — restore previous on/off + theme. Also default to true on
+  // fresh install (no manifest) since statusline is a core feature.
+  const [installStatusline, setInstallStatusline] = useState(
+    () => prior.statusline || !lastManifest,
+  );
   const [statuslineTheme, setStatuslineTheme] = useState(
     () => lastManifest?.statusline?.theme || 'notion',
   );
@@ -167,7 +174,8 @@ export function InstallFlow({
       codexMcp: prior.codexMcp,
       agyHooks: prior.agyHooks,
       extraMcp: prior.extraMcp,
-      statusline: prior.statusline,
+      statusline: prior.statusline || !lastManifest,
+      codegraph: !isCodeGraphAvailable(),
       backup: true,
     });
     setSelectedComponentIds(
@@ -181,7 +189,7 @@ export function InstallFlow({
     setExtraMcpTargetIds(
       (lastManifest?.mcp?.extras?.map((e) => e.targetId as ExtraMcpTargetId)) ?? [],
     );
-    setInstallStatusline(prior.statusline);
+    setInstallStatusline(prior.statusline || !lastManifest);
     setStatuslineTheme(lastManifest?.statusline?.theme || 'notion');
   }, [mode, lastManifest, prior, isSubcommand]);
 
@@ -217,6 +225,7 @@ export function InstallFlow({
     agyHookLevel,
     installExtraMcp: enabledSteps.extraMcp && extraMcpTargetIds.length > 0,
     extraMcpTargetIds,
+    installCodeGraph: enabledSteps.codegraph,
     installStatusline: enabledSteps.statusline && installStatusline,
     statuslineTheme,
     hookLevel,
@@ -236,7 +245,7 @@ export function InstallFlow({
 
   // Hub items with live summary
   const hubItems = useMemo(() => buildHubItems(
-    enabledSteps as { components: boolean; hooks: boolean; mcp: boolean; codexHooks: boolean; codexMcp: boolean; agyHooks: boolean; extraMcp: boolean; statusline: boolean; backup: boolean },
+    enabledSteps as { components: boolean; hooks: boolean; mcp: boolean; codexHooks: boolean; codexMcp: boolean; agyHooks: boolean; extraMcp: boolean; statusline: boolean; codegraph: boolean; backup: boolean },
     {
       componentCount: selectedComponents.length,
       fileCount,
@@ -249,6 +258,7 @@ export function InstallFlow({
       agyHookLevel,
       extraMcpTargetCount: extraMcpTargetIds.length,
       statuslineDetected,
+      codegraphAvailable: isCodeGraphAvailable(),
       backupClaudeMd,
       backupAll,
     },

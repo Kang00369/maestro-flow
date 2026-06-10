@@ -99,6 +99,7 @@ export const en: LocaleStrings = {
     confirmLabelCodexHooks: 'Codex Hooks:',
     confirmLabelCodexMcp: 'Codex MCP:',
     confirmLabelAgyHooks: 'Agy Hooks:',
+    confirmLabelCodeGraph: 'CodeGraph:',
     confirmSkipped: 'skipped',
 
     // Codex Hooks
@@ -130,6 +131,7 @@ export const en: LocaleStrings = {
     execInstallingCodexHooks: 'Installing Codex {level} hooks...',
     execInstallingAgyHooks: 'Installing Agy {level} hooks...',
     execInstallingStatusline: 'Installing statusline...',
+    execInstallingCodeGraph: 'Installing @colbymchenry/codegraph...',
     execRegisteringMcp: 'Registering MCP server...',
     execRegisteringCodexMcp: 'Registering Codex MCP server...',
     execComplete: 'Complete',
@@ -145,6 +147,8 @@ export const en: LocaleStrings = {
     resultHooks: '{count} installed',
     resultManifest: 'Manifest:',
     resultStatuslineInstalled: 'installed',
+    resultCodeGraphInstalled: 'installed (function-level KG enabled)',
+    resultCodeGraphFailed: 'install failed — run manually: npm install -g @colbymchenry/codegraph',
     resultExit: 'Restart Claude Code to pick up changes. Press Enter to exit.',
 
     // Force install

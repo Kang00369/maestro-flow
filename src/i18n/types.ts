@@ -97,6 +97,7 @@ export interface LocaleStrings {
     confirmLabelCodexHooks: string;
     confirmLabelCodexMcp: string;
     confirmLabelAgyHooks: string;
+    confirmLabelCodeGraph: string;
     confirmSkipped: string;
 
     // Codex Hooks
@@ -118,6 +119,7 @@ export interface LocaleStrings {
     execInstallingCodexHooks: string; // "Installing Codex {level} hooks..."
     execInstallingAgyHooks: string; // "Installing Agy {level} hooks..."
     execInstallingStatusline: string;
+    execInstallingCodeGraph: string;
     execRegisteringMcp: string;
     execRegisteringCodexMcp: string;
     execComplete: string;
@@ -133,6 +135,8 @@ export interface LocaleStrings {
     resultHooks: string; // "{count} installed"
     resultManifest: string;
     resultStatuslineInstalled: string;
+    resultCodeGraphInstalled: string;
+    resultCodeGraphFailed: string;
     resultExit: string;
 
     // force install (console output)

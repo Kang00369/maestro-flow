@@ -60,7 +60,7 @@ Apply? (auto | spec-only | knowhow-only | skip)
 
 Then for each fragment in approved buckets:
 
-- **spec**: `maestro spec add <category> "<title>" "<content>" --keywords {csv} --source finish-work` (capture returned id into `extracted_spec_ids[]`)
+- **spec**: `maestro spec add <category> "<title>" "<content>" --keywords {csv} --description "<one-line summary>" --source finish-work` (capture returned id into `extracted_spec_ids[]`)
 - **knowhow**: `maestro knowhow add --type {DCS|RCP|REF|KNW} --title "{title}" --body "{content}" --keywords {csv}` (capture id into `extracted_knowhow_ids[]`)
 - Below confidence threshold: increment `skipped_count`, do nothing
 - CLI failure: log W002, continue with remaining fragments

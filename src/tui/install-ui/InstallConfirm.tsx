@@ -24,6 +24,7 @@ export interface InstallFlowConfig {
   agyHookLevel: HookLevel;
   installExtraMcp: boolean;
   extraMcpTargetIds: ExtraMcpTargetId[];
+  installCodeGraph: boolean;
   installStatusline: boolean;
   statuslineTheme: string;
   hookLevel: HookLevel;
@@ -139,6 +140,14 @@ export function InstallConfirm({ config, onConfirm, onBack }: InstallConfirmProp
         ) : (
           <Row label="Extra MCP" value={t.install.confirmSkipped} valueColor={C.neutral} />
         )}
+
+        <Row
+          label={t.install.confirmLabelCodeGraph}
+          value={config.installCodeGraph
+            ? '@colbymchenry/codegraph (tree-sitter KG)'
+            : t.install.confirmSkipped}
+          valueColor={config.installCodeGraph ? C.success : C.neutral}
+        />
 
         <Row
           label={t.install.confirmLabelStatusline}

@@ -234,7 +234,7 @@ Gray area detection: domain-aware (things users SEE/CALL/RUN/READ), phase-specif
 1. Export results.csv
 2. **Confidence scoring** (full mode): factors -- findings_depth(.30), evidence_strength(.25), coverage_breadth(.20), user_validation(.15), consistency(.10). Thresholds: <60% deeper, 60-80% optional, 80-95% converging, >95% converge.
 3. Auto-create issues from Deferred items -> issues.jsonl
-4. Spec enrichment: Locked decisions -> `maestro spec add arch`; code patterns -> `maestro spec add coding`
+4. Spec enrichment: Locked decisions -> `maestro spec add arch "<title>" "<content>" --keywords <kw> --description "<summary>"`; code patterns -> `maestro spec add coding "<title>" "<content>" --keywords <kw> --description "<summary>"`
 5. Register artifact in state.json (type: analyze, includes context_package field pointing to context-package.json)
 6. Copy outputs to scratchDir, display summary
 7. **Next-step routing** (D-003 §5.3 — macro scope uses `scope_verdict` for downstream chain selection):
