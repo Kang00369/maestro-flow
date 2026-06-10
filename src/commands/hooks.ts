@@ -852,8 +852,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     const cwd: string = data.cwd ?? process.cwd();
 
     const { evaluateKgSync } = await import('../hooks/kg-sync-hook.js');
-    evaluateKgSync(cwd, sessionId);
-    // Fire-and-forget — no stdout output, purely side-effect
+    await evaluateKgSync(cwd, sessionId);
   },
 
   'kg-context-injector': async () => {

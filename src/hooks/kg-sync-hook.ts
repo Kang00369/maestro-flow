@@ -70,42 +70,32 @@ export async function evaluateKgSync(
     if (!adapter.isInitialized()) {
       return { synced: false, reason: 'codegraph-not-initialized' };
     }
-  } catch {
-    return { synced: false, reason: 'codegraph-unavailable' };
-  }
 
-  // Step 2: Cooldown check via bridge file
-  const bridge = readBridge(sessionId);
-  if (bridge) {
-    const elapsed = Math.floor(Date.now() / 1000) - bridge.last_sync;
-    if (elapsed < COOLDOWN_SECONDS) {
-      try { adapter.close(); } catch { /* best-effort */ }
-      return { synced: false, reason: 'cooldown' };
+    // Step 2: Cooldown check via bridge file
+    const bridge = readBridge(sessionId);
+    if (bridge) {
+      const elapsed = Math.floor(Date.now() / 1000) - bridge.last_sync;
+      if (elapsed < COOLDOWN_SECONDS) {
+        return { synced: false, reason: 'cooldown' };
+      }
     }
-  }
 
-  // Step 3: Git quick check — any source files changed?
-  const hasSourceChanges = detectSourceChanges(projectPath);
-  if (!hasSourceChanges) {
-    writeBridge(sessionId);
-    try { adapter.close(); } catch { /* best-effort */ }
-    return { synced: false, reason: 'no-changes' };
-  }
+    // Step 3: Git quick check — any source files changed?
+    if (!detectSourceChanges(projectPath)) {
+      writeBridge(sessionId);
+      return { synced: false, reason: 'no-changes' };
+    }
 
-  // Step 4: Perform incremental sync via CodeGraph
-  const start = Date.now();
-  try {
-    const result = await adapter.sync();
-    const filesChanged = result.filesAdded + result.filesModified + result.filesRemoved;
-    writeBridge(sessionId);
-    return {
-      synced: true,
-      filesChanged,
-      durationMs: Date.now() - start,
-    };
-  } catch {
-    writeBridge(sessionId);
-    return { synced: false, reason: 'sync-error' };
+    // Step 4: Perform incremental sync via CodeGraph
+    const start = Date.now();
+    try {
+      const result = await adapter.sync();
+      const filesChanged = result.filesAdded + result.filesModified + result.filesRemoved;
+      writeBridge(sessionId);
+      return { synced: true, filesChanged, durationMs: Date.now() - start };
+    } catch {
+      return { synced: false, reason: 'sync-error' };
+    }
   } finally {
     try { adapter.close(); } catch { /* best-effort */ }
   }

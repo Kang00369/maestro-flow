@@ -11,14 +11,13 @@ import type { Command } from 'commander';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
-import type { KnowledgeGraph, GraphNode } from '../graph/types.js';
+import type { KnowledgeGraph } from '../graph/types.js';
 import { loadGraph } from '../graph/loader.js';
 import { searchNodes, findPath, diffChanges, countBy, truncate } from '../graph/query.js';
 import { FsAnalyzer } from '../graph/analyzers/fs-analyzer.js';
 import { DatabaseConnection, getDatabasePath, QueryBuilder } from '../graph/db/index.js';
 import { GraphTraverser } from '../graph/traversal.js';
 import { GraphQueryManager } from '../graph/graph-queries.js';
-import { IncrementalSync } from '../graph/sync/incremental-sync.js';
 import { FileWatcher } from '../graph/sync/watcher.js';
 import { parseQuery } from '../graph/search/query-parser.js';
 import { migrateJsonToSqlite, exportSqliteToJson } from '../graph/migration.js';
@@ -134,7 +133,7 @@ async function requireCodeGraph(): Promise<{ adapter: InstanceType<typeof import
 export function registerKgCommand(program: Command): void {
   const kg = program
     .command('kg')
-    .description('Query codebase knowledge graph (JSON or SQLite backend)');
+    .description('Query codebase knowledge graph (CodeGraph engine)');
 
   // ── stats ──────────────────────────────────────────────────────────
   kg
@@ -680,44 +679,49 @@ export function registerKgCommand(program: Command): void {
     .option('--debounce <ms>', 'Debounce delay in milliseconds', '2000')
     .action(async (opts) => {
       const { adapter } = await requireCodeGraph();
-      const projectRoot = resolve('.');
-      const debounceMs = Number(opts.debounce) || 2000;
+      try {
+        const projectRoot = resolve('.');
+        const debounceMs = Number(opts.debounce) || 2000;
 
-      const watcher = new FileWatcher(
-        projectRoot,
-        async () => {
-          const result = await adapter.sync();
-          const filesChanged = result.filesAdded + result.filesModified + result.filesRemoved;
-          return { filesChanged, durationMs: result.durationMs };
-        },
-        {
-          debounceMs,
-          onSyncComplete: (result) => {
-            if (result.filesChanged > 0) {
-              console.log(`[sync] ${result.filesChanged} files updated (${result.durationMs}ms)`);
-            }
+        const watcher = new FileWatcher(
+          projectRoot,
+          async () => {
+            const result = await adapter.sync();
+            const filesChanged = result.filesAdded + result.filesModified + result.filesRemoved;
+            return { filesChanged, durationMs: result.durationMs };
           },
-          onSyncError: (err) => {
-            console.error(`[sync error] ${err.message}`);
+          {
+            debounceMs,
+            onSyncComplete: (result) => {
+              if (result.filesChanged > 0) {
+                console.log(`[sync] ${result.filesChanged} files updated (${result.durationMs}ms)`);
+              }
+            },
+            onSyncError: (err) => {
+              console.error(`[sync error] ${err.message}`);
+            },
           },
-        },
-      );
+        );
 
-      const started = watcher.start();
-      if (!started) {
-        console.error('Could not start file watcher (unsupported filesystem?)');
+        const started = watcher.start();
+        if (!started) {
+          console.error('Could not start file watcher (unsupported filesystem?)');
+          adapter.close();
+          process.exit(1);
+        }
+
+        console.log(`Watching for changes (debounce: ${debounceMs}ms) — press Ctrl+C to stop`);
+
+        process.on('SIGINT', () => {
+          watcher.stop();
+          adapter.close();
+          console.log('\nWatcher stopped.');
+          process.exit(0);
+        });
+      } catch (err) {
         adapter.close();
-        process.exit(1);
+        throw err;
       }
-
-      console.log(`Watching for changes (debounce: ${debounceMs}ms) — press Ctrl+C to stop`);
-
-      process.on('SIGINT', () => {
-        watcher.stop();
-        adapter.close();
-        console.log('\nWatcher stopped.');
-        process.exit(0);
-      });
     });
 
   // ── callers ────────────────────────────────────────────────────────
