@@ -17,6 +17,16 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '0.5.1',
+    date: '2026-06',
+    changes: [
+      { type: 'fix', text_en: 'knowhow/spec description attribute full sync across all commands, skills, and workflows', text_zh: 'knowhow/spec description 属性全量同步至所有命令、技能和工作流' },
+      { type: 'feat', text_en: 'install TUI: add CodeGraph toggle for one-click tree-sitter KG installation', text_zh: 'install TUI 新增 CodeGraph 开关，一键安装 tree-sitter 代码分析' },
+      { type: 'fix', text_en: 'install: fix statusline not recorded in manifest and defaulting to off', text_zh: '修复 statusline 未记录到 manifest 导致默认关闭的问题' },
+      { type: 'feat', text_en: 'forceInstall: add --statusline and --codegraph CLI options', text_zh: 'forceInstall 新增 --statusline 和 --codegraph CLI 选项' },
+    ],
+  },
+  {
     version: '0.5.0',
     date: '2026-06',
     changes: [
