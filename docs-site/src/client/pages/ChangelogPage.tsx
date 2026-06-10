@@ -17,6 +17,18 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '0.5.0',
+    date: '2026-06',
+    changes: [
+      { type: 'feat', text_en: 'knowledge system reform: unified search, KG Hook auto-injection, CodeGraph function-level call graph', text_zh: '知识系统改革——统一搜索入口、KG Hook 自动注入、CodeGraph 函数级调用图' },
+      { type: 'refactor', text_en: 'install pipeline overhaul: .agy/ removed from git, realtime conversion from .claude/ on install', text_zh: 'install 管线改造——.agy/ 从 git 移除，install 时从 .claude/ 实时转换' },
+      { type: 'feat', text_en: 'ralph skills --platform enforcement: add agent/agy platforms, warn on missing', text_zh: 'ralph skills --platform 强制化——新增 agent/agy 平台，缺失时警告' },
+      { type: 'refactor', text_en: 'maestro-verify merged into maestro-execute as built-in verification gate', text_zh: 'maestro-verify 合并到 maestro-execute 作为内置验证 gate' },
+      { type: 'feat', text_en: 'spec/knowhow entries gain title/description attributes, unified search sync', text_zh: 'spec/knowhow 条目增加 title/description 属性，搜索命令统一同步' },
+      { type: 'feat', text_en: 'global command writing style optimization: descriptive to prescriptive', text_zh: '全局命令撰写风格优化——从描述性到规范性' },
+    ],
+  },
+  {
     version: '0.4.26',
     date: '2026-06',
     changes: [
