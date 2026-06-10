@@ -22,6 +22,7 @@ export default defineConfig({
       'src/tools/__tests__/team-integration.test.ts',
       'src/tools/__tests__/spec-writer.test.ts',
       'src/tools/__tests__/spec-writer-ref.test.ts',
+      'src/tools/__tests__/spec-writer-size-guard.test.ts',
       'src/tools/__tests__/spec-loader-ref.test.ts',
       'src/tools/__tests__/spec-keyword-index.test.ts',
       'src/tools/__tests__/spec-cli-e2e.test.ts',

@@ -243,6 +243,7 @@ export class WikiIndexer {
             ext: { entryType: se.type, timestamp: se.timestamp, ...(se.ref ? { ref: se.ref } : {}) },
             scope,
             category: se.category || container.category,
+            specCategory: container.specCategory,
             createdBy: container.createdBy,
             sourceRef: container.sourceRef,
             parent: container.id,
@@ -298,6 +299,7 @@ export class WikiIndexer {
             ext: { entryType: se.type, timestamp: se.timestamp, ...(se.ref ? { ref: se.ref } : {}) },
             scope: null,
             category: se.category || entry.category,
+            specCategory: entry.specCategory,
             createdBy: entry.createdBy,
             sourceRef: entry.sourceRef,
             parent: entry.id,
@@ -475,6 +477,7 @@ export class WikiIndexer {
 
     // Enrichment fields from frontmatter
     const category = asString(data.category) || null;
+    const specCategory = asString(data.specCategory) || null;
     const createdBy = asString(data.createdBy) || null;
     const sourceRef = asString(data.sourceRef) || null;
     const parent = asString(data.parent) || null;
@@ -502,6 +505,7 @@ export class WikiIndexer {
       ext,
       scope: null,
       category,
+      specCategory,
       createdBy,
       sourceRef,
       parent,
@@ -557,6 +561,7 @@ export class WikiIndexer {
           updated: e.updated,
           scope: e.scope,
           category: e.category,
+          specCategory: e.specCategory,
           createdBy: e.createdBy,
           sourceRef: e.sourceRef,
           parent: e.parent,
@@ -630,7 +635,7 @@ function normalizeRelated(value: unknown): string[] {
 function extractExt(data: Record<string, unknown>): Record<string, unknown> {
   const known = new Set([
     'title', 'summary', 'tags', 'status', 'related',
-    'category', 'createdBy', 'sourceRef', 'parent',
+    'category', 'specCategory', 'createdBy', 'sourceRef', 'parent',
   ]);
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(data)) {

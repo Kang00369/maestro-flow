@@ -53,6 +53,8 @@ export interface WikiEntry {
   scope: WikiScope | null;
   /** Content category: coding|arch|review|debug|test|learning (spec categories). Knowhow uses type-derived categories. */
   category: string | null;
+  /** Spec category for cross-system alignment (coding|arch|debug|test|review|learning|ui). Allows knowhow entries to be discovered by spec-injector alongside spec entries. */
+  specCategory: string | null;
   /** Command/skill that created this entry, e.g. "manage-harvest", "memory-capture", "manual". */
   createdBy: string | null;
   /** Source anchor: session ID, harvest fragment ID, commit hash, issue ID, etc. */
@@ -100,6 +102,7 @@ export interface PersistedEntry {
   updated: string;
   scope: WikiScope | null;
   category: string | null;
+  specCategory: string | null;
   createdBy: string | null;
   sourceRef: string | null;
   parent: string | null;

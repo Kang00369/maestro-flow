@@ -62,6 +62,7 @@ const commandLoaders: Record<string, () => Promise<(p: Command) => void>> = {
   'command-help': async () => (await import('./commands/command-help.js')).registerCommandHelpCommand,
   ch: async () => (await import('./commands/command-help.js')).registerCommandHelpCommand,
   kg:         async () => (await import('./commands/kg.js')).registerKgCommand,
+  search:     async () => (await import('./commands/search.js')).registerSearchCommand,
 };
 
 // Determine which command is being invoked from argv (if any)

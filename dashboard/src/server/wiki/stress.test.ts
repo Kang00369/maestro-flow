@@ -31,6 +31,7 @@ function makeEntry(
     ext: {},
     scope: null,
     category: null,
+    specCategory: null,
     createdBy: null,
     sourceRef: null,
     parent: null,

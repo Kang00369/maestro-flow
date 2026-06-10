@@ -210,6 +210,7 @@ export function registerSpecCommand(program: Command): void {
     .option('--uid <uid>', 'User id for personal scope')
     .option('--json', 'Output as JSON')
     .action(async (queryParts: string[], opts) => {
+      console.warn('[deprecated] Use "maestro search --type spec" instead');
       const { existsSync, readdirSync, readFileSync: readFs } = await import('node:fs');
       const { join: pathJoin } = await import('node:path');
       const { resolveSpecDir } = await import('../tools/spec-loader.js');
@@ -254,6 +255,22 @@ export function registerSpecCommand(program: Command): void {
                   if (desc.length > 60) desc = desc.slice(0, 60) + '...';
                 }
                 results.push({ file, scope: label, category: e.category, lineStart: e.lineStart, title, desc });
+              }
+            }
+
+            // Fallback: search YAML frontmatter title + full body for files with no <spec-entry> tags
+            if (entries.length === 0) {
+              const titleMatch = raw.match(/^title:\s*["']?(.+?)["']?\s*$/m);
+              const fullText = `${titleMatch?.[1] || ''} ${raw}`.toLowerCase();
+              if (fullText.includes(q)) {
+                results.push({
+                  file,
+                  scope: label,
+                  category: 'unknown',
+                  lineStart: 1,
+                  title: titleMatch?.[1] || file.replace('.md', ''),
+                  desc: raw.replace(/---[\s\S]*?---/, '').trim().slice(0, 60) + '...',
+                });
               }
             }
           } catch { continue; }

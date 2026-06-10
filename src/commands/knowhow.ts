@@ -58,6 +58,7 @@ export function registerKnowhowCommand(program: Command): void {
     .option('--asset-type <type>', '[asset] Asset type (e.g. api-contract, data-model, prompt, config)')
     .option('--code-paths <paths>', '[asset/blueprint] Comma-separated code paths')
     .option('--category <category>', 'Spec category for agent discovery (coding, arch, test, debug, review, learning)')
+    .option('--spec-category <cat>', 'Spec category for agent injection (coding|arch|debug|test|review|learning|ui)')
     .action(async (opts) => {
       const type = opts.type as string;
       if (!CATEGORIES.includes(type as any)) {
@@ -86,6 +87,11 @@ export function registerKnowhowCommand(program: Command): void {
         console.error('--code-paths is only valid for type "asset" or "blueprint"');
         process.exit(1);
       }
+      const validSpecCategories = ['coding', 'arch', 'debug', 'test', 'review', 'learning', 'ui'];
+      if (opts.specCategory && !validSpecCategories.includes(opts.specCategory)) {
+        console.error(`Invalid --spec-category: ${opts.specCategory}. Must be one of: ${validSpecCategories.join(', ')}`);
+        process.exit(1);
+      }
 
       const body = opts.bodyFile ? readFileSync(opts.bodyFile, 'utf-8') : opts.body;
       const tags = opts.keywords ? opts.keywords.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
@@ -95,9 +101,12 @@ export function registerKnowhowCommand(program: Command): void {
 
       const now = new Date();
       const pad = (n: number) => String(n).padStart(2, '0');
-      const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+      const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
       const prefix = PREFIX_MAP[type];
-      const filename = `${prefix}-${ts}.md`;
+      const slug = opts.title ? slugify(opts.title).slice(0, 40) : '';
+      const filename = slug
+        ? `${prefix}-${ts}-${slug}.md`
+        : `${prefix}-${ts}-${pad(now.getHours())}${pad(now.getMinutes())}.md`;
 
       const { writeFileSync } = await import('node:fs');
       const fmLines = ['---', `title: ${opts.title}`, `type: ${type}`, `created: ${now.toISOString()}`];
@@ -109,6 +118,7 @@ export function registerKnowhowCommand(program: Command): void {
       if (opts.source) fmLines.push(`source: ${opts.source}`);
       if (opts.status) fmLines.push(`status: ${opts.status}`);
       if (opts.category) fmLines.push(`category: ${opts.category}`);
+      if (opts.specCategory) fmLines.push(`specCategory: ${opts.specCategory}`);
       if (opts.assetType) fmLines.push(`assetType: ${opts.assetType}`);
       if (opts.codePaths) {
         const paths = opts.codePaths.split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -118,7 +128,8 @@ export function registerKnowhowCommand(program: Command): void {
       fmLines.push('---', '', body);
 
       writeFileSync(join(dir, filename), fmLines.join('\n'), 'utf-8');
-      console.log(`Created: knowhow-${slugify(ts)}`);
+      const idSuffix = slug || `${pad(now.getHours())}${pad(now.getMinutes())}`;
+      console.log(`Created: knowhow-${slugify(ts)}-${idSuffix}`);
       console.log(`  Type: ${type}`);
       console.log(`  File: knowhow/${filename}`);
     });
@@ -173,6 +184,7 @@ export function registerKnowhowCommand(program: Command): void {
     .option('--json', 'Output as JSON')
     .option('--limit <n>', 'Max results', (v) => parseInt(v, 10), 20)
     .action(async (queryParts: string[], opts) => {
+      console.warn('[deprecated] Use "maestro search --type knowhow" instead');
       const q = queryParts.join(' ').toLowerCase();
       const terms = q.split(/\s+/).filter(Boolean);
       const dir = getKnowhowDir();
