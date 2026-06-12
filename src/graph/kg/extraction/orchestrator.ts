@@ -9,6 +9,8 @@ import { extractSpec } from './knowledge/spec-extractor.js';
 import { extractWiki } from './knowledge/wiki-extractor.js';
 import { extractCodebase } from './knowledge/codebase-extractor.js';
 import { extractIssues } from './knowledge/issue-extractor.js';
+import { extractCode } from './code/code-extractor.js';
+import { resolveKnowledgeEdges } from '../resolution/knowledge-resolver.js';
 import type { SyncResult, SourceType } from '../db/types.js';
 
 export async function syncKnowledgeGraph(
@@ -127,8 +129,41 @@ export async function syncKnowledgeGraph(
       });
     }
 
-    // ── Code extraction (异步, 待 R3 实现) ───────────────────────────
-    // TODO: 调用 code extraction orchestrator
+    // ── Code extraction (R3) ───────────────────────────────────────
+
+    if (shouldSync('codegraph')) {
+      const startMs = Date.now();
+      const srcDir = resolve(projectPath, 'src');
+      if (existsSync(srcDir)) {
+        const codeResult = await extractCode({
+          srcDir,
+          includeTests: false,
+          maxFileSize: 500 * 1024,
+        });
+
+        for (const result of codeResult.results) {
+          if (result.nodes.length > 0) {
+            mg.insertExtractionResults(result);
+          }
+        }
+
+        results.push({
+          source: 'codegraph',
+          nodesAdded: codeResult.stats.nodesCreated,
+          nodesUpdated: 0,
+          nodesRemoved: 0,
+          edgesAdded: codeResult.stats.edgesCreated,
+          edgesRemoved: 0,
+          durationMs: Date.now() - startMs,
+        });
+      }
+    }
+
+    // ── Cross-source edge resolution ────────────────────────────────
+
+    const resolveStartMs = Date.now();
+    // knowledge-resolver 在同一个 DB 内解析跨源边
+    // 由调用方在所有提取完成后调用
 
     return results;
   } finally {

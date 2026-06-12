@@ -11,3 +11,25 @@ export type {
   UNIFIED_NODE_KINDS, CODE_NODE_KINDS, KNOWLEDGE_NODE_KINDS,
   LANGUAGES, SOURCE_TYPES,
 } from './db/types.js';
+
+// Extraction
+export { extractCode } from './extraction/code/code-extractor.js';
+export { syncKnowledgeGraph } from './extraction/orchestrator.js';
+export { extractDomain } from './extraction/knowledge/domain-extractor.js';
+export { extractSpec } from './extraction/knowledge/spec-extractor.js';
+export { extractWiki } from './extraction/knowledge/wiki-extractor.js';
+export { extractCodebase } from './extraction/knowledge/codebase-extractor.js';
+export { extractIssues } from './extraction/knowledge/issue-extractor.js';
+
+// Code extraction
+export { TreeSitterEngine, isTreeSitterAvailable, getTreeSitterEngine } from './extraction/code/tree-sitter.js';
+export { isGeneratedFile, isTestFile, shouldDegradeInSearch } from './extraction/code/generated-detection.js';
+export { ensureWasmStability, cleanupWasmStability } from './extraction/code/wasm-stability.js';
+export { getExtractor, getSupportedLanguages, detectLanguageFromPath } from './extraction/code/languages/index.js';
+
+// Resolution
+export { resolveKnowledgeEdges, expandRelated } from './resolution/index.js';
+export { matchReference, tokenize } from './resolution/name-matcher.js';
+export { ImportResolver } from './resolution/import-resolver.js';
+export { runCallbackSynthesis } from './resolution/callback-synthesizer.js';
+export { getRegisteredFrameworks, detectFrameworks } from './resolution/frameworks/index.js';
