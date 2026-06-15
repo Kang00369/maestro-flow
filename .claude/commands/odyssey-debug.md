@@ -267,7 +267,7 @@ CLI-assisted codebase exploration — gather structured context (call chains, er
 maestro delegate "PURPOSE: Gather codebase evidence for bug investigation: {issue}
 TASK: Trace call chains for affected functions | Find recent changes to related files | Identify error handling gaps | Check for similar patterns elsewhere
 MODE: analysis
-CONTEXT: @{relevant_files_or_scope}/**/*
+CONTEXT: @**/*
 EXPECTED: JSON { call_chains: [{entry, chain: [file:line...]}], recent_changes: [{file, commits: [{sha, message, date}]}], error_gaps: [{file, line, description}], similar_patterns: [{file, line, description}] }
 CONSTRAINTS: Focus on code paths related to symptoms | Max 20 entries per category
 
@@ -343,7 +343,7 @@ Save next state.
    maestro delegate "PURPOSE: Deep analysis — all previous hypotheses failed
    TASK: Find alternative root causes | Consider module interactions | Check dependency updates
    MODE: analysis
-   CONTEXT: @{expanded_scope} | Failed hypotheses: {list}
+   CONTEXT: @**/* | Failed hypotheses: {list}
    EXPECTED: New hypothesis candidates with evidence
    " --role analyze --mode analysis
    ```

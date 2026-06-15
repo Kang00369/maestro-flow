@@ -158,7 +158,7 @@ S_RECORD:
    maestro delegate "PURPOSE: Create implementation plan for: {requirement}
    TASK: Decompose into ordered subtasks | Identify dependencies | Map tasks to acceptance criteria
    MODE: analysis
-   CONTEXT: @{scope}/**/* | Criteria: {acceptance_criteria_summary}
+   CONTEXT: @**/* | Criteria: {acceptance_criteria_summary}
    EXPECTED: JSON [{task_id, title, description, criteria_refs, deps, estimated_complexity}]
    " --role analyze --mode analysis
    ```

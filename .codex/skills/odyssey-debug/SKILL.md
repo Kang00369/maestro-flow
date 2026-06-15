@@ -229,7 +229,7 @@ CLI-assisted codebase exploration — structured context for diagnosis. Skip if 
 maestro delegate "PURPOSE: Gather codebase evidence for: {issue}
 TASK: Trace call chains | Find recent changes | Identify error handling gaps | Check similar patterns
 MODE: analysis
-CONTEXT: @{scope}/**/*
+CONTEXT: @**/*
 EXPECTED: JSON {call_chains:[...], recent_changes:[...], error_gaps:[...], similar_patterns:[...]}
 CONSTRAINTS: Max 20 entries per category | Focus on symptom-related code paths
 

@@ -131,7 +131,7 @@ id,title,description,task_type,criterion_refs,deps,wave,status,findings,evidence
    maestro delegate "PURPOSE: Create plan for: {requirement}
    TASK: Decompose into subtasks | Map to acceptance criteria | Identify dependencies
    MODE: analysis
-   CONTEXT: @{scope}/**/* | Criteria: {criteria_summary}
+   CONTEXT: @**/* | Criteria: {criteria_summary}
    EXPECTED: JSON [{task_id, title, description, criteria_refs, deps}]
    " --role analyze --mode analysis
    ```
