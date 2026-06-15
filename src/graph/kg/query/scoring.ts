@@ -165,12 +165,17 @@ export interface ScoredResult {
 }
 
 export function computeScore(
-  node: { id: string; kind: UnifiedNodeKind; name: string; filePath: string },
+  node: { id: string; kind: UnifiedNodeKind; name: string; filePath: string; _bm25Score?: number },
   query: string,
 ): number {
   let score = 0;
 
-  // FTS5 BM25 基础分 (由调用方从 SQL 获取, 此处作为叠加)
+  // FTS5 BM25 基础分 — 归一化到 0-30 范围与其他信号对齐
+  const bm25 = (node as { _bm25Score?: number })._bm25Score;
+  if (typeof bm25 === 'number' && bm25 > 0) {
+    score += Math.min(bm25 * 2, 30);
+  }
+
   score += kindBonus(node.kind);
   score += scorePathRelevance(node.filePath, query);
   score += nameMatchBonus(node.name, query);

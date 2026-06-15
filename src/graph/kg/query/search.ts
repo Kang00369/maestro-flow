@@ -66,11 +66,12 @@ export function searchUnified(
 
   const allResults: UnifiedSearchResult[] = [];
 
-  // 代码 FTS5 搜索
+  // 代码 FTS5 搜索 (P2: _bm25Score 透传给 computeScore)
   if (includeCode) {
+    const codeKinds = options?.kinds as string[] | undefined;
     const codeResults = queries.searchCodeFTS(effectiveQuery, {
-      limit: limit * 2,  // 多取一些, 后续评分排序
-      kinds: options?.kinds as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      limit: limit * 2,
+      kinds: codeKinds,
       languages: options?.languages as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     });
 
@@ -83,14 +84,16 @@ export function searchUnified(
     }
   }
 
-  // 知识 FTS5 搜索
+  // 知识 FTS5 搜索 (P2: _bm25Score 透传给 computeScore)
   if (includeKnowledge) {
     const knowledgeResults = queries.searchKnowledgeFTS(effectiveQuery, {
       limit: limit * 2,
       sourceTypes: options?.sourceTypes,
     });
 
+    const kindFilter = options?.kinds;
     for (const node of knowledgeResults) {
+      if (kindFilter && kindFilter.length > 0 && !kindFilter.includes(node.kind)) continue;
       allResults.push({
         node,
         score: computeScore(node, query),

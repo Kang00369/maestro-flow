@@ -178,55 +178,89 @@ export function registerKgCommand(program: Command): void {
   // ── query ──────────────────────────────────────────────────────────
   kg
     .command('query <text>')
-    .description('Search nodes by name, summary, or tags')
+    .description('Search nodes by name, summary, or tags (code + knowledge)')
     .option('--limit <n>', 'Max results', '10')
     .option('--type <nodeType>', 'Filter by node type')
     .option('--json', 'Output as JSON')
-    .action((text: string, opts) => {
+    .action(async (text: string, opts) => {
       const limit = Number(opts.limit) || 10;
+      let codeResults: Array<{ kind: string; id: string; name: string; signature?: string; filePath?: string; isExported?: boolean }> = [];
+      let knowledgeResults: Array<{ kind: string; id: string; name: string; sourceType: string; definition: string; score: number }> = [];
 
+      // Code search — old CodeGraph SQLite
       if (hasSqliteDb()) {
         const { conn, queries } = openSqliteOrExit();
         try {
           const parsed = parseQuery(text);
           const kinds = parsed.kinds.length > 0 ? parsed.kinds : undefined;
-          const results = queries.searchNodes(parsed.text || text, {
+          codeResults = queries.searchNodes(parsed.text || text, {
             kinds,
             languages: parsed.languages.length > 0 ? parsed.languages : undefined,
             pathFilters: parsed.pathFilters.length > 0 ? parsed.pathFilters : undefined,
             nameFilters: parsed.nameFilters.length > 0 ? parsed.nameFilters : undefined,
             limit,
           });
-
-          if (opts.json) {
-            console.log(JSON.stringify({ query: text, total: results.length, nodes: results }, null, 2));
-            return;
-          }
-
-          console.log(`Query: "${text}"  (${results.length} results, SQLite)`);
-          for (const n of results) {
-            const exported = n.isExported ? 'Exported ' : '';
-            const desc = n.signature ? truncate(n.signature, 60) : `${exported}${n.kind} "${n.name}" in ${n.filePath}`;
-            console.log(`  [${n.kind}] ${n.id} -- ${desc}`);
-          }
         } finally {
           conn.close();
+        }
+      }
+
+      // Knowledge search — MaestroGraph (domain + spec + knowhow + issue)
+      try {
+        const { MaestroGraph } = await import('../graph/kg/engine.js');
+        const { parseQuery: parseMgQuery } = await import('../graph/kg/query/search.js');
+        if (MaestroGraph.isInitialized(resolve('.'))) {
+          const mg = await MaestroGraph.open(resolve('.'));
+          try {
+            const mgParsed = parseMgQuery(text);
+            const effectiveText = mgParsed.text || text;
+            const sourceTypes = mgParsed.sourceTypes?.length > 0 ? mgParsed.sourceTypes : undefined;
+            const kinds = mgParsed.kinds?.length > 0 ? mgParsed.kinds : undefined;
+            const output = mg.searchUnified(effectiveText, { limit, sourceTypes: sourceTypes as any, kinds: kinds as any }); // eslint-disable-line @typescript-eslint/no-explicit-any
+            knowledgeResults = output.directMatches
+              .filter(r => r.node.sourceType !== 'codegraph')
+              .slice(0, limit)
+              .map(r => ({
+                kind: r.node.kind,
+                id: r.node.id,
+                name: r.node.name,
+                sourceType: r.node.sourceType,
+                definition: r.node.definition,
+                score: r.score,
+              }));
+          } finally {
+            mg.close();
+          }
+        }
+      } catch { /* MaestroGraph not available — proceed with code-only results */ }
+
+      if (opts.json) {
+        console.log(JSON.stringify({ query: text, codeResults, knowledgeResults }, null, 2));
+        return;
+      }
+
+      const totalCount = codeResults.length + knowledgeResults.length;
+      if (totalCount === 0 && !hasSqliteDb()) {
+        const graph = loadGraphOrExit();
+        const matches = searchNodes(graph, text, { limit, type: opts.type });
+        console.log(`Query: "${text}"  (${matches.length} results, JSON)`);
+        for (const n of matches) {
+          console.log(`  [${n.type}] ${n.id} -- ${truncate(n.summary, 80)}`);
         }
         return;
       }
 
-      const graph = loadGraphOrExit();
-      const matches = searchNodes(graph, text, { limit, type: opts.type });
-      const total = searchNodes(graph, text, { limit: Infinity, type: opts.type }).length;
-
-      if (opts.json) {
-        console.log(JSON.stringify({ query: text, total, nodes: matches }, null, 2));
-        return;
+      console.log(`Query: "${text}"  (${codeResults.length} code + ${knowledgeResults.length} knowledge)`);
+      for (const n of codeResults) {
+        const exported = n.isExported ? 'Exported ' : '';
+        const desc = n.signature ? truncate(n.signature, 60) : `${exported}${n.kind} "${n.name}" in ${n.filePath}`;
+        console.log(`  [${n.kind}] ${n.id} -- ${desc}`);
       }
-
-      console.log(`Query: "${text}"  (${matches.length}/${total} results)`);
-      for (const n of matches) {
-        console.log(`  [${n.type}] ${n.id} -- ${truncate(n.summary, 80)}`);
+      if (knowledgeResults.length > 0) {
+        for (const n of knowledgeResults) {
+          const def = n.definition ? ` — ${truncate(n.definition, 60)}` : '';
+          console.log(`  [${n.sourceType}:${n.kind}] ${n.name}${def}  (${n.score.toFixed(1)})`);
+        }
       }
     });
 
@@ -1081,6 +1115,44 @@ export function registerKgCommand(program: Command): void {
 
       console.log(`Migrated: ${result.nodes} nodes, ${result.edges} edges`);
       console.log(`Written to: ${result.dbPath}`);
+    });
+
+  // ── sync-all ────────────────────────────────────────────────────────
+  kg
+    .command('sync-all')
+    .description('Sync MaestroGraph — all sources (code + domain + spec + knowhow + issues)')
+    .option('--full', 'Full rebuild (ignore file hashes)')
+    .option('--source <sources>', 'Comma-separated: domain,spec,knowhow,codebase,issue,codegraph')
+    .option('--json', 'Output as JSON')
+    .action(async (opts) => {
+      try {
+        const { syncKnowledgeGraph } = await import('../graph/kg/extraction/orchestrator.js');
+        const projectRoot = resolve('.');
+        const sources = opts.source ? opts.source.split(',').map((s: string) => s.trim()) : undefined;
+
+        console.log('Syncing MaestroGraph (all knowledge sources)...');
+        const results = await syncKnowledgeGraph(projectRoot, {
+          full: opts.full,
+          sources,
+        });
+
+        if (opts.json) {
+          console.log(JSON.stringify(results, null, 2));
+          return;
+        }
+
+        let totalNodes = 0;
+        let totalEdges = 0;
+        for (const r of results) {
+          totalNodes += r.nodesAdded;
+          totalEdges += r.edgesAdded;
+          console.log(`  ${r.source}: +${r.nodesAdded} nodes, +${r.edgesAdded} edges (${r.durationMs}ms)`);
+        }
+        console.log(`\nTotal: ${totalNodes} nodes, ${totalEdges} edges`);
+      } catch (err) {
+        console.error('MaestroGraph sync failed:', err instanceof Error ? err.message : err);
+        process.exit(1);
+      }
     });
 
   // ── export-json ────────────────────────────────────────────────────

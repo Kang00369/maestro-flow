@@ -515,7 +515,11 @@ export class KgQueryBuilder {
 
   // ── Search — FTS5 统一搜索 (D1.5: 输入消毒) ───────────────────────
 
-  searchCodeFTS(query: string, opts: { limit?: number; kinds?: string[]; languages?: string[]; pathFilters?: string[] }): UnifiedNode[] {
+  searchCodeFTS(query: string, opts: { limit?: number; kinds?: string[]; languages?: string[]; pathFilters?: string[] }): Array<UnifiedNode & { _bm25Score?: number }> {
+    // CJK 查询降级到 LIKE — unicode61 tokenizer 不支持 CJK 分词
+    if (hasCjkChars(query)) {
+      return this.searchNodesLike(query, opts);
+    }
     const sanitized = sanitizeFtsQuery(query);
     if (!sanitized) return [];
     try {
@@ -536,15 +540,18 @@ export class KgQueryBuilder {
       sql += ` ORDER BY score LIMIT ?`;
       params.push(opts.limit ?? 20);
 
-      const rows = this.db.prepare(sql).all(...params) as NodeRow[];
-      return rows.map(rowToNode);
+      const rows = this.db.prepare(sql).all(...params) as Array<NodeRow & { score?: number }>;
+      return rows.map(r => {
+        const node = rowToNode(r) as UnifiedNode & { _bm25Score?: number };
+        if (typeof r.score === 'number') node._bm25Score = -r.score;
+        return node;
+      });
     } catch {
-      // FTS5 查询失败 → 降级到 LIKE
       return this.searchNodesLike(query, opts);
     }
   }
 
-  searchKnowledgeFTS(query: string, opts: { limit?: number; sourceTypes?: SourceType[] }): UnifiedNode[] {
+  searchKnowledgeFTS(query: string, opts: { limit?: number; sourceTypes?: SourceType[] }): Array<UnifiedNode & { _bm25Score?: number }> {
     // CJK 短查询降级 (D7.1: trigram 最小单元 3 字符)
     const isCjkShort = /^[一-鿿぀-ヿ가-힯]{1,2}$/.test(query.trim());
     if (isCjkShort) {
@@ -566,8 +573,12 @@ export class KgQueryBuilder {
       sql += ` ORDER BY score LIMIT ?`;
       params.push(opts.limit ?? 20);
 
-      const rows = this.db.prepare(sql).all(...params) as NodeRow[];
-      return rows.map(rowToNode);
+      const rows = this.db.prepare(sql).all(...params) as Array<NodeRow & { score?: number }>;
+      return rows.map(r => {
+        const node = rowToNode(r) as UnifiedNode & { _bm25Score?: number };
+        if (typeof r.score === 'number') node._bm25Score = -r.score;
+        return node;
+      });
     } catch {
       return this.searchKnowledgeLike(query, opts);
     }
@@ -624,6 +635,10 @@ function escapeLikePattern(input: string): string {
 // ---------------------------------------------------------------------------
 // FTS5 输入消毒 (D1.5)
 // ---------------------------------------------------------------------------
+
+function hasCjkChars(input: string): boolean {
+  return /[一-鿿぀-ヿ가-힯]/.test(input);
+}
 
 const FTS5_SPECIAL_CHARS = /[*"(){}[\]:^~+\-!\\]/g;
 const FTS5_OPERATORS = /\b(AND|OR|NOT|NEAR)\b/gi;

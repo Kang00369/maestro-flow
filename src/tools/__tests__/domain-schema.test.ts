@@ -60,10 +60,10 @@ describe('validateGlossary', () => {
     expect(errors.some(e => e.message.includes('200'))).toBe(true);
   });
 
-  it('detects dangling relationship references', () => {
+  it('allows dangling relationship references (warnings not errors)', () => {
     const data = { terms: [{ ...validTerm, relationships: ['nonexistent'] }] };
     const errors = validateGlossary(data);
-    expect(errors.some(e => e.message.includes('dangling'))).toBe(true);
+    expect(errors).toEqual([]);
   });
 
   it('accepts valid relationship references', () => {

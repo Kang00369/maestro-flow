@@ -75,24 +75,33 @@ export function registerKgCommands(program: Command): void {
     .action(async (text: string, opts) => {
       const mg = await MaestroGraph.open(resolve('.'));
       try {
-        const output = mg.searchUnified(text, {
-          sourceTypes: opts.source?.split(','),
+        const parsed = parseQuery(text);
+        const sourceTypes = opts.source?.split(',')
+          ?? (parsed.sourceTypes.length > 0 ? parsed.sourceTypes : undefined);
+        const kinds = opts.kind?.split(',')
+          ?? (parsed.kinds.length > 0 ? parsed.kinds : undefined);
+        const effectiveText = parsed.text || text;
+
+        const output = mg.searchUnified(effectiveText, {
+          sourceTypes: sourceTypes as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+          kinds: kinds as any, // eslint-disable-line @typescript-eslint/no-explicit-any
           limit: Math.min(Number(opts.limit) || 20, 500),
         });
         const results = output.directMatches;
 
         if (opts.json) {
-          console.log(JSON.stringify({ query: text, results: results.map(r => ({
+          console.log(JSON.stringify({ query: text, parsed: { text: effectiveText, kinds, sourceTypes }, results: results.map(r => ({
             id: r.node.id, kind: r.node.kind, name: r.node.name, sourceType: r.node.sourceType,
             definition: r.node.definition.substring(0, 200), score: r.score,
           })), summary: output.summary }, null, 2));
           return;
         }
 
-        console.log(`Query: "${text}" (${results.length} results)`);
+        console.log(`Query: "${effectiveText}" (${results.length} results)`);
         for (const r of results) {
           const def = r.node.definition ? ` — ${r.node.definition.substring(0, 80)}` : '';
-          console.log(`  [${r.node.sourceType}:${r.node.kind}] ${r.node.name}${def}`);
+          const scoreTag = r.score > 0 ? `  (${r.score.toFixed(1)})` : '';
+          console.log(`  [${r.node.sourceType}:${r.node.kind}] ${r.node.name}${def}${scoreTag}`);
         }
       } finally {
         mg.close();
