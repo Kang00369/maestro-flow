@@ -18,24 +18,16 @@ v2→v3 迁移后的环境配置。验证并引导用户完成知识系统、Cod
   - wiki search    → maestro search
 ```
 
-## Step 2: CodeGraph 安装
+## Step 2: MaestroGraph 初始化
 
 ```
-1. 检测：node -e "require('@colbymchenry/codegraph')" 2>&1
-2. IF 已安装 → 显示 "CodeGraph：已安装"
-3. IF 未安装 → 显示：
-     "可选：@colbymchenry/codegraph（tree-sitter 代码分析）"
-     "启用函数级 KG，提供 callers/callees 查询。"
-     "安装：npm install -g @colbymchenry/codegraph"
-   
-   AskUserQuestion: "是否安装 CodeGraph？"
-   Options: [安装 / 跳过]
-   IF 安装：
-     Bash: npm install -g @colbymchenry/codegraph
+1. 检测：maestro kg health
+2. IF 已初始化 → 显示 "MaestroGraph：已就绪"
+3. IF 未初始化：
+     Bash: maestro kg sync
+     显示 "MaestroGraph 索引已初始化"
 
-4. IF 已安装 AND 无索引：
-     Bash: maestro kg index --sqlite
-     显示 "KG 索引已初始化"
+注：代码分析引擎 (tree-sitter) 已内置，无需安装额外依赖。
 ```
 
 ## Step 3: Hook 升级

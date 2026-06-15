@@ -196,19 +196,19 @@ Session 级去重：同一条目不会重复注入。所有注入使用统一 `<
 
 ---
 
-## CodeGraph 知识图谱集成
+## MaestroGraph 知识图谱集成
 
-Maestro 使用 `@colbymchenry/codegraph`（tree-sitter WASM）作为唯一代码分析引擎，提供函数级调用图和符号查询。CodeGraph 为可选依赖——未安装时所有 KG 功能静默降级。
+Maestro 内置 MaestroGraph 引擎（基于 web-tree-sitter WASM），提供函数级调用图、符号查询、知识跨源搜索等 24 项能力。无需安装额外依赖。
 
 ```bash
-# 安装（可选）
-npm install -g @colbymchenry/codegraph
-
 # 初始化索引
-maestro kg index --sqlite
+maestro kg sync
+
+# 搜索
+maestro kg query "函数名或关键词"
 ```
 
-KG 通过 Hook 自动保持新鲜：`kg-sync`（UserPromptSubmit 增量同步）+ `kg-context-injector`（Agent 启动注入）。仅在首次使用时需手动 `maestro kg index --sqlite`。
+KG 通过 Hook 自动保持新鲜：`kg-sync`（UserPromptSubmit 增量同步）+ `kg-context-injector`（Agent 启动注入）。仅在首次使用时需手动 `maestro kg sync`。
 
 ### kg CLI 子命令
 
