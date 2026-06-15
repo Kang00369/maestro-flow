@@ -93,7 +93,7 @@ const AGENT_CATEGORY_MAP: Record<string, SpecCategory[]> = {
   // Planning agents → arch specs
   'cli-lite-planning-agent': ['arch', 'coding'],
   'action-planning-agent':   ['arch'],
-  'workflow-planner':        ['arch', 'coding'],
+  'workflow-planner':        ['arch'],
   'workflow-collab-planner': ['arch'],
   'workflow-roadmapper':     ['arch'],
   'role-design-author':      ['arch', 'coding'],
