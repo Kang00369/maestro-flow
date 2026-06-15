@@ -7,8 +7,20 @@ import { KgDatabaseConnection, KgQueryBuilder, getKgDatabasePath } from './db/in
 import type { UnifiedNode, UnifiedEdge, UnifiedGraphStats, SyncResult, ResolutionResult, ExtractionResult, SourceType } from './db/types.js';
 import { resolveKnowledgeEdges as resolveKnowledgeEdgesImpl } from './resolution/knowledge-resolver.js';
 import type { KnowledgeResolutionResult } from './resolution/knowledge-resolver.js';
-import { bfs, getCallers as getCallersImpl, getCallees as getCalleesImpl, getImpactRadius } from './query/traversal.js';
-import type { TraversalResult } from './query/traversal.js';
+import {
+  bfs, dfs as dfsImpl,
+  getCallers as getCallersImpl, getCallees as getCalleesImpl,
+  getImpactRadius, getCallGraph as getCallGraphImpl,
+  getTypeHierarchy as getTypeHierarchyImpl,
+  findUsages as findUsagesImpl,
+  getAncestors as getAncestorsImpl, getChildren as getChildrenImpl,
+  getNodeContext as getNodeContextImpl,
+  getFileDependencies as getFileDependenciesImpl, getFileDependents as getFileDependentsImpl,
+  findDeadCode as findDeadCodeImpl,
+  getNodeMetrics as getNodeMetricsImpl,
+  findShortestPath as findShortestPathImpl,
+} from './query/traversal.js';
+import type { TraversalResult, NodeContext, NodeMetrics, PathStep } from './query/traversal.js';
 import { searchUnified as searchUnifiedImpl } from './query/search.js';
 import type { UnifiedSearchOutput } from './query/search.js';
 import { buildContext as buildContextImpl } from './query/context-builder.js';
@@ -147,6 +159,66 @@ export class MaestroGraph {
   traverse(startId: string, options?: { maxDepth?: number; edgeKinds?: string[]; direction?: 'outgoing' | 'incoming' | 'both' }): TraversalResult {
     if (!this.queries) throw new Error('MaestroGraph not open');
     return bfs(this.queries, startId, options);
+  }
+
+  traverseDFS(startId: string, options?: { maxDepth?: number; edgeKinds?: string[]; direction?: 'outgoing' | 'incoming' | 'both' }): TraversalResult {
+    if (!this.queries) throw new Error('MaestroGraph not open');
+    return dfsImpl(this.queries, startId, options);
+  }
+
+  getTypeHierarchy(nodeId: string): TraversalResult {
+    if (!this.queries) throw new Error('MaestroGraph not open');
+    return getTypeHierarchyImpl(this.queries, nodeId);
+  }
+
+  findUsages(nodeId: string): Array<{ node: UnifiedNode; edge: UnifiedEdge }> {
+    if (!this.queries) throw new Error('MaestroGraph not open');
+    return findUsagesImpl(this.queries, nodeId);
+  }
+
+  getAncestors(nodeId: string): UnifiedNode[] {
+    if (!this.queries) throw new Error('MaestroGraph not open');
+    return getAncestorsImpl(this.queries, nodeId);
+  }
+
+  getChildren(nodeId: string): UnifiedNode[] {
+    if (!this.queries) throw new Error('MaestroGraph not open');
+    return getChildrenImpl(this.queries, nodeId);
+  }
+
+  getCallGraph(nodeId: string, depth?: number): TraversalResult {
+    if (!this.queries) throw new Error('MaestroGraph not open');
+    return getCallGraphImpl(this.queries, nodeId, depth);
+  }
+
+  getNodeContext(nodeId: string): NodeContext | null {
+    if (!this.queries) throw new Error('MaestroGraph not open');
+    return getNodeContextImpl(this.queries, nodeId);
+  }
+
+  getFileDependencies(filePath: string): string[] {
+    if (!this.queries) throw new Error('MaestroGraph not open');
+    return getFileDependenciesImpl(this.queries, filePath);
+  }
+
+  getFileDependents(filePath: string): string[] {
+    if (!this.queries) throw new Error('MaestroGraph not open');
+    return getFileDependentsImpl(this.queries, filePath);
+  }
+
+  findDeadCode(options?: { kinds?: string[] }): UnifiedNode[] {
+    if (!this.queries) throw new Error('MaestroGraph not open');
+    return findDeadCodeImpl(this.queries, options);
+  }
+
+  getNodeMetrics(nodeId: string): NodeMetrics | null {
+    if (!this.queries) throw new Error('MaestroGraph not open');
+    return getNodeMetricsImpl(this.queries, nodeId);
+  }
+
+  findShortestPath(fromId: string, toId: string, maxDepth?: number): PathStep[] | null {
+    if (!this.queries) throw new Error('MaestroGraph not open');
+    return findShortestPathImpl(this.queries, fromId, toId, maxDepth);
   }
 
   // ── Context (C8 API) ──────────────────────────────────────────────

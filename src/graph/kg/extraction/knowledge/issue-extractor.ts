@@ -92,7 +92,7 @@ export function extractIssues(
     fileRecord: {
       path: issuesPath,
       contentHash: '',
-      language: 'json' as Language,
+      language: 'unknown',
       size: 0,
       modifiedAt: now,
       indexedAt: now,
@@ -105,7 +105,7 @@ export function extractIssues(
 
 function createEmptyFileRecord(path: string): FileRecord {
   return {
-    path, contentHash: '', language: 'json' as Language,
+    path, contentHash: '', language: 'unknown',
     size: 0, modifiedAt: 0, indexedAt: 0, nodeCount: 0,
     errors: [], sourceType: 'issue' as SourceType,
   };

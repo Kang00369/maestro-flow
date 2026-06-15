@@ -171,7 +171,7 @@ export function computeScore(
   let score = 0;
 
   // FTS5 BM25 基础分 — 归一化到 0-30 范围与其他信号对齐
-  const bm25 = (node as { _bm25Score?: number })._bm25Score;
+  const bm25 = node._bm25Score;
   if (typeof bm25 === 'number' && bm25 > 0) {
     score += Math.min(bm25 * 2, 30);
   }

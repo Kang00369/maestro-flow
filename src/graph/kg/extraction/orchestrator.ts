@@ -155,6 +155,7 @@ export async function syncKnowledgeGraph(
 
     if (shouldSync('codegraph')) {
       const startMs = Date.now();
+      const removedCode = queries.deleteNodesBySourceType('codegraph');
       const candidateDirs = ['src', 'lib', 'app', 'packages', 'apps', 'dashboard/src'];
       const srcDirs = candidateDirs
         .map(d => resolve(projectPath, d))
@@ -186,7 +187,7 @@ export async function syncKnowledgeGraph(
         source: 'codegraph',
         nodesAdded: totalNodes,
         nodesUpdated: 0,
-        nodesRemoved: 0,
+        nodesRemoved: removedCode,
         edgesAdded: totalEdges,
         edgesRemoved: 0,
         durationMs: Date.now() - startMs,

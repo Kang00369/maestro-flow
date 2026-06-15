@@ -174,6 +174,7 @@ export async function handleMcpTool(
 
   try {
     const mg = await MaestroGraph.open(projectPath);
+    try {
     const queries = mg.getQueryBuilder();
 
     const safeInt = (v: unknown, def: number, max: number): number =>
@@ -281,12 +282,13 @@ export async function handleMcpTool(
         result = { error: `Unknown tool: ${toolName}` };
     }
 
-    mg.close();
-
     return {
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       isError: false,
     };
+    } finally {
+      mg.close();
+    }
   } catch (err) {
     return {
       content: [{ type: 'text', text: `Error: ${err instanceof Error ? err.message : String(err)}` }],

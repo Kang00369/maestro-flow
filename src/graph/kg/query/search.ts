@@ -74,7 +74,7 @@ export function searchUnified(
     const exactResults = queries.searchCodeFTS(query, {
       limit: limit * 2,
       kinds: codeKinds,
-      languages: options?.languages as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      languages: options?.languages,
     });
     for (const node of exactResults) {
       if (seenIds.has(node.id)) continue;
@@ -91,7 +91,7 @@ export function searchUnified(
       const tokenResults = queries.searchCodeFTS(effectiveQuery, {
         limit: limit * 2,
         kinds: codeKinds,
-        languages: options?.languages as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        languages: options?.languages,
       });
       for (const node of tokenResults) {
         if (seenIds.has(node.id)) continue;
@@ -127,14 +127,17 @@ export function searchUnified(
   allResults.sort((a, b) => b.score - a.score);
   const directMatches = allResults.slice(0, limit);
 
-  // 统计
-  const summary = {
-    codeSymbols: allResults.filter(r => r.node.sourceType === 'codegraph').length,
-    domainTerms: allResults.filter(r => r.node.sourceType === 'domain').length,
-    specRules: allResults.filter(r => r.node.sourceType === 'spec').length,
-    knowhowDocs: allResults.filter(r => r.node.sourceType === 'knowhow').length,
-    total: allResults.length,
-  };
+  // 统计 — 基于返回的 directMatches，保持数据一致性
+  let codeSymbols = 0, domainTerms = 0, specRules = 0, knowhowDocs = 0;
+  for (const r of directMatches) {
+    switch (r.node.sourceType) {
+      case 'codegraph': codeSymbols++; break;
+      case 'domain': domainTerms++; break;
+      case 'spec': specRules++; break;
+      case 'knowhow': knowhowDocs++; break;
+    }
+  }
+  const summary = { codeSymbols, domainTerms, specRules, knowhowDocs, total: directMatches.length };
 
   return { directMatches, summary };
 }
@@ -149,8 +152,8 @@ export function searchCodeOnly(
   options?: { kinds?: string[]; languages?: string[]; limit?: number },
 ): UnifiedNode[] {
   return queries.searchCodeFTS(query, {
-    kinds: options?.kinds as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    languages: options?.languages as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    kinds: options?.kinds,
+    languages: options?.languages,
     limit: options?.limit ?? 20,
   });
 }

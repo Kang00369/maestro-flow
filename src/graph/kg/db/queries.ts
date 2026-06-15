@@ -382,8 +382,8 @@ export class KgQueryBuilder {
 
   deleteEdgesByProvenanceAndSource(provenance: string, sourcePrefix: string): number {
     return this.db.prepare(
-      'DELETE FROM edges WHERE provenance = ? AND source LIKE ?'
-    ).run(provenance, `${sourcePrefix}%`).changes;
+      "DELETE FROM edges WHERE provenance = ? AND source LIKE ? ESCAPE '\\'"
+    ).run(provenance, `${escapeLikePattern(sourcePrefix)}%`).changes;
   }
 
   // ── Unresolved Refs CRUD ──────────────────────────────────────────
@@ -546,14 +546,15 @@ export class KgQueryBuilder {
         if (typeof r.score === 'number') node._bm25Score = -r.score;
         return node;
       });
-    } catch {
+    } catch (err) {
+      if (process.env.DEBUG) console.warn('[KG] code FTS5 failed, LIKE fallback:', err);
       return this.searchNodesLike(query, opts);
     }
   }
 
   searchKnowledgeFTS(query: string, opts: { limit?: number; sourceTypes?: SourceType[] }): Array<UnifiedNode & { _bm25Score?: number }> {
     // CJK 短查询降级 (D7.1: trigram 最小单元 3 字符)
-    const isCjkShort = /^[一-鿿぀-ヿ가-힯]{1,2}$/.test(query.trim());
+    const isCjkShort = /^[㐀-䶿一-鿿぀-ヿ가-힯]{1,2}$/.test(query.trim());
     if (isCjkShort) {
       return this.searchKnowledgeLike(query, opts);
     }
@@ -579,7 +580,8 @@ export class KgQueryBuilder {
         if (typeof r.score === 'number') node._bm25Score = -r.score;
         return node;
       });
-    } catch {
+    } catch (err) {
+      if (process.env.DEBUG) console.warn('[KG] knowledge FTS5 failed, LIKE fallback:', err);
       return this.searchKnowledgeLike(query, opts);
     }
   }
@@ -637,17 +639,16 @@ function escapeLikePattern(input: string): string {
 // ---------------------------------------------------------------------------
 
 function hasCjkChars(input: string): boolean {
-  return /[一-鿿぀-ヿ가-힯]/.test(input);
+  return /[㐀-䶿一-鿿぀-ヿ가-힯]/.test(input);
 }
 
 const FTS5_SPECIAL_CHARS = /[*"(){}[\]:^~+\-!\\]/g;
-const FTS5_OPERATORS = /\b(AND|OR|NOT|NEAR)\b/gi;
+const FTS5_OPERATORS = new Set(['and', 'or', 'not', 'near']);
 
 export function sanitizeFtsQuery(input: string): string {
   const tokens = input.replace(FTS5_SPECIAL_CHARS, ' ').split(/\s+/)
     .filter(t => t.length > 0)
-    .map(t => t.replace(FTS5_OPERATORS, ''))
-    .filter(t => t.length > 0);
+    .filter(t => !FTS5_OPERATORS.has(t.toLowerCase()));
   if (tokens.length === 0) return '';
   return tokens.map(t => `"${t.replace(/"/g, '""')}"`).join(' ');
 }

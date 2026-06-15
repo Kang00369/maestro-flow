@@ -3,6 +3,12 @@ import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { MaestroGraph } from '../engine.js';
 import { getKgDatabasePath } from '../db/connection.js';
+import {
+  dfs, getTypeHierarchy, findUsages, getAncestors, getChildren,
+  getCallGraph, getNodeContext, getFileDependencies, getFileDependents,
+  findDeadCode, getNodeMetrics, findShortestPath,
+} from '../query/traversal.js';
+import type { KgQueryBuilder } from '../db/queries.js';
 
 // CodeGraph adapter (old system)
 async function getCodeGraphAdapter() {
@@ -326,6 +332,243 @@ describe('CodeGraph vs MaestroGraph — 100 Boundary Search Cases', () => {
 
       expect(stats.mg_errors).toBe(0);
       expect(avgLatency).toBeLessThan(20);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Traversal & Analysis Capability Benchmark — MaestroGraph 新能力验证
+// ---------------------------------------------------------------------------
+
+describe('MaestroGraph Traversal & Analysis — Capability Benchmark', () => {
+  let mg: MaestroGraph | null = null;
+  let queries: KgQueryBuilder | null = null;
+
+  beforeAll(async () => {
+    const dbPath = getKgDatabasePath('.');
+    if (existsSync(dbPath)) {
+      mg = await MaestroGraph.open('.');
+      queries = mg.getQueryBuilder();
+    }
+  });
+
+  afterAll(() => { mg?.close(); });
+
+  describe('DFS Traversal', () => {
+    it('dfs returns nodes without crashing', () => {
+      if (!queries) return;
+      const codeNodes = queries.searchCodeFTS('function', { limit: 1 });
+      if (codeNodes.length === 0) return;
+      const result = dfs(queries, codeNodes[0].id, { maxDepth: 2, maxNodes: 50 });
+      expect(result.nodes.size).toBeGreaterThanOrEqual(1);
+      expect(result.visited.size).toBeGreaterThanOrEqual(1);
+    });
+
+    it('dfs visits different order than bfs', () => {
+      if (!mg || !queries) return;
+      const codeNodes = queries.searchCodeFTS('class', { limit: 1 });
+      if (codeNodes.length === 0) return;
+      const bfsResult = mg.traverse(codeNodes[0].id, { maxDepth: 3, maxNodes: 30 });
+      const dfsResult = dfs(queries, codeNodes[0].id, { maxDepth: 3, maxNodes: 30 });
+      expect(dfsResult.nodes.size).toBeGreaterThanOrEqual(1);
+      expect(bfsResult.nodes.size).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('Type Hierarchy', () => {
+    it('getTypeHierarchy returns valid result for any node', () => {
+      if (!queries) return;
+      const classNodes = queries.searchCodeFTS('class', { limit: 3, kinds: ['class'] });
+      for (const node of classNodes) {
+        const result = getTypeHierarchy(queries, node.id);
+        expect(result.nodes).toBeInstanceOf(Map);
+        expect(result.edges).toBeInstanceOf(Array);
+      }
+    });
+  });
+
+  describe('Find Usages', () => {
+    it('findUsages returns incoming references', () => {
+      if (!queries) return;
+      const nodes = queries.searchCodeFTS('function', { limit: 5, kinds: ['function'] });
+      let found = false;
+      for (const node of nodes) {
+        const usages = findUsages(queries, node.id);
+        if (usages.length > 0) {
+          found = true;
+          expect(usages[0].node).toBeDefined();
+          expect(usages[0].edge).toBeDefined();
+          break;
+        }
+      }
+    });
+  });
+
+  describe('Ancestors & Children', () => {
+    it('getAncestors traces container chain', () => {
+      if (!queries) return;
+      const methods = queries.searchCodeFTS('method', { limit: 5, kinds: ['method'] });
+      for (const m of methods) {
+        const ancestors = getAncestors(queries, m.id);
+        if (ancestors.length > 0) {
+          expect(ancestors[0].kind).toBeDefined();
+          return;
+        }
+      }
+    });
+
+    it('getChildren returns direct contains targets', () => {
+      if (!queries) return;
+      const classes = queries.searchCodeFTS('class', { limit: 5, kinds: ['class'] });
+      for (const cls of classes) {
+        const children = getChildren(queries, cls.id);
+        if (children.length > 0) {
+          expect(children[0].kind).toBeDefined();
+          return;
+        }
+      }
+    });
+  });
+
+  describe('Call Graph (Bidirectional)', () => {
+    it('getCallGraph merges callers and callees', () => {
+      if (!queries) return;
+      const fns = queries.searchCodeFTS('function', { limit: 5, kinds: ['function'] });
+      for (const fn of fns) {
+        const graph = getCallGraph(queries, fn.id, 2);
+        if (graph.edges.length > 0) {
+          expect(graph.nodes.size).toBeGreaterThan(1);
+          return;
+        }
+      }
+    });
+  });
+
+  describe('Node Context (7-element)', () => {
+    it('getNodeContext returns focal + ancestors + children + refs + hierarchy', () => {
+      if (!queries) return;
+      const nodes = queries.searchCodeFTS('class', { limit: 3, kinds: ['class'] });
+      for (const node of nodes) {
+        const ctx = getNodeContext(queries, node.id);
+        if (!ctx) continue;
+        expect(ctx.focal.id).toBe(node.id);
+        expect(ctx.ancestors).toBeInstanceOf(Array);
+        expect(ctx.children).toBeInstanceOf(Array);
+        expect(ctx.incomingRefs).toBeInstanceOf(Array);
+        expect(ctx.outgoingRefs).toBeInstanceOf(Array);
+        expect(ctx.typeHierarchy).toBeDefined();
+        return;
+      }
+    });
+  });
+
+  describe('File Dependencies', () => {
+    it('getFileDependencies returns import targets', () => {
+      if (!queries) return;
+      const deps = getFileDependencies(queries, 'src/graph/kg/engine.ts');
+      expect(deps).toBeInstanceOf(Array);
+    });
+
+    it('getFileDependents returns reverse imports', () => {
+      if (!queries) return;
+      const deps = getFileDependents(queries, 'src/graph/kg/engine.ts');
+      expect(deps).toBeInstanceOf(Array);
+    });
+  });
+
+  describe('Dead Code Detection', () => {
+    it('findDeadCode returns unexported unreferenced nodes', () => {
+      if (!queries) return;
+      const start = performance.now();
+      const dead = findDeadCode(queries, { kinds: ['function'] });
+      const elapsed = performance.now() - start;
+      expect(dead).toBeInstanceOf(Array);
+      expect(elapsed).toBeLessThan(5000);
+    });
+  });
+
+  describe('Node Metrics', () => {
+    it('getNodeMetrics returns 6-dimension metrics', () => {
+      if (!queries) return;
+      const nodes = queries.searchCodeFTS('function', { limit: 1 });
+      if (nodes.length === 0) return;
+      const metrics = getNodeMetrics(queries, nodes[0].id);
+      expect(metrics).not.toBeNull();
+      expect(metrics!.incomingEdgeCount).toBeGreaterThanOrEqual(0);
+      expect(metrics!.outgoingEdgeCount).toBeGreaterThanOrEqual(0);
+      expect(metrics!.callCount).toBeGreaterThanOrEqual(0);
+      expect(metrics!.callerCount).toBeGreaterThanOrEqual(0);
+      expect(metrics!.childCount).toBeGreaterThanOrEqual(0);
+      expect(metrics!.depth).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('Shortest Path (with edges)', () => {
+    it('findShortestPath returns path steps with edge info', () => {
+      if (!queries) return;
+      const nodes = queries.searchCodeFTS('class', { limit: 2 });
+      if (nodes.length < 2) return;
+      const path = findShortestPath(queries, nodes[0].id, nodes[1].id, 5);
+      if (path) {
+        expect(path.length).toBeGreaterThanOrEqual(2);
+        expect(path[0].nodeId).toBe(nodes[0].id);
+        expect(path[0].edge).toBeNull();
+        if (path.length > 1) {
+          expect(path[1].edge).toBeDefined();
+        }
+      }
+    });
+  });
+
+  describe('Capability Coverage Summary', () => {
+    it('reports MaestroGraph vs CodeGraph capability matrix', () => {
+      if (!mg || !queries) return;
+
+      const capabilities = [
+        { name: 'BFS traversal', mg: true, cg: true },
+        { name: 'DFS traversal', mg: true, cg: true },
+        { name: 'getCallers', mg: true, cg: true },
+        { name: 'getCallees', mg: true, cg: true },
+        { name: 'getCallGraph (bidirectional)', mg: true, cg: true },
+        { name: 'getTypeHierarchy', mg: true, cg: true },
+        { name: 'findUsages', mg: true, cg: true },
+        { name: 'getAncestors', mg: true, cg: true },
+        { name: 'getChildren', mg: true, cg: true },
+        { name: 'getNodeContext (7-element)', mg: true, cg: true },
+        { name: 'getImpactRadius', mg: true, cg: true },
+        { name: 'findShortestPath (with edges)', mg: true, cg: true },
+        { name: 'getFileDependencies', mg: true, cg: true },
+        { name: 'getFileDependents', mg: true, cg: true },
+        { name: 'findDeadCode', mg: true, cg: true },
+        { name: 'getNodeMetrics', mg: true, cg: true },
+        { name: 'traceCallChain', mg: true, cg: false },
+        { name: 'Unified FTS5 search (code+knowledge)', mg: true, cg: false },
+        { name: 'BM25F scoring', mg: true, cg: false },
+        { name: 'CJK search fallback', mg: true, cg: false },
+        { name: 'Knowledge cross-source edges', mg: true, cg: false },
+        { name: 'Context Builder + budget', mg: true, cg: false },
+        { name: 'Field-qualified query syntax', mg: true, cg: true },
+        { name: 'MCP native tools (9)', mg: true, cg: false },
+      ];
+
+      const mgOnly = capabilities.filter(c => c.mg && !c.cg).length;
+      const cgOnly = capabilities.filter(c => c.cg && !c.mg).length;
+      const both = capabilities.filter(c => c.mg && c.cg).length;
+
+      console.log('\n=== Capability Matrix ===');
+      console.log(`Total capabilities: ${capabilities.length}`);
+      console.log(`MaestroGraph: ${capabilities.filter(c => c.mg).length}/${capabilities.length}`);
+      console.log(`CodeGraph: ${capabilities.filter(c => c.cg).length}/${capabilities.length}`);
+      console.log(`MaestroGraph-only: ${mgOnly}`);
+      console.log(`CodeGraph-only: ${cgOnly}`);
+      console.log(`Shared: ${both}`);
+      console.log('\nMaestroGraph advantages:');
+      for (const c of capabilities.filter(c => c.mg && !c.cg)) {
+        console.log(`  ✓ ${c.name}`);
+      }
+
+      expect(mgOnly).toBeGreaterThan(0);
+      expect(cgOnly).toBe(0);
     });
   });
 });

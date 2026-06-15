@@ -53,7 +53,7 @@ export function extractWiki(
       name: fm.title ?? slug,
       qualifiedName: `knowhow:${slug}`,
       filePath: filePath,
-      language: 'markdown' as Language,
+      language: 'unknown',
       startLine: 0,
       endLine: 0,
       startColumn: 0,
@@ -94,7 +94,7 @@ export function extractWiki(
     fileRecord: {
       path: knowhowDir,
       contentHash: '',
-      language: 'markdown' as Language,
+      language: 'unknown',
       size: 0,
       modifiedAt: now,
       indexedAt: now,
@@ -166,7 +166,7 @@ function extractBody(content: string): string {
 
 function createEmptyFileRecord(path: string): FileRecord {
   return {
-    path, contentHash: '', language: 'markdown' as Language,
+    path, contentHash: '', language: 'unknown',
     size: 0, modifiedAt: 0, indexedAt: 0, nodeCount: 0,
     errors: [], sourceType: 'knowhow' as SourceType,
   };

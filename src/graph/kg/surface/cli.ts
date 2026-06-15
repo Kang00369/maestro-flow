@@ -174,9 +174,10 @@ export function registerKgCommands(program: Command): void {
           console.log(`No path found from ${fromId} to ${toId}`);
         } else {
           console.log(`Path (${path.length} hops):`);
-          for (const nodeId of path) {
-            const node = mg.getNode(nodeId);
-            console.log(`  [${node?.sourceType ?? '?'}:${node?.kind ?? '?'}] ${node?.name ?? nodeId}`);
+          for (const step of path) {
+            const node = mg.getNode(step.nodeId);
+            const edgeLabel = step.edge ? ` --[${step.edge.kind}]-->` : '';
+            console.log(`  [${node?.sourceType ?? '?'}:${node?.kind ?? '?'}] ${node?.name ?? step.nodeId}${edgeLabel}`);
           }
         }
       } finally {

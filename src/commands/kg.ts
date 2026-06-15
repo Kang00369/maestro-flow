@@ -183,7 +183,7 @@ export function registerKgCommand(program: Command): void {
     .option('--type <nodeType>', 'Filter by node type')
     .option('--json', 'Output as JSON')
     .action(async (text: string, opts) => {
-      const limit = Number(opts.limit) || 10;
+      const limit = Math.min(Number(opts.limit) || 10, 500);
       let codeResults: Array<{ kind: string; id: string; name: string; signature?: string; filePath?: string; isExported?: boolean }> = [];
       let knowledgeResults: Array<{ kind: string; id: string; name: string; sourceType: string; definition: string; score: number }> = [];
 
@@ -824,7 +824,7 @@ export function registerKgCommand(program: Command): void {
     .option('--limit <n>', 'Max results', '10')
     .option('--json', 'Output as JSON')
     .action(async (text: string, opts) => {
-      const limit = Number(opts.limit) || 10;
+      const limit = Math.min(Number(opts.limit) || 10, 500);
       const kinds = opts.kind ? (opts.kind as string).split(',').map((s: string) => s.trim()).filter(Boolean) : undefined;
       const { adapter } = await requireCodeGraph();
       try {

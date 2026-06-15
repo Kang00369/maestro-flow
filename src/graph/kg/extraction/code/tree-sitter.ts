@@ -130,6 +130,7 @@ export class TreeSitterEngine {
   private _module: TreeSitterModule | null = null;
   private _grammarCache: Map<string, TreeSitterLanguage> = new Map();
   private _unavailableGrammars: Map<string, string> = new Map();
+  private static readonly MAX_POOL_SIZE = 4;
   private _parserPool: TreeSitterParser[] = [];
   private _resetCounter: ParserResetCounter;
   private _available: boolean | null = null;
@@ -233,7 +234,11 @@ export class TreeSitterEngine {
 
     try {
       const tree = parser.parse(sourceCode);
-      this._parserPool.push(parser);
+      if (this._parserPool.length < TreeSitterEngine.MAX_POOL_SIZE) {
+        this._parserPool.push(parser);
+      } else {
+        parser.delete();
+      }
       return tree;
     } catch (err) {
       parser.delete();
@@ -270,6 +275,9 @@ export class TreeSitterEngine {
     this._parserPool = [];
     this._grammarCache.clear();
     this._unavailableGrammars.clear();
+    this._initPromise = null;
+    this._parserInitialized = false;
+    TreeSitterEngine._instance = null;
   }
 }
 
