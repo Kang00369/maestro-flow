@@ -4,7 +4,8 @@ export type WikiNodeType =
   | 'spec'
   | 'issue'
   | 'knowhow'
-  | 'note';
+  | 'note'
+  | 'domain';
 
 export type WikiStatus =
   | 'draft'

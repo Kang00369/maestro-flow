@@ -16,6 +16,7 @@ export interface SpecEntryParsed {
   source?: string;
   ref?: string;
   description?: string;
+  domain?: string;
   title: string;
   content: string;
   lineStart: number;
@@ -112,6 +113,7 @@ export function parseSpecEntries(content: string): ParseResult {
       source: attrs.source,
       ref,
       description: attrs.description || undefined,
+      domain: attrs.domain || undefined,
       title,
       content: body.trim(),
       lineStart,

@@ -41,6 +41,8 @@ export interface SpecInjectionLogEntry {
   matchedEntries?: number;
   totalPromptKeywords?: number;
   dedupFilteredCount?: number;
+  // Domain-specific
+  domainTermsMatched?: number;
   // Plugin-specific
   inferredCategory?: string;
 }

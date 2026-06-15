@@ -17,6 +17,7 @@ import { loadWikiByCategory } from './wiki-role-loader.js';
 import type { SpecInjectionConfig } from '../types/index.js';
 import { logInjectionEvent } from './spec-analytics.js';
 import { wrapMaestroContext, type ContextSection } from './context-format.js';
+import { loadGlossary, type DomainTerm } from '../tools/domain-loader.js';
 
 // ---------------------------------------------------------------------------
 // Content → compact lines helper
@@ -212,6 +213,14 @@ export function evaluateSpecInjection(
     }
   }
 
+  // Domain compact summary (always-inject for all agents)
+  try {
+    const domainSection = buildDomainCompactForAgent(projectPath);
+    if (domainSection) {
+      ctxSections.push(domainSection);
+    }
+  } catch { /* domain injection is best-effort */ }
+
   // Always-inject (session start): documents, keyword-matched entries, and categories
   if (config?.always) {
     const always = config.always;
@@ -354,4 +363,28 @@ function resolveKeywordFilters(agentType: string, config?: SpecInjectionConfig):
     include: include?.length ? include : undefined,
     exclude: mergedExclude.length > 0 ? mergedExclude : undefined,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Domain compact summary for Agent injection
+// ---------------------------------------------------------------------------
+
+const DOMAIN_COMPACT_MAX_CHARS = 800;
+
+function buildDomainCompactForAgent(projectPath: string): ContextSection | null {
+  const { exists, activeTerms, isEmpty } = loadGlossary(projectPath);
+  if (!exists || isEmpty) return null;
+
+  const coreTerms = activeTerms.filter(t => (t.tier ?? 'core') === 'core');
+  if (coreTerms.length === 0) return null;
+
+  let summary = '';
+  for (const t of coreTerms) {
+    const entry = `${t.canonical}=${t.definition}`;
+    if (summary.length + entry.length + 3 > DOMAIN_COMPACT_MAX_CHARS) break;
+    summary += (summary ? ' | ' : '') + entry;
+  }
+  if (!summary) return null;
+
+  return { label: 'domain-compact', lines: [summary] };
 }

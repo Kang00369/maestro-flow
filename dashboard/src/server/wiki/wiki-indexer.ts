@@ -79,6 +79,7 @@ export class WikiIndexer {
       join(this.workflowRoot, 'specs'),
       join(this.workflowRoot, 'knowhow'),
       join(this.workflowRoot, 'issues'),
+      join(this.workflowRoot, 'domain'),
     ];
     const singletons = ['project.md', 'roadmap.md'];
     for (const s of singletons) {
@@ -109,6 +110,7 @@ export class WikiIndexer {
       join(this.workflowRoot, 'specs'),
       join(this.workflowRoot, 'knowhow'),
       join(this.workflowRoot, 'issues'),
+      join(this.workflowRoot, 'domain'),
     ];
     const singletons = ['project.md', 'roadmap.md'];
     for (const s of singletons) {
@@ -161,6 +163,7 @@ export class WikiIndexer {
         issue: [],
         knowhow: [],
         note: [],
+        domain: [],
       } as Record<WikiNodeType, WikiEntry[]>;
 
       for (const d of entries) {
@@ -228,6 +231,7 @@ export class WikiIndexer {
       issue: [],
       knowhow: [],
       note: [],
+      domain: [],
     };
     for (const d of source) out[d.type].push(d);
     return out;
@@ -331,10 +335,9 @@ export class WikiIndexer {
       }
     }
 
-    // knowhow/*.md  (KNW-→session, TIP-→tip, TPL-→template, RCP-→recipe, REF-→reference, DCS-→decision, DOC-→document)
-    for (const name of await safeReaddir(join(this.workflowRoot, 'knowhow'))) {
-      if (extname(name).toLowerCase() !== '.md') continue;
-      const entry = await this.parseFileEntry(join(this.workflowRoot, 'knowhow', name), 'knowhow');
+    // knowhow/*.md — recursive scan supports both flat and sub-folder layouts
+    const knowhowEntries = await this.scanKnowhowDir(join(this.workflowRoot, 'knowhow'));
+    for (const { name, absPath, entry } of knowhowEntries) {
       if (entry) {
         // Only derive category from file prefix if no frontmatter category
         if (!entry.category) {
@@ -387,7 +390,90 @@ export class WikiIndexer {
       }
     }
 
+    // domain/glossary.json → domain WikiEntries
+    const domainEntries = await this.scanDomain();
+    out.push(...domainEntries);
+
     return out;
+  }
+
+  /**
+   * Recursively scan knowhow directory (supports both flat and sub-folder layouts).
+   */
+  private async scanKnowhowDir(dir: string): Promise<Array<{ name: string; absPath: string; entry: WikiEntry | null }>> {
+    const results: Array<{ name: string; absPath: string; entry: WikiEntry | null }> = [];
+    for (const name of await safeReaddir(dir)) {
+      const fullPath = join(dir, name);
+      let stats: Awaited<ReturnType<typeof stat>> | null = null;
+      try { stats = await stat(fullPath); } catch { continue; }
+
+      if (stats.isDirectory()) {
+        const nested = await this.scanKnowhowDir(fullPath);
+        results.push(...nested);
+      } else if (stats.isFile() && extname(name).toLowerCase() === '.md') {
+        const entry = await this.parseFileEntry(fullPath, 'knowhow');
+        results.push({ name, absPath: fullPath, entry });
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Scan .workflow/domain/glossary.json and produce WikiEntry[] for each term.
+   */
+  private async scanDomain(): Promise<WikiEntry[]> {
+    const glossaryPath = join(this.workflowRoot, 'domain', 'glossary.json');
+    try {
+      const raw = await readFile(glossaryPath, 'utf-8');
+      const glossary = JSON.parse(raw);
+      if (!Array.isArray(glossary.terms)) return [];
+
+      const now = new Date().toISOString();
+      let glossaryStat: Awaited<ReturnType<typeof stat>>;
+      try { glossaryStat = await stat(glossaryPath); } catch { return []; }
+      const fileDate = new Date(glossaryStat.mtimeMs).toISOString();
+
+      return glossary.terms.map((term: Record<string, unknown>) => {
+        const id = term.id as string;
+        const canonical = term.canonical as string;
+        const definition = (term.definition as string) ?? '';
+        const aliases = (term.aliases as string[]) ?? [];
+        const keywords = (term.keywords as string[]) ?? [];
+        const relationships = (term.relationships as string[]) ?? [];
+        const status = ((term.status as string) ?? 'active') === 'active' ? 'active' : 'archived';
+
+        const bodyLines = [`# ${canonical}`, '', definition, ''];
+        if (aliases.length) bodyLines.push(`Aliases: ${aliases.join(', ')}`);
+        if (relationships.length) bodyLines.push(`Related: ${relationships.join(', ')}`);
+        if (keywords.length) bodyLines.push(`Keywords: ${keywords.join(', ')}`);
+
+        return {
+          id: `domain-${id}`,
+          type: 'domain' as const,
+          title: canonical,
+          summary: definition,
+          tags: [...aliases, ...keywords],
+          status: status as 'active' | 'archived',
+          created: fileDate,
+          updated: fileDate,
+          related: relationships.map(r => `domain-${r}`),
+          source: { kind: 'file' as const, path: 'domain/glossary.json' },
+          body: bodyLines.join('\n'),
+          ext: {
+            tier: term.tier ?? 'core',
+            sourceKind: (term.source as Record<string, unknown>)?.kind ?? 'unknown',
+          },
+          scope: null,
+          category: 'domain',
+          specCategory: null,
+          createdBy: null,
+          sourceRef: null,
+          parent: null,
+        } satisfies WikiEntry;
+      });
+    } catch {
+      return [];
+    }
   }
 
   /**

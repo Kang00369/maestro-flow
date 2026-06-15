@@ -13,7 +13,7 @@ import { WikiIndexer } from '#maestro-dashboard/wiki/wiki-indexer.js';
 import type { WikiEntry, WikiNodeType } from '#maestro-dashboard/wiki/wiki-types.js';
 
 // Valid type filter values — matches WikiNodeType.
-const VALID_TYPES = ['project', 'roadmap', 'spec', 'issue', 'knowhow', 'note'] as const;
+const VALID_TYPES = ['project', 'roadmap', 'spec', 'issue', 'knowhow', 'note', 'domain'] as const;
 
 /** A single unified search result with BM25 score and snippet. */
 export interface SearchResult {

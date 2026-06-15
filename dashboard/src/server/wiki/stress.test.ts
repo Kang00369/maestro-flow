@@ -48,6 +48,7 @@ function makeIndex(entries: WikiEntry[]): WikiIndex {
     issue: [],
     knowhow: [],
     note: [],
+    domain: [],
   } as WikiIndex['byType'];
   const backlinks: Record<string, string[]> = {};
   for (const e of entries) {
