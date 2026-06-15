@@ -1,5 +1,5 @@
 ---
-name: quality-debug-odyssey
+name: odyssey-debug
 description: Long-running debug cycle — archaeology, diagnosis, fix, confirmation, generalization, discovery, and knowledge persistence
 argument-hint: "<issue> [--scope <path>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input

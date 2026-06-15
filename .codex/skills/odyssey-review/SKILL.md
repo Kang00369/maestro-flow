@@ -217,7 +217,7 @@ Update `understanding.md` §6. Mark `phase_goals[G4]` done. Save `current_state 
    ---
    ```
 
-**Next steps:** `$quality-debug-odyssey "<finding>"`, `$manage-issue list --source review-odyssey`,
+**Next steps:** `$odyssey-debug "<finding>"`, `$manage-issue list --source review-odyssey`,
 `$learn-decompose <module>`, `$maestro-plan --gaps`
 </execution>
 

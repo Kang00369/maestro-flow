@@ -1,5 +1,5 @@
 ---
-name: quality-debug-odyssey
+name: odyssey-debug
 description: Long-running debug cycle — archaeology, diagnosis, fix, confirmation, generalization, discovery, and knowledge persistence
 argument-hint: "<issue> [--scope <path>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c]"
 allowed-tools:
@@ -24,9 +24,9 @@ Core philosophy:
 - **CLI-assisted review** — delegate to external tools for second-opinion analysis
 
 Entry points:
-- **`/quality-debug-odyssey "issue"`** — New session: full 9-phase cycle
-- **`/quality-debug-odyssey -c`** — Resume last interrupted session
-- **`/quality-debug-odyssey "issue" --skip-fix`** — Analysis-only mode (archaeology + diagnosis + generalize, no code changes)
+- **`/odyssey-debug "issue"`** — New session: full 9-phase cycle
+- **`/odyssey-debug -c`** — Resume last interrupted session
+- **`/odyssey-debug "issue" --skip-fix`** — Analysis-only mode (archaeology + diagnosis + generalize, no code changes)
 </purpose>
 
 <context>

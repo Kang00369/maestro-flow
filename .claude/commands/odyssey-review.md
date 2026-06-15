@@ -306,7 +306,7 @@ pending → failed (completion_confirmed=false)
 <next_step_routing>
 | Condition | Next step |
 |-----------|-----------|
-| Critical findings need fix | `/quality-debug-odyssey "<finding>"` |
+| Critical findings need fix | `/odyssey-debug "<finding>"` |
 | Issues created | `/manage-issue list --source review-odyssey` |
 | Pattern to document | `/learn-decompose <module>` |
 | Want to fix findings | `/maestro-plan --gaps` |
