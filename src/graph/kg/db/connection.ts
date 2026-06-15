@@ -138,18 +138,9 @@ export function getKgDatabasePath(projectRoot?: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Node ID 命名空间辅助 (D8.4)
+// Node ID 命名空间辅助 (D8.4) — re-export from types.ts (单一定义源)
 // ---------------------------------------------------------------------------
-export const NODE_ID_PREFIXES = new Set<string>(['code', 'domain', 'spec', 'knowhow', 'codebase', 'issue']);
-
-export function makeNodeId(prefix: string, ...parts: string[]): string {
-  return `${prefix}:${parts.join(':')}`;
-}
-
-export function validateNodeId(id: string): boolean {
-  const colonIdx = id.indexOf(':');
-  return colonIdx > 0 && NODE_ID_PREFIXES.has(id.slice(0, colonIdx));
-}
+export { makeNodeId, validateNodeId } from './types.js';
 
 // ---------------------------------------------------------------------------
 // 通用类型映射辅助

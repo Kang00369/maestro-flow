@@ -9,7 +9,6 @@ import { searchUnified, parseQuery } from '../query/search.js';
 import { bfs, findShortestPath, getCallers, getCallees, getImpactRadius } from '../query/traversal.js';
 import { buildContext } from '../query/context-builder.js';
 import { syncKnowledgeGraph } from '../extraction/orchestrator.js';
-import { resolveKnowledgeEdges } from '../resolution/knowledge-resolver.js';
 import { getKgDatabasePath } from '../db/connection.js';
 
 // ---------------------------------------------------------------------------
@@ -53,17 +52,6 @@ export function registerKgCommands(program: Command): void {
         full: opts.full,
         sources: sources as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       });
-
-      // 跨源边解析
-      const dbPath = getKgDatabasePath(projectRoot);
-      if (existsSync(dbPath)) {
-        const { KgDatabaseConnection } = await import('../db/connection.js');
-        const conn = new KgDatabaseConnection();
-        conn.open(dbPath);
-        const resolveResult = resolveKnowledgeEdges(conn.raw);
-        console.log(`Cross-source edges: ${resolveResult.totalEdgesCreated} created (${resolveResult.durationMs}ms)`);
-        conn.close();
-      }
 
       if (opts.json) {
         console.log(JSON.stringify(results, null, 2));

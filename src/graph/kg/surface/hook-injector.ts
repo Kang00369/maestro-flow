@@ -2,9 +2,9 @@
 // 参考: plan-maestrograph.md R7 — 替代现有 5 个 hook 的单一注入器
 // D5.2: 灰度切换 + D5.3: CodeGraph 共存互斥
 
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { getKgDatabasePath } from '../db/connection.js';
+import { KgDatabaseConnection, getKgDatabasePath } from '../db/connection.js';
 import { buildContext, getAgentCategories } from '../query/context-builder.js';
 import type { BuiltContext, ContextSection } from '../query/context-builder.js';
 import { precheckKg } from './mcp-tools.js';
@@ -153,7 +153,6 @@ function isUnifiedInjectorEnabled(projectPath: string): boolean {
 
   // 检查 .workflow/hooks.json toggle
   try {
-    const { readFileSync } = require('node:fs');
     const hooksPath = resolve(projectPath, '.workflow', 'hooks.json');
     if (existsSync(hooksPath)) {
       const config = JSON.parse(readFileSync(hooksPath, 'utf-8'));
@@ -179,7 +178,6 @@ function quickHealthCheck(projectPath: string): boolean {
   }
 
   try {
-    const { KgDatabaseConnection } = require('../db/connection.js');
     const conn = new KgDatabaseConnection();
     conn.open(getKgDatabasePath(projectPath));
     const qc = conn.raw.prepare('PRAGMA quick_check(1)').get();

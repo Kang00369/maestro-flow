@@ -162,8 +162,16 @@ export async function syncKnowledgeGraph(
     // ── Cross-source edge resolution ────────────────────────────────
 
     const resolveStartMs = Date.now();
-    // knowledge-resolver 在同一个 DB 内解析跨源边
-    // 由调用方在所有提取完成后调用
+    const resolveResult = resolveKnowledgeEdges(mg.getConnection().raw);
+    results.push({
+      source: 'knowledge-resolution',
+      nodesAdded: 0,
+      nodesUpdated: 0,
+      nodesRemoved: 0,
+      edgesAdded: resolveResult.totalEdgesCreated,
+      edgesRemoved: 0,
+      durationMs: resolveResult.durationMs,
+    });
 
     return results;
   } finally {

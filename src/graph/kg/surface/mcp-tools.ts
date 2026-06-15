@@ -174,11 +174,7 @@ export async function handleMcpTool(
 
   try {
     const mg = await MaestroGraph.open(projectPath);
-    const { KgQueryBuilder } = await import('../db/queries.js');
-    const { KgDatabaseConnection } = await import('../db/connection.js');
-    const conn = new KgDatabaseConnection();
-    conn.open(getKgDatabasePath(projectPath));
-    const queries = new KgQueryBuilder(conn);
+    const queries = mg.getQueryBuilder();
 
     let result: unknown;
 
@@ -280,7 +276,6 @@ export async function handleMcpTool(
         result = { error: `Unknown tool: ${toolName}` };
     }
 
-    conn.close();
     mg.close();
 
     return {

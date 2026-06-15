@@ -1,6 +1,6 @@
 // src/graph/kg/db/index.ts — DB 层导出
 
-export { KgDatabaseConnection, getKgDatabasePath, makeNodeId, validateNodeId, isFileLevelOnlyLanguage, isKnowledgeSourceType, NODE_ID_PREFIXES, FILE_LEVEL_ONLY_LANGUAGES } from './connection.js';
+export { KgDatabaseConnection, getKgDatabasePath, makeNodeId, validateNodeId, isFileLevelOnlyLanguage, isKnowledgeSourceType, FILE_LEVEL_ONLY_LANGUAGES } from './connection.js';
 export { KgQueryBuilder, sanitizeFtsQuery } from './queries.js';
 export { applyMigrations } from './migrations.js';
 export * from './types.js';

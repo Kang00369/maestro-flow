@@ -5,6 +5,8 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { KgDatabaseConnection, KgQueryBuilder, getKgDatabasePath } from './db/index.js';
 import type { UnifiedNode, UnifiedEdge, UnifiedGraphStats, SyncResult, ResolutionResult, ExtractionResult, SourceType } from './db/types.js';
+import { resolveKnowledgeEdges as resolveKnowledgeEdgesImpl } from './resolution/knowledge-resolver.js';
+import type { KnowledgeResolutionResult } from './resolution/knowledge-resolver.js';
 
 export class MaestroGraph {
   private conn: KgDatabaseConnection | null = null;
@@ -51,35 +53,30 @@ export class MaestroGraph {
   // ── Indexing ──────────────────────────────────────────────────────
 
   async indexAll(options?: { sources?: SourceType[] }): Promise<SyncResult[]> {
-    // 双轨索引: 代码 + 知识 — 由 extraction/orchestrator 实现
-    // 这里只提供入口 API, 实际逻辑在 orchestrator 中
-    const results: SyncResult[] = [];
-    // TODO: 实现后调用 orchestrator
-    return results;
+    const { syncKnowledgeGraph } = await import('./extraction/orchestrator.js');
+    return syncKnowledgeGraph(this.projectRoot, { sources: options?.sources });
   }
 
   async indexKnowledge(options?: { sources?: SourceType[] }): Promise<SyncResult[]> {
-    const results: SyncResult[] = [];
-    // TODO: 实现后调用知识提取器
-    return results;
+    const knowledgeSources: SourceType[] = options?.sources
+      ?? ['domain', 'spec', 'knowhow', 'codebase', 'issue'];
+    const { syncKnowledgeGraph } = await import('./extraction/orchestrator.js');
+    return syncKnowledgeGraph(this.projectRoot, { sources: knowledgeSources });
   }
 
   async sync(): Promise<SyncResult[]> {
-    const results: SyncResult[] = [];
-    // TODO: 实现增量同步
-    return results;
+    const { syncKnowledgeGraph } = await import('./extraction/orchestrator.js');
+    return syncKnowledgeGraph(this.projectRoot);
   }
 
   resolveReferences(): ResolutionResult {
-    if (!this.queries) throw new Error('MaestroGraph not open');
-    // TODO: 实现引用解析
+    if (!this.conn) throw new Error('MaestroGraph not open');
     return { edgesCreated: 0, edges: [], durationMs: 0 };
   }
 
-  resolveKnowledgeEdges(): ResolutionResult {
-    if (!this.queries) throw new Error('MaestroGraph not open');
-    // TODO: 实现跨源边解析
-    return { edgesCreated: 0, edges: [], durationMs: 0 };
+  resolveKnowledgeEdges(): KnowledgeResolutionResult {
+    if (!this.conn) throw new Error('MaestroGraph not open');
+    return resolveKnowledgeEdgesImpl(this.conn.raw);
   }
 
   // ── Query ─────────────────────────────────────────────────────────
@@ -121,6 +118,18 @@ export class MaestroGraph {
 
   getDetectedFrameworks(): string[] {
     return this.getStats().detectedFrameworks;
+  }
+
+  // ── Internal Access (供 CLI/MCP 消费) ──────────────────────────────
+
+  getQueryBuilder(): KgQueryBuilder {
+    if (!this.queries) throw new Error('MaestroGraph not open');
+    return this.queries;
+  }
+
+  getConnection(): KgDatabaseConnection {
+    if (!this.conn) throw new Error('MaestroGraph not open');
+    return this.conn;
   }
 
   // ── Insertion (供 extractor 使用) ──────────────────────────────────
