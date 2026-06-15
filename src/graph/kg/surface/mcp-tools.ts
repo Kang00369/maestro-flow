@@ -176,13 +176,18 @@ export async function handleMcpTool(
     const mg = await MaestroGraph.open(projectPath);
     const queries = mg.getQueryBuilder();
 
+    const safeInt = (v: unknown, def: number, max: number): number =>
+      Math.min(Math.max(1, typeof v === 'number' ? v : def), max);
+    const safeStr = (v: unknown, def: string): string =>
+      typeof v === 'string' ? v.slice(0, 10_000) : def;
+
     let result: unknown;
 
     switch (toolName) {
       case 'maestro_kg_search': {
-        const searchResults = mg.searchUnified(input.query as string, {
+        const searchResults = mg.searchUnified(safeStr(input.query, ''), {
           sourceTypes: input.sourceTypes as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-          limit: (input.limit as number) ?? 20,
+          limit: safeInt(input.limit, 20, 100),
         });
         result = { results: searchResults.map(r => ({
           id: r.id, kind: r.kind, name: r.name, sourceType: r.sourceType,
@@ -193,13 +198,13 @@ export async function handleMcpTool(
       }
 
       case 'maestro_kg_context': {
-        const nodeId = input.nodeId as string;
+        const nodeId = safeStr(input.nodeId, '');
         const node = mg.getNode(nodeId);
         if (!node) {
           result = { error: `Node not found: ${nodeId}` };
         } else {
           const traversal = bfs(queries, nodeId, {
-            maxDepth: (input.depth as number) ?? 1,
+            maxDepth: safeInt(input.depth, 1, 5),
             maxNodes: 50,
           });
           result = {
@@ -214,7 +219,7 @@ export async function handleMcpTool(
       }
 
       case 'maestro_kg_explore': {
-        const context = buildContext(queries, input.query as string, { expandDepth: 2 });
+        const context = buildContext(queries, safeStr(input.query, ''), { expandDepth: 2 });
         result = {
           query: input.query,
           sections: context.sections.map(s => ({ label: s.label, lines: s.lines })),
@@ -224,8 +229,8 @@ export async function handleMcpTool(
       }
 
       case 'maestro_kg_trace': {
-        const traceResult = traceCallChain(queries, input.startSymbol as string, {
-          maxDepth: (input.maxDepth as number) ?? 5,
+        const traceResult = traceCallChain(queries, safeStr(input.startSymbol, ''), {
+          maxDepth: safeInt(input.maxDepth, 5, 10),
           edgeKinds: input.edgeKinds as string[],
         });
         result = {
@@ -236,7 +241,7 @@ export async function handleMcpTool(
       }
 
       case 'maestro_kg_callers': {
-        const callerResults = getCallers(queries, input.symbol as string, (input.depth as number) ?? 1);
+        const callerResults = getCallers(queries, safeStr(input.symbol, ''), safeInt(input.depth, 1, 5));
         result = callerResults.map(c => ({
           id: c.node.id, kind: c.node.kind, name: c.node.name, edgeKind: c.edge.kind,
         }));
@@ -244,7 +249,7 @@ export async function handleMcpTool(
       }
 
       case 'maestro_kg_callees': {
-        const calleeResults = getCallees(queries, input.symbol as string, (input.depth as number) ?? 1);
+        const calleeResults = getCallees(queries, safeStr(input.symbol, ''), safeInt(input.depth, 1, 5));
         result = calleeResults.map(c => ({
           id: c.node.id, kind: c.node.kind, name: c.node.name, edgeKind: c.edge.kind,
         }));
@@ -252,7 +257,7 @@ export async function handleMcpTool(
       }
 
       case 'maestro_kg_impact': {
-        const impactResult = getImpactRadius(queries, input.symbol as string, (input.maxDepth as number) ?? 3);
+        const impactResult = getImpactRadius(queries, safeStr(input.symbol, ''), safeInt(input.maxDepth, 3, 10));
         result = {
           nodeCount: impactResult.nodes.size,
           edgeCount: impactResult.edges.length,

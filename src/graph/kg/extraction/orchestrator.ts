@@ -133,8 +133,17 @@ export async function syncKnowledgeGraph(
 
     if (shouldSync('codegraph')) {
       const startMs = Date.now();
-      const srcDir = resolve(projectPath, 'src');
-      if (existsSync(srcDir)) {
+      const candidateDirs = ['src', 'lib', 'app', 'packages', 'apps'];
+      const srcDirs = candidateDirs
+        .map(d => resolve(projectPath, d))
+        .filter(d => existsSync(d));
+      if (srcDirs.length === 0) srcDirs.push(resolve(projectPath, 'src'));
+
+      let totalNodes = 0;
+      let totalEdges = 0;
+
+      for (const srcDir of srcDirs) {
+        if (!existsSync(srcDir)) continue;
         const codeResult = await extractCode({
           srcDir,
           includeTests: false,
@@ -147,16 +156,19 @@ export async function syncKnowledgeGraph(
           }
         }
 
-        results.push({
-          source: 'codegraph',
-          nodesAdded: codeResult.stats.nodesCreated,
-          nodesUpdated: 0,
-          nodesRemoved: 0,
-          edgesAdded: codeResult.stats.edgesCreated,
-          edgesRemoved: 0,
-          durationMs: Date.now() - startMs,
-        });
+        totalNodes += codeResult.stats.nodesCreated;
+        totalEdges += codeResult.stats.edgesCreated;
       }
+
+      results.push({
+        source: 'codegraph',
+        nodesAdded: totalNodes,
+        nodesUpdated: 0,
+        nodesRemoved: 0,
+        edgesAdded: totalEdges,
+        edgesRemoved: 0,
+        durationMs: Date.now() - startMs,
+      });
     }
 
     // ── Cross-source edge resolution ────────────────────────────────

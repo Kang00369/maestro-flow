@@ -473,6 +473,7 @@ export class KgQueryBuilder {
 
   searchCodeFTS(query: string, opts: { limit?: number; kinds?: string[]; languages?: string[]; pathFilters?: string[] }): UnifiedNode[] {
     const sanitized = sanitizeFtsQuery(query);
+    if (!sanitized) return [];
     try {
       let sql = `
         SELECT n.*, bm25(code_fts, 0, 20, 5, 1, 2) AS score
@@ -506,6 +507,7 @@ export class KgQueryBuilder {
       return this.searchKnowledgeLike(query, opts);
     }
     const sanitized = sanitizeFtsQuery(query);
+    if (!sanitized) return [];
     try {
       let sql = `
         SELECT n.*, bm25(knowledge_fts, 0, 20, 10, 1, 15, 10) AS score
@@ -577,6 +579,6 @@ export function sanitizeFtsQuery(input: string): string {
     .filter(t => t.length > 0)
     .map(t => t.replace(FTS5_OPERATORS, ''))
     .filter(t => t.length > 0);
-  if (tokens.length === 0) return '"*"';
+  if (tokens.length === 0) return '';
   return tokens.map(t => `"${t.replace(/"/g, '""')}"`).join(' ');
 }

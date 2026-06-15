@@ -112,6 +112,17 @@ function resolveDefinesEdges(db: Database.Database): UnifiedEdge[] {
       id: string; name: string; kind: string; file_path: string; is_exported: number;
     }>;
 
+    // 批量获取同名代码节点计数（消除 N+1）
+    const distinctNames = [...new Set(matches.map(m => m.name))];
+    const nameCounts = new Map<string, number>();
+    if (distinctNames.length > 0) {
+      const cntPlaceholders = distinctNames.map(() => '?').join(',');
+      const countRows = db.prepare(
+        `SELECT name, COUNT(*) as n FROM nodes WHERE name IN (${cntPlaceholders}) AND source_type = 'codegraph' GROUP BY name`
+      ).all(...distinctNames) as Array<{ name: string; n: number }>;
+      for (const row of countRows) nameCounts.set(row.name, row.n);
+    }
+
     // D3.5: 置信度打分 + 阈值门控
     for (const match of matches) {
       const aliasInfo = batch.find(b => b.alias === match.name);
@@ -120,13 +131,8 @@ function resolveDefinesEdges(db: Database.Database): UnifiedEdge[] {
       let conf = 0.5;
       if (GENERIC_NAMES.has(match.name)) conf -= 0.3;
       if (match.is_exported) conf += 0.15;
-      // keywords 出现在代码路径中加分
       if (aliasInfo.keywords.some(kw => match.file_path.toLowerCase().includes(kw.toLowerCase()))) conf += 0.2;
-      // 同名代码节点过多降权
-      const cnt = (db.prepare(
-        `SELECT COUNT(*) as n FROM nodes WHERE name = ? AND source_type = 'codegraph'`
-      ).get(match.name) as { n: number }).n;
-      if (cnt > 3) conf -= 0.2;
+      if ((nameCounts.get(match.name) ?? 0) > 3) conf -= 0.2;
 
       if (conf >= DEFINES_CONFIDENCE_THRESHOLD) {
         edges.push({
@@ -158,15 +164,16 @@ function resolveConstrainsEdges(db: Database.Database): UnifiedEdge[] {
     const keywords: string[] = JSON.parse(spec.keywords || '[]');
     if (keywords.length === 0) continue;
 
-    // IN-clause 批量匹配 — 匹配 name 或 file_path 包含 keyword
-    const placeholders = keywords.map(() => '?').join(',');
+    // IN-clause 批量匹配 — name 精确 + 所有 keywords 的 file_path LIKE
+    const namePlaceholders = keywords.map(() => '?').join(',');
+    const pathClauses = keywords.map(() => `file_path LIKE '%' || ? || '%'`).join(' OR ');
     const codeMatches = db.prepare(
       `SELECT id, name, kind, file_path FROM nodes
        WHERE source_type = 'codegraph'
          AND kind IN ('function', 'method', 'class', 'interface')
-         AND (name IN (${placeholders}) OR file_path LIKE '%' || ? || '%')
+         AND (name IN (${namePlaceholders}) OR ${pathClauses})
        LIMIT 500`
-    ).all(...keywords, keywords[0] ?? '') as Array<{
+    ).all(...keywords, ...keywords) as Array<{
       id: string; name: string; kind: string; file_path: string;
     }>;
 
