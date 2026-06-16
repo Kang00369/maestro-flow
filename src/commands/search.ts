@@ -114,17 +114,21 @@ export async function runUnifiedSearch(q: string, opts: UnifiedSearchOptions): P
 }
 
 function incrementSearchHitsAsync(entryIds: string[]): void {
+  let mg: import('../graph/kg/engine.js').MaestroGraph | null = null;
   try {
     const { MaestroGraph } = require('../graph/kg/engine.js') as typeof import('../graph/kg/engine.js');
     const projectRoot = resolve('.');
     if (!MaestroGraph.isInitialized(projectRoot)) return;
-    const mg = MaestroGraph.openSync(projectRoot);
+    mg = MaestroGraph.openSync(projectRoot);
     if (!mg) return;
-    const { CredibilityStore } = require('../graph/kg/credibility.js') as typeof import('../graph/kg/credibility.js');
+    const { CredibilityStore, wikiIdToNodeId } = require('../graph/kg/credibility.js') as typeof import('../graph/kg/credibility.js');
     const store = new CredibilityStore(mg.rawDb);
-    store.incrementSearchHits(entryIds);
+    const nodeIds = entryIds.map(wikiIdToNodeId).filter(Boolean) as string[];
+    store.incrementSearchHits(nodeIds);
   } catch {
     // Best-effort — never fail the search flow
+  } finally {
+    mg?.close();
   }
 }
 

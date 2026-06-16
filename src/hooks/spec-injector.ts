@@ -316,22 +316,29 @@ export function evaluateSpecInjection(
     inject: true,
   }, config?.analytics);
 
-  // Credibility: increment consumption count for injected spec nodes (best-effort)
-  try {
-    const { resolve: resolvePath } = require('node:path');
-    const { MaestroGraph } = require('../graph/kg/engine.js') as typeof import('../graph/kg/engine.js');
-    if (MaestroGraph.isInitialized(projectPath)) {
-      const mg = MaestroGraph.openSync(resolvePath(projectPath));
-      if (mg) {
-        const { CredibilityStore } = require('../graph/kg/credibility.js') as typeof import('../graph/kg/credibility.js');
-        const store = new CredibilityStore(mg.rawDb);
-        for (const cat of allCategories) {
-          store.incrementConsumption(`spec-${cat}`);
+  // Credibility: increment consumption for injected spec category nodes (best-effort)
+  {
+    let mg: import('../graph/kg/engine.js').MaestroGraph | null = null;
+    try {
+      const { resolve: resolvePath } = require('node:path');
+      const { MaestroGraph } = require('../graph/kg/engine.js') as typeof import('../graph/kg/engine.js');
+      if (MaestroGraph.isInitialized(projectPath)) {
+        mg = MaestroGraph.openSync(resolvePath(projectPath));
+        if (mg) {
+          const { CredibilityStore } = require('../graph/kg/credibility.js') as typeof import('../graph/kg/credibility.js');
+          const store = new CredibilityStore(mg.rawDb);
+          const nodes = mg.rawDb.prepare(
+            `SELECT id FROM nodes WHERE source_type = 'spec' AND category IN (${allCategories.map(() => '?').join(',')})`,
+          ).all(...allCategories) as Array<{ id: string }>;
+          if (nodes.length > 0) {
+            store.incrementSearchHits(nodes.map(n => n.id));
+          }
         }
-        mg.close();
       }
+    } catch { /* best-effort */ } finally {
+      mg?.close();
     }
-  } catch { /* best-effort */ }
+  }
 
   return {
     inject: true,

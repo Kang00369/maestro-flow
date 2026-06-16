@@ -211,8 +211,6 @@ export async function syncKnowledgeGraph(
     // ── Credibility hash sync (incremental) ────────────────────────
     try {
       const { CredibilityStore, contentHash } = await import('../credibility.js');
-      const { applyMigrations } = await import('../db/migrations.js');
-      applyMigrations(mg.getConnection());
       const store = new CredibilityStore(mg.getConnection().raw);
       const knowledgeSources: SourceType[] = ['domain', 'spec', 'knowhow', 'codebase', 'issue'];
       const knowledgeNodes = mg.getConnection().raw.prepare(

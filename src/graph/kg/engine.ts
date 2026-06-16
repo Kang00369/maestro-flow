@@ -3,7 +3,7 @@
 
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { KgDatabaseConnection, KgQueryBuilder, getKgDatabasePath } from './db/index.js';
+import { KgDatabaseConnection, KgQueryBuilder, getKgDatabasePath, applyMigrations } from './db/index.js';
 import type { UnifiedNode, UnifiedEdge, UnifiedGraphStats, SyncResult, ResolutionResult, ExtractionResult, SourceType } from './db/types.js';
 import { resolveKnowledgeEdges as resolveKnowledgeEdgesImpl } from './resolution/knowledge-resolver.js';
 import type { KnowledgeResolutionResult } from './resolution/knowledge-resolver.js';
@@ -54,6 +54,7 @@ export class MaestroGraph {
     }
     mg.conn = new KgDatabaseConnection();
     mg.conn.open(dbPath);
+    try { applyMigrations(mg.conn); } catch { /* best-effort migration on open */ }
     mg.queries = new KgQueryBuilder(mg.conn);
     return mg;
   }
@@ -69,6 +70,7 @@ export class MaestroGraph {
       const mg = new MaestroGraph(projectRoot);
       mg.conn = new KgDatabaseConnection();
       mg.conn.open(dbPath);
+      try { applyMigrations(mg.conn); } catch { /* best-effort */ }
       mg.queries = new KgQueryBuilder(mg.conn);
       return mg;
     } catch {

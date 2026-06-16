@@ -116,18 +116,16 @@ export class CredibilityStore {
   constructor(private db: Database.Database) {}
 
   upsert(nodeId: string, hash: string, nowMs: number = Date.now()): void {
-    const existing = this.get(nodeId);
-    if (existing) {
-      if (existing.content_hash !== hash) {
-        this.db.prepare(
-          'UPDATE credibility SET content_hash = ?, content_changed_at = ? WHERE node_id = ?'
-        ).run(hash, nowMs, nodeId);
-      }
-    } else {
-      this.db.prepare(
-        'INSERT OR IGNORE INTO credibility (node_id, content_hash, content_changed_at, created_at) VALUES (?, ?, ?, ?)'
-      ).run(nodeId, hash, nowMs, nowMs);
-    }
+    this.db.prepare(`
+      INSERT INTO credibility (node_id, content_hash, content_changed_at, created_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(node_id) DO UPDATE SET
+        content_hash = excluded.content_hash,
+        content_changed_at = CASE
+          WHEN credibility.content_hash != excluded.content_hash THEN excluded.content_changed_at
+          ELSE credibility.content_changed_at
+        END
+    `).run(nodeId, hash, nowMs, nowMs);
   }
 
   get(nodeId: string): CredibilityRow | null {
@@ -174,6 +172,26 @@ export class CredibilityStore {
     ).run();
     return result.changes;
   }
+}
+
+// ---------------------------------------------------------------------------
+// ID namespace bridge: WikiEntry ID ↔ KG node ID
+// WikiEntry: "type-slug" (e.g. "knowhow-KNW-20260501-auth")
+// KG node:   "prefix:slug" (e.g. "knowhow:KNW-20260501-auth")
+// ---------------------------------------------------------------------------
+
+const WIKI_TYPE_TO_KG_PREFIX: Record<string, string> = {
+  spec: 'spec', knowhow: 'knowhow', issue: 'issue',
+  domain: 'domain', project: 'codebase', roadmap: 'codebase', note: 'codebase',
+};
+
+export function wikiIdToNodeId(wikiId: string): string | null {
+  const dash = wikiId.indexOf('-');
+  if (dash <= 0) return null;
+  const type = wikiId.slice(0, dash);
+  const slug = wikiId.slice(dash + 1);
+  const prefix = WIKI_TYPE_TO_KG_PREFIX[type];
+  return prefix ? `${prefix}:${slug}` : null;
 }
 
 // ---------------------------------------------------------------------------

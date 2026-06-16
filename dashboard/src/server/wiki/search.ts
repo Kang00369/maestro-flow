@@ -242,11 +242,12 @@ export function searchBM25(
   const terms = tokenize(query);
   if (terms.length === 0 || index.totalDocs === 0) return [];
 
+  const fetchLimit = (credibilityFactors && credibilityFactors.size > 0) ? limit * 2 : limit;
   let results: SearchResult[];
   if (index._fieldPostings && index._fieldLengths && index._avgFieldLengths) {
-    results = searchBM25F(index, terms, limit * 2);
+    results = searchBM25F(index, terms, fetchLimit);
   } else {
-    results = searchBM25Flat(index, terms, limit * 2);
+    results = searchBM25Flat(index, terms, fetchLimit);
   }
 
   if (credibilityFactors && credibilityFactors.size > 0) {
