@@ -6,7 +6,6 @@ import {
   CODEX_HOOK_DEFS,
   AGY_HOOK_DEFS,
   getHooksForLevel,
-  getHookInfo,
   type HookLevel,
 } from '../../commands/hooks.js';
 import { t } from '../../i18n/index.js';
@@ -75,7 +74,7 @@ export function HooksConfig({
   // Navigation: 4 preset rows + individual hook rows
   const hookCount = allHooks.length;
   const totalRows = HOOK_LEVELS.length + hookCount;
-  const [cursor, setCursor] = useState(HOOK_LEVELS.indexOf(selection.basePreset));
+  const [cursor, setCursor] = useState(Math.max(0, HOOK_LEVELS.indexOf(selection.basePreset)));
 
   const isInPresetZone = cursor < HOOK_LEVELS.length;
   const hookIndex = cursor - HOOK_LEVELS.length;

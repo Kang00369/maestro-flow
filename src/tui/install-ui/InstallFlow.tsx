@@ -42,7 +42,6 @@ type FlowStep =
   | 'agy_hooks_config'
   | 'extra_mcp_config'
   | 'statusline_config' | 'backup_config'
-  | 'profile_import'
   | 'confirm' | 'executing' | 'complete';
 
 // Keep 'mode' in the type for subcommand compat but redirect to 'hub'
@@ -205,18 +204,12 @@ export function InstallFlow({
     [selectedComponents],
   );
 
-  // Derive legacy hookLevel from selection for backward compat
-  const hookLevel: HookLevel = claudeHooksSelection.isCustom
-    ? claudeHooksSelection.basePreset
-    : claudeHooksSelection.basePreset;
-
-  const codexHookLevel: HookLevel = codexHooksSelection.isCustom
-    ? codexHooksSelection.basePreset
-    : codexHooksSelection.basePreset;
-
-  const agyHookLevel: HookLevel = agyHooksSelection.isCustom
-    ? agyHooksSelection.basePreset
-    : agyHooksSelection.basePreset;
+  // Derive legacy hookLevel from selection for backward compat.
+  // Execution uses basePreset for installHooksByLevel; individual toggles
+  // are a UI preview — full custom execution requires future backend support.
+  const hookLevel: HookLevel = claudeHooksSelection.basePreset;
+  const codexHookLevel: HookLevel = codexHooksSelection.basePreset;
+  const agyHookLevel: HookLevel = agyHooksSelection.basePreset;
 
   const flowConfig: InstallFlowConfig = useMemo(() => ({
     mode,
@@ -432,7 +425,7 @@ export function InstallFlow({
       if (key.escape) setStep(isSubcommand ? 'confirm' : 'hub');
       return;
     }
-    if (step === 'hooks_config' || step === 'mcp_config' || step === 'codex_hooks_config' || step === 'codex_mcp_config' || step === 'agy_hooks_config' || step === 'statusline_config' || step === 'backup_config') {
+    if (step === 'hooks_config' || step === 'mcp_config' || step === 'codex_hooks_config' || step === 'codex_mcp_config' || step === 'agy_hooks_config' || step === 'extra_mcp_config' || step === 'statusline_config' || step === 'backup_config') {
       if (key.return) returnFromConfig();
       else if (key.escape) setStep(isSubcommand ? 'confirm' : 'hub');
       return;
@@ -470,7 +463,7 @@ export function InstallFlow({
         { key: 'complete', label: t.install.stepDone },
       ];
 
-  const progressKey = ['components_config', 'hooks_config', 'mcp_config', 'codex_hooks_config', 'codex_mcp_config', 'agy_hooks_config', 'statusline_config', 'backup_config'].includes(step)
+  const progressKey = ['components_config', 'hooks_config', 'mcp_config', 'codex_hooks_config', 'codex_mcp_config', 'agy_hooks_config', 'extra_mcp_config', 'statusline_config', 'backup_config'].includes(step)
     ? (isSubcommand ? step.replace('_config', '') : 'hub')
     : step;
   const stepIndex = progressSteps.findIndex((s) => s.key === progressKey);

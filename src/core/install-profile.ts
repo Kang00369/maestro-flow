@@ -5,7 +5,7 @@
 // Storage: ~/.maestro/install-profiles/
 // ---------------------------------------------------------------------------
 
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { HookLevel } from '../commands/hooks.js';
@@ -90,19 +90,47 @@ export function getProfileDir(): string {
 
 export function exportProfile(profile: InstallProfile, filePath?: string): string {
   ensureProfileDir();
-  const target = filePath ?? join(PROFILE_DIR, `${profile.name}.json`);
+  const safeName = profile.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const target = filePath ? resolve(filePath) : join(PROFILE_DIR, `${safeName}.json`);
+  if (filePath) {
+    const resolved = resolve(filePath);
+    if (!resolved.startsWith(PROFILE_DIR) && !resolved.startsWith(resolve(process.cwd()))) {
+      throw new Error('Export path must be within profile directory or current directory');
+    }
+  }
   writeFileSync(target, JSON.stringify({ ...profile, $schema: SCHEMA_VERSION }, null, 2), 'utf-8');
   return target;
 }
 
+const VALID_SCOPES = ['global', 'project'] as const;
+const VALID_LEVELS = ['none', 'minimal', 'standard', 'full'] as const;
+
+function validateProfile(raw: Record<string, unknown>): void {
+  if (!raw.scope || !VALID_SCOPES.includes(raw.scope as typeof VALID_SCOPES[number])) {
+    throw new Error('Invalid profile: scope must be "global" or "project"');
+  }
+  const checkLevel = (path: string, val: unknown) => {
+    if (val && !VALID_LEVELS.includes(val as typeof VALID_LEVELS[number])) {
+      throw new Error(`Invalid profile: ${path} must be one of ${VALID_LEVELS.join(', ')}`);
+    }
+  };
+  const claude = raw.claude as Record<string, unknown> | undefined;
+  const codex = raw.codex as Record<string, unknown> | undefined;
+  const agy = raw.agy as Record<string, unknown> | undefined;
+  checkLevel('claude.hooks.basePreset', (claude?.hooks as Record<string, unknown>)?.basePreset);
+  checkLevel('codex.hooks.basePreset', (codex?.hooks as Record<string, unknown>)?.basePreset);
+  checkLevel('agy.hooks.basePreset', (agy?.hooks as Record<string, unknown>)?.basePreset);
+}
+
 export function importProfile(filePath: string): InstallProfile {
   if (!existsSync(filePath)) {
-    throw new Error(`Profile not found: ${filePath}`);
+    throw new Error('Profile file not found');
   }
   const raw = JSON.parse(readFileSync(filePath, 'utf-8'));
   if (raw.$schema !== SCHEMA_VERSION) {
-    throw new Error(`Unsupported profile schema: ${raw.$schema} (expected ${SCHEMA_VERSION})`);
+    throw new Error('Unsupported profile schema version');
   }
+  validateProfile(raw);
   return raw as InstallProfile;
 }
 

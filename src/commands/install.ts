@@ -53,7 +53,6 @@ import {
 } from './install-backend.js';
 import { t } from '../i18n/index.js';
 import { registerFontsSubcommand } from './font-guide.js';
-import { execSync } from 'node:child_process';
 
 function resolveMode(opts: { global?: boolean; path?: string }): { mode: 'global' | 'project'; projectPath: string } {
   if (opts.path) {
@@ -187,6 +186,12 @@ export function registerInstallCommand(program: Command): void {
           components: profile.components.selectedIds.join(','),
           statusline: profile.claude.statusline.enabled ? profile.claude.statusline.theme : undefined,
         });
+        return;
+      }
+
+      // Profile load — pre-fill TUI state (not yet implemented)
+      if (opts.load) {
+        console.error('--load is not yet implemented. Use --import for non-interactive install.');
         return;
       }
 

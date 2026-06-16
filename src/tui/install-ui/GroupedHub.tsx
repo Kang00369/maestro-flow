@@ -97,6 +97,10 @@ export function GroupedHub({
         onEnter(flat[cursor].item.id);
       } else if (cursor === flat.length) {
         onInstall();
+      } else if (cursor === flat.length + 1) {
+        onExport();
+      } else if (cursor === flat.length + 2) {
+        onImport();
       }
     } else if (input === ' ' && cursor < flat.length) {
       onToggle(flat[cursor].item.id);
