@@ -1,6 +1,6 @@
 ---
 name: maestro-help
-description: Maestro Flow command help system — search, browse, recommend commands, skills, agents, CLI tools, and workflows
+description: "Maestro Flow command help system — search, browse, recommend commands, skills, agents, CLI tools, and workflows"
 argument-hint: "[search <keyword>|workflow|skills|agents|cli|新手|下一步|<command-name>]"
 allowed-tools: Read, Grep, Glob, request_user_input
 ---

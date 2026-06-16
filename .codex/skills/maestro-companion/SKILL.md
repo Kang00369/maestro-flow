@@ -1,6 +1,6 @@
 ---
 name: maestro-companion
-description: Knowledge companion — load context, record companion doc, capture insights, route to skills
+description: "Knowledge companion — load context, record companion doc, capture insights, route to skills"
 argument-hint: "[before|note|after|route] [--task <description>] [--type <task_type>] [--category <cat>]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---

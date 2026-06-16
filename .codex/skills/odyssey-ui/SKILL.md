@@ -1,7 +1,7 @@
 ---
 name: odyssey-ui
-description: Long-running UI optimization cycle — visual survey, multi-dimensional audit, divergent exploration, fix, verify, generalize, and design knowledge persistence
-argument-hint: "<target>" [--dimensions <list>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c]
+description: "Long-running UI optimization cycle — visual survey, multi-dimensional audit, divergent exploration, fix, verify, generalize, and design knowledge persistence"
+argument-hint: '"<target>" [--dimensions <list>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c]'
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 

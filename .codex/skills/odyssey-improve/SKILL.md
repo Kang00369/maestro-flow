@@ -1,7 +1,7 @@
 ---
 name: odyssey-improve
-description: Long-running codebase improvement cycle — multi-dimensional audit, deep diagnosis, targeted fix, verify, generalize, and engineering knowledge persistence
-argument-hint: "<target>" [--dimensions <list>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c]
+description: "Long-running codebase improvement cycle — multi-dimensional audit, deep diagnosis, targeted fix, verify, generalize, and engineering knowledge persistence"
+argument-hint: '"<target>" [--dimensions <list>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c]'
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 

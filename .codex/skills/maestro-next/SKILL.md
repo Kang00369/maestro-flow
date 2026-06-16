@@ -1,6 +1,6 @@
 ---
 name: maestro-next
-description: Single-command recommendation — pick the best next skill from the pool and execute it in-context
+description: "Single-command recommendation — pick the best next skill from the pool and execute it in-context"
 argument-hint: "\"<intent>\" [-y] [--dry-run] [--top N] [--list]"
 allowed-tools: Read, Bash, Glob, Grep, request_user_input
 ---

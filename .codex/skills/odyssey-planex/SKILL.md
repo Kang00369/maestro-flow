@@ -1,6 +1,6 @@
 ---
 name: odyssey-planex
-description: Requirement-driven iterative cycle — plan, execute, strict verify, fix loop until acceptance criteria met
+description: "Requirement-driven iterative cycle — plan, execute, strict verify, fix loop until acceptance criteria met"
 argument-hint: "<requirement> [--max-iterations N] [--skip-generalize] [--auto] [-y] [-c]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---

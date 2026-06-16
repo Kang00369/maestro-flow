@@ -1,6 +1,6 @@
 ---
 name: odyssey-review-test-fix
-description: Deep review cycle — archaeology, exploration, multi-dimensional review, targeted fix, generalization, discovery, and detailed knowledge persistence
+description: "Deep review cycle — archaeology, exploration, multi-dimensional review, targeted fix, generalization, discovery, and detailed knowledge persistence"
 argument-hint: "<target> [--dimensions <list>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---

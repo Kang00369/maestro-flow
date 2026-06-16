@@ -1,6 +1,6 @@
 ---
 name: odyssey-debug
-description: Long-running debug cycle — archaeology, diagnosis, fix, confirmation, generalization, discovery, and knowledge persistence
+description: "Long-running debug cycle — archaeology, diagnosis, fix, confirmation, generalization, discovery, and knowledge persistence"
 argument-hint: "<issue> [--skip-fix] [--skip-generalize] [--auto] [-y] [-c]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---

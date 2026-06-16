@@ -1,6 +1,6 @@
 ---
 name: maestro-impeccable
-description: Use when designing, auditing, polishing, or improving frontend UI — websites, dashboards, landing pages, components
+description: "Use when designing, auditing, polishing, or improving frontend UI — websites, dashboards, landing pages, components"
 argument-hint: "<command|chain|intent> [target] [flags]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---

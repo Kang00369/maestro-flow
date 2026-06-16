@@ -1,6 +1,6 @@
 ---
 name: maestro-ralph-beta
-description: Self-running loop controller for adaptive maestro workflow — build, tick, decide in one skill
+description: "Self-running loop controller for adaptive maestro workflow — build, tick, decide in one skill"
 argument-hint: "<intent> [-y] | continue | status"
 allowed-tools:
   - Read
