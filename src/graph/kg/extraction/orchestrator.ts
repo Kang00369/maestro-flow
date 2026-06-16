@@ -208,6 +208,24 @@ export async function syncKnowledgeGraph(
       durationMs: resolveResult.durationMs,
     });
 
+    // ── Credibility hash sync (incremental) ────────────────────────
+    try {
+      const { CredibilityStore, contentHash } = await import('../credibility.js');
+      const { applyMigrations } = await import('../db/migrations.js');
+      applyMigrations(mg.getConnection());
+      const store = new CredibilityStore(mg.getConnection().raw);
+      const knowledgeSources: SourceType[] = ['domain', 'spec', 'knowhow', 'codebase', 'issue'];
+      const knowledgeNodes = mg.getConnection().raw.prepare(
+        `SELECT id, body FROM nodes WHERE source_type IN (${knowledgeSources.map(() => '?').join(',')}) AND body IS NOT NULL AND body != ''`
+      ).all(...knowledgeSources) as Array<{ id: string; body: string }>;
+      const nowMs = Date.now();
+      for (const node of knowledgeNodes) {
+        store.upsert(node.id, contentHash(node.body), nowMs);
+      }
+    } catch {
+      // Credibility sync is best-effort — never fail the extraction pipeline
+    }
+
     return results;
   } finally {
     mg.close();

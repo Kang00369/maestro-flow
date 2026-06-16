@@ -237,15 +237,27 @@ export function searchBM25(
   index: InvertedIndex,
   query: string,
   limit = 50,
+  credibilityFactors?: Map<string, number>,
 ): SearchResult[] {
   const terms = tokenize(query);
   if (terms.length === 0 || index.totalDocs === 0) return [];
 
-  // Use BM25F when field data is available, otherwise fall back to flat BM25
+  let results: SearchResult[];
   if (index._fieldPostings && index._fieldLengths && index._avgFieldLengths) {
-    return searchBM25F(index, terms, limit);
+    results = searchBM25F(index, terms, limit * 2);
+  } else {
+    results = searchBM25Flat(index, terms, limit * 2);
   }
-  return searchBM25Flat(index, terms, limit);
+
+  if (credibilityFactors && credibilityFactors.size > 0) {
+    for (const r of results) {
+      const factor = credibilityFactors.get(r.docId) ?? 1.0;
+      r.score *= factor;
+    }
+    results.sort((a, b) => b.score - a.score || a.docId.localeCompare(b.docId));
+  }
+
+  return results.slice(0, limit);
 }
 
 function searchBM25F(index: InvertedIndex, terms: string[], limit: number): SearchResult[] {

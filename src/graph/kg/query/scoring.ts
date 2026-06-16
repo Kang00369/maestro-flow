@@ -167,10 +167,10 @@ export interface ScoredResult {
 export function computeScore(
   node: { id: string; kind: UnifiedNodeKind; name: string; filePath: string; _bm25Score?: number },
   query: string,
+  credibilityFactor?: number,
 ): number {
   let score = 0;
 
-  // FTS5 BM25 基础分 — 归一化到 0-30 范围与其他信号对齐
   const bm25 = node._bm25Score;
   if (typeof bm25 === 'number' && bm25 > 0) {
     score += Math.min(bm25 * 2, 30);
@@ -179,6 +179,10 @@ export function computeScore(
   score += kindBonus(node.kind);
   score += scorePathRelevance(node.filePath, query);
   score += nameMatchBonus(node.name, query);
+
+  if (typeof credibilityFactor === 'number') {
+    score *= credibilityFactor;
+  }
 
   return score;
 }

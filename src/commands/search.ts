@@ -27,6 +27,7 @@ export interface SearchResult {
   snippet: string | null;
   source: WikiEntry['source'];
   workspace?: string;
+  credibilityFactor?: number;
 }
 
 /** A code search result from CodeGraph. */
@@ -92,7 +93,7 @@ export async function runUnifiedSearch(q: string, opts: UnifiedSearchOptions): P
   }
   const deduped = [...seen.values()].slice(0, limit);
 
-  return deduped.map(({ entry, score }) => ({
+  const results = deduped.map(({ entry, score }) => ({
     id: entry.id,
     type: entry.type,
     title: entry.title,
@@ -103,6 +104,28 @@ export async function runUnifiedSearch(q: string, opts: UnifiedSearchOptions): P
     source: entry.source,
     workspace: entry.source.workspace,
   }));
+
+  // Async credibility search_hits increment (best-effort, never blocks)
+  if (results.length > 0) {
+    incrementSearchHitsAsync(results.map(r => r.id));
+  }
+
+  return results;
+}
+
+function incrementSearchHitsAsync(entryIds: string[]): void {
+  try {
+    const { MaestroGraph } = require('../graph/kg/engine.js') as typeof import('../graph/kg/engine.js');
+    const projectRoot = resolve('.');
+    if (!MaestroGraph.isInitialized(projectRoot)) return;
+    const mg = MaestroGraph.openSync(projectRoot);
+    if (!mg) return;
+    const { CredibilityStore } = require('../graph/kg/credibility.js') as typeof import('../graph/kg/credibility.js');
+    const store = new CredibilityStore(mg.rawDb);
+    store.incrementSearchHits(entryIds);
+  } catch {
+    // Best-effort — never fail the search flow
+  }
 }
 
 /**
@@ -220,8 +243,9 @@ export function registerSearchCommand(program: Command): void {
           const catTag = r.category ? ` ${r.category}` : '';
           const wsTag = r.workspace ? ` [ws:${r.workspace}]` : '';
           const scoreTag = r.score !== null ? `  (${r.score.toFixed(2)})` : '';
+          const staleTag = (r.credibilityFactor !== undefined && r.credibilityFactor < 0.5) ? ' ⚠️' : '';
           const title = isTTY ? highlightTerms(r.title, qTerms) : r.title;
-          console.log(`${indent}${typeTag}${catTag}${wsTag}  ${r.id}  ${title}${scoreTag}`);
+          console.log(`${indent}${typeTag}${catTag}${wsTag}  ${r.id}  ${title}${scoreTag}${staleTag}`);
           if (r.snippet) {
             const snippet = isTTY ? highlightTerms(r.snippet, qTerms) : r.snippet;
             console.log(`${indent}  ${snippet}`);

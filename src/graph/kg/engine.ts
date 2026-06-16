@@ -62,6 +62,25 @@ export class MaestroGraph {
     return existsSync(getKgDatabasePath(projectRoot));
   }
 
+  static openSync(projectRoot: string): MaestroGraph | null {
+    try {
+      const dbPath = getKgDatabasePath(resolve(projectRoot));
+      if (!existsSync(dbPath)) return null;
+      const mg = new MaestroGraph(projectRoot);
+      mg.conn = new KgDatabaseConnection();
+      mg.conn.open(dbPath);
+      mg.queries = new KgQueryBuilder(mg.conn);
+      return mg;
+    } catch {
+      return null;
+    }
+  }
+
+  get rawDb(): import('better-sqlite3').Database {
+    if (!this.conn) throw new Error('MaestroGraph not open');
+    return this.conn.raw;
+  }
+
   close(): void {
     this.conn?.close();
     this.conn = null;

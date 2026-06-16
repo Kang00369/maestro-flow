@@ -1,6 +1,7 @@
 // src/graph/kg/db/migrations.ts — Schema 版本迁移
 
 import type { KgDatabaseConnection } from './connection.js';
+import { CREDIBILITY_MIGRATION_SQL } from '../credibility.js';
 
 export interface MigrationStep {
   version: number;
@@ -12,12 +13,17 @@ const MIGRATIONS: MigrationStep[] = [
   {
     version: 1,
     description: 'Initial CodeGraph-compatible schema',
-    sql: '',  // 由 schema.sql 处理初始创建
+    sql: '',
   },
   {
     version: 2,
     description: 'MaestroGraph unified schema v2 — knowledge extensions + dual FTS5',
-    sql: '',  // 由 schema.sql 处理 (包含所有表创建)
+    sql: '',
+  },
+  {
+    version: 3,
+    description: 'Credibility tracking — decay scoring + usage counters',
+    sql: CREDIBILITY_MIGRATION_SQL,
   },
 ];
 

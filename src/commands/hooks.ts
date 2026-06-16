@@ -1139,20 +1139,23 @@ export function registerHooksCommand(program: Command): void {
       }
       const durationMs = Date.now() - startMs;
 
-      // Log hook call with input params (best-effort, never block exit)
-      try {
-        const workspace = resolveWorkspace({ cwd });
-        if (workspace) {
-          const { logHookInvocation } = await import('../hooks/spec-analytics.js');
-          logHookInvocation(workspace, {
-            hookName: name,
-            pluginName: 'subprocess',
-            outcome,
-            durationMs,
-            data: { event: def?.event, ...inputData },
-          });
-        }
-      } catch { /* swallow */ }
+      // Log hook call — only for spec-analytics-relevant hooks (whitelist)
+      const SPEC_ANALYTICS_HOOKS = new Set(['spec-injector', 'keyword-spec-injector', 'kg-context-injector']);
+      if (SPEC_ANALYTICS_HOOKS.has(name)) {
+        try {
+          const workspace = resolveWorkspace({ cwd });
+          if (workspace) {
+            const { logHookInvocation } = await import('../hooks/spec-analytics.js');
+            logHookInvocation(workspace, {
+              hookName: name,
+              pluginName: 'subprocess',
+              outcome,
+              durationMs,
+              data: { event: def?.event, ...inputData },
+            });
+          }
+        } catch { /* swallow */ }
+      }
 
       process.exit(0);
     });
