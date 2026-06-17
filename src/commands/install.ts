@@ -13,43 +13,16 @@
 
 import type { Command } from 'commander';
 import { join, resolve } from 'node:path';
-import { homedir } from 'node:os';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { initCliToolsConfigSync } from '../config/cli-tools-config.js';
+import { existsSync, readFileSync } from 'node:fs';
 import { runInstallWizard, runInstallFlow } from '../tui/install-ui/index.js';
-import { paths } from '../config/paths.js';
 import {
-  createManifest,
-  addFile,
-  saveManifest,
-  findManifest,
-  recordClaudeHooks,
-  recordCodexHooks,
-  recordAgyHooks,
-  recordCodexMcp,
-  recordStatusline,
-} from '../core/manifest.js';
-import {
-  installHooksByLevel,
-  installCodexHooksByLevel,
-  installAgyHooksByLevel,
-  installStatusline as installStatuslineFn,
   HOOK_LEVELS,
   type HookLevel,
 } from './hooks.js';
 import {
   getPackageRoot,
   scanComponents,
-  scanDisabledItems,
-  restoreDisabledState,
-  applyOverlaysPostInstall,
-  copyRecursive,
-  injectDocFile,
-  createTargetBackup,
-  addCodexMcpServer,
-  uninstallManifest,
   MCP_TOOLS,
-  type CopyStats,
 } from './install-backend.js';
 import { t } from '../i18n/index.js';
 import { registerFontsSubcommand } from './font-guide.js';
@@ -178,7 +151,7 @@ export function registerInstallCommand(program: Command): void {
         const { importProfile } = await import('../core/install-profile.js');
         const profile = importProfile(opts.import);
         console.error(`Importing profile: ${profile.name} (${profile.scope})`);
-        forceInstall(pkgRoot, version, {
+        await forceInstall(pkgRoot, version, {
           global: profile.scope === 'global',
           hooks: profile.claude.hooks.basePreset,
           codexHooks: profile.codex.hooks.basePreset,
@@ -196,7 +169,7 @@ export function registerInstallCommand(program: Command): void {
       }
 
       if (opts.force) {
-        forceInstall(pkgRoot, version, opts);
+        await forceInstall(pkgRoot, version, opts);
       } else {
         await runInstallFlow(pkgRoot, version);
       }
@@ -220,14 +193,16 @@ export function registerInstallCommand(program: Command): void {
 }
 
 // ---------------------------------------------------------------------------
-// Non-interactive (force) install — preserves original batch behavior
+// Non-interactive (force) install — uses shared executor with console progress
 // ---------------------------------------------------------------------------
 
-function forceInstall(
+async function forceInstall(
   pkgRoot: string,
   version: string,
   opts: { global?: boolean; path?: string; hooks?: string; codexHooks?: string; codexMcp?: boolean; agyHooks?: string; components?: string; statusline?: boolean | string },
-): void {
+): Promise<void> {
+  const { executeInstallPipeline } = await import('../core/install-executor.js');
+
   console.error(t.install.forceVersion.replace('{version}', version));
   console.error('');
 
@@ -241,183 +216,64 @@ function forceInstall(
 
   const components = scanComponents(pkgRoot, mode, projectPath);
   const available = components.filter((c) => c.available);
-
-  // Filter by --components if specified (used by `maestro update` to preserve selection)
   const componentIds = opts.components?.split(',');
   const toInstall = componentIds
     ? available.filter(c => componentIds.includes(c.def.id))
     : available;
 
-  // Determine what to install based on mode
-  const targetPath = mode === 'global' ? paths.home : projectPath;
-  const targetBase = mode === 'global' ? homedir() : projectPath;
-
-  // Scan disabled items
-  const disabledItems = scanDisabledItems(targetBase);
-
-  // Backup CLAUDE.md by default before overwrite
-  const backupPath = createTargetBackup(toInstall, { backupClaudeMd: true, backupAll: false });
-  if (backupPath) {
-    console.error(`  Backup: ${backupPath}`);
-  }
-
-  // Clean previous — full uninstall of prior manifest (files + hooks + mcp + statusline)
-  const existingManifest = findManifest(mode, targetPath);
-  if (existingManifest) {
-    const r = uninstallManifest(existingManifest, { skipContentManaged: true });
-    if (r.filesRemoved > 0) {
-      let msg = t.install.forceCleaned.replace('{count}', String(r.filesRemoved));
-      if (r.filesSkipped > 0) msg += t.install.forceCleanedPreserved.replace('{count}', String(r.filesSkipped));
-      console.error(msg);
-    }
-    const sideParts: string[] = [];
-    if (r.claudeHooksRemoved) sideParts.push(`${r.claudeHooksRemoved} claude hooks`);
-    if (r.codexHooksRemoved) sideParts.push(`${r.codexHooksRemoved} codex hooks`);
-    if (r.agyHooksRemoved) sideParts.push(`${r.agyHooksRemoved} agy hooks`);
-    if (r.statuslineRemoved) sideParts.push('statusline');
-    if (r.mcpRemoved.claude) sideParts.push('claude mcp');
-    if (r.mcpRemoved.codex) sideParts.push('codex mcp');
-    if (r.mcpRemoved.extras.length) sideParts.push(`${r.mcpRemoved.extras.length} extra mcp`);
-    if (sideParts.length) console.error(`  Cleaned: ${sideParts.join(', ')}`);
-  }
-
-  paths.ensure(paths.home);
-
   const hookLevel = (opts.hooks ?? 'none') as HookLevel;
-
-  const manifest = createManifest(mode, targetPath, {
-    // Only persist hookLevel when actually installing Claude hooks; avoids
-    // the next install reading back a stale 'none' as the default level.
-    ...(hookLevel !== 'none' && HOOK_LEVELS.includes(hookLevel)
-      ? { hookLevel }
-      : {}),
-    selectedComponentIds: toInstall.map(c => c.def.id),
-  });
-  const totalStats: CopyStats = { files: 0, dirs: 0, skipped: 0 };
-  const migrationWarnings: string[] = [];
-
-  for (const comp of toInstall) {
-    console.error(`  ${comp.def.label} → ${comp.targetDir}`);
-    if (comp.def.build) {
-      const result = comp.def.build(join(pkgRoot, '.claude'), comp.targetDir);
-      totalStats.files += result.files;
-    } else if (comp.def.inject) {
-      const result = injectDocFile(comp.sourceFull, comp.targetDir, totalStats, manifest, comp.def.section);
-      if (result.action === 'migrated') {
-        console.error(`    ✓ migrated legacy ${comp.def.label} to tag-based injection`);
-      }
-      if (result.warning) {
-        migrationWarnings.push(result.warning);
-      }
-    } else {
-      copyRecursive(comp.sourceFull, comp.targetDir, totalStats, manifest);
-    }
-  }
-
-  // Version marker
-  const versionData = {
-    version,
-    installedAt: new Date().toISOString(),
-    installer: 'maestro',
-  };
-  const versionPath = join(paths.home, 'version.json');
-  writeFileSync(versionPath, JSON.stringify(versionData, null, 2), 'utf-8');
-  addFile(manifest, versionPath);
-  totalStats.files++;
-
-  // Restore disabled state
-  const disabledRestored = restoreDisabledState(disabledItems, targetBase);
-
-  // Apply overlays (non-invasive command patches)
-  const overlaysAppliedCount = applyOverlaysPostInstall(mode, targetBase);
-
-  // Hook installation
-  if (hookLevel !== 'none' && HOOK_LEVELS.includes(hookLevel)) {
-    const hookResult = installHooksByLevel(hookLevel, { project: mode === 'project' });
-    recordClaudeHooks(manifest, {
-      settingsPath: hookResult.settingsPath,
-      installed: hookResult.installedHooks,
-      level: hookLevel,
-    });
-    console.error(t.install.forceHooksResult
-      .replace('{level}', hookLevel)
-      .replace('{count}', String(hookResult.installedHooks.length))
-      .replace('{path}', hookResult.settingsPath));
-  }
-
-  // Statusline installation
-  if (opts.statusline) {
-    const theme = typeof opts.statusline === 'string' ? opts.statusline : 'notion';
-    const settingsPath = installStatuslineFn({
-      project: mode === 'project',
-      theme,
-    });
-    recordStatusline(manifest, { settingsPath, theme });
-    console.error(`  Statusline: installed (${theme}) → ${settingsPath}`);
-  }
-
-  // Codex hook installation
   const codexHookLevel = (opts.codexHooks ?? 'none') as HookLevel;
-  if (codexHookLevel !== 'none' && HOOK_LEVELS.includes(codexHookLevel)) {
-    const codexResult = installCodexHooksByLevel(codexHookLevel, { project: mode === 'project' });
-    recordCodexHooks(manifest, {
-      settingsPath: codexResult.settingsPath,
-      installed: codexResult.installedHooks,
-      level: codexHookLevel,
-    });
-    console.error(`  Codex Hooks (${codexHookLevel}): ${codexResult.installedHooks.length} hooks → ${codexResult.settingsPath}`);
-  }
-
-  // Agy (Antigravity) hook installation
   const agyHookLevel = (opts.agyHooks ?? 'none') as HookLevel;
-  if (agyHookLevel !== 'none' && HOOK_LEVELS.includes(agyHookLevel)) {
-    const agyResult = installAgyHooksByLevel(agyHookLevel, {
-      project: mode === 'project',
-      projectPath: mode === 'project' ? projectPath : undefined,
-    });
-    recordAgyHooks(manifest, {
-      settingsPath: agyResult.settingsPath,
-      installed: agyResult.installedHooks,
-      level: agyHookLevel,
-    });
-    console.error(`  Agy Hooks (${agyHookLevel}): ${agyResult.installedHooks.length} hooks → ${agyResult.settingsPath}`);
-  }
+  const statuslineTheme = typeof opts.statusline === 'string' ? opts.statusline : 'notion';
 
-  // Codex MCP registration
-  if (opts.codexMcp) {
-    const path = addCodexMcpServer(mode, projectPath || '', [...MCP_TOOLS]);
-    if (path) {
-      recordCodexMcp(manifest, { configPath: path, serverName: 'maestro-tools' });
-      console.error(`  Codex MCP: maestro-tools registered → ${path}`);
-    } else {
-      console.error(`  Codex MCP: failed`);
-    }
-  }
+  const config: import('../tui/install-ui/types.js').InstallFlowConfig = {
+    mode,
+    projectPath,
+    installComponents: true,
+    installHooks: hookLevel !== 'none' && HOOK_LEVELS.includes(hookLevel),
+    installMcp: false,
+    installCodexHooks: codexHookLevel !== 'none' && HOOK_LEVELS.includes(codexHookLevel),
+    codexHookLevel,
+    installCodexMcp: !!opts.codexMcp,
+    codexMcpTools: [...MCP_TOOLS],
+    codexMcpProjectRoot: '',
+    installAgyHooks: agyHookLevel !== 'none' && HOOK_LEVELS.includes(agyHookLevel),
+    agyHookLevel,
+    installExtraMcp: false,
+    extraMcpTargetIds: [],
+    installCodeGraph: false,
+    installStatusline: !!opts.statusline,
+    statuslineTheme,
+    hookLevel,
+    componentCount: toInstall.length,
+    fileCount: toInstall.reduce((sum, c) => sum + c.fileCount, 0),
+    mcpToolCount: MCP_TOOLS.length,
+    selectedComponentIds: toInstall.map(c => c.def.id),
+    mcpTools: [...MCP_TOOLS],
+    mcpProjectRoot: '',
+    backupClaudeMd: true,
+    backupAll: false,
+  };
 
-  saveManifest(manifest);
+  const result = await executeInstallPipeline({
+    config, pkgRoot, version,
+    onProgress: (step, status, detail) => {
+      if (status === 'done') console.error(`  ✓ ${step}: ${detail}`);
+      else if (status === 'active') process.stderr.write(`  ${step}: ${detail}\r`);
+    },
+  });
 
-  const parts = [`${totalStats.files} files`];
-  if (totalStats.dirs > 0) parts.push(`${totalStats.dirs} dirs`);
-  if (totalStats.skipped > 0) parts.push(`${totalStats.skipped} preserved`);
-  if (disabledRestored > 0) parts.push(`${disabledRestored} disabled restored`);
-  if (overlaysAppliedCount > 0) parts.push(`${overlaysAppliedCount} overlays applied`);
+  const parts = [`${result.filesInstalled} files`];
+  if (result.dirsCreated > 0) parts.push(`${result.dirsCreated} dirs`);
+  if (result.filesSkipped > 0) parts.push(`${result.filesSkipped} preserved`);
   console.error(t.install.forceResult.replace('{summary}', parts.join(', ')));
 
-  // Migration warnings
-  if (migrationWarnings.length > 0) {
+  if (result.migrationWarnings.length > 0) {
     console.error('');
     console.error('  ⚠ Migration warnings:');
-    for (const w of migrationWarnings) {
+    for (const w of result.migrationWarnings) {
       console.error(`    ${w}`);
     }
-  }
-
-  // CLI tools config — create on first install, merge missing tool defs on upgrade
-  const cliToolsResult = initCliToolsConfigSync();
-  if (cliToolsResult.created) {
-    console.error('  Initialized cli-tools.json (auto-detected CLI availability)');
-  } else if (cliToolsResult.added.length > 0) {
-    console.error(`  cli-tools.json: added missing tools → ${cliToolsResult.added.join(', ')}`);
   }
 
   console.error('');

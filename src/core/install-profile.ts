@@ -218,6 +218,106 @@ export function exportProfileFromManifest(
   return exportProfile(profile, filePath);
 }
 
+// ---------------------------------------------------------------------------
+// Bidirectional conversion: InstallFlowConfig ↔ InstallProfile
+// ---------------------------------------------------------------------------
+
+export function configToProfile(
+  config: import('../tui/install-ui/types.js').InstallFlowConfig,
+  name = 'default',
+): InstallProfile {
+  return {
+    $schema: SCHEMA_VERSION,
+    name,
+    createdAt: new Date().toISOString(),
+    scope: config.mode,
+    components: { enabled: config.installComponents, selectedIds: config.selectedComponentIds },
+    claude: {
+      hooks: {
+        enabled: config.installHooks,
+        basePreset: config.hookLevel,
+        selectedHooks: config.claudeHooksSelection?.selectedHooks ?? getHooksForLevel(config.hookLevel, 'claude'),
+        isCustom: config.claudeHooksSelection?.isCustom ?? false,
+      },
+      mcp: { enabled: config.installMcp, tools: config.mcpTools, projectRoot: config.mcpProjectRoot },
+      statusline: { enabled: config.installStatusline, theme: config.statuslineTheme },
+    },
+    codex: {
+      hooks: {
+        enabled: config.installCodexHooks,
+        basePreset: config.codexHookLevel,
+        selectedHooks: config.codexHooksSelection?.selectedHooks ?? getHooksForLevel(config.codexHookLevel, 'codex'),
+        isCustom: config.codexHooksSelection?.isCustom ?? false,
+      },
+      mcp: { enabled: config.installCodexMcp, tools: config.codexMcpTools, projectRoot: config.codexMcpProjectRoot },
+    },
+    agy: {
+      hooks: {
+        enabled: config.installAgyHooks,
+        basePreset: config.agyHookLevel,
+        selectedHooks: config.agyHooksSelection?.selectedHooks ?? getHooksForLevel(config.agyHookLevel, 'agy'),
+        isCustom: config.agyHooksSelection?.isCustom ?? false,
+      },
+    },
+    extraMcp: { enabled: config.installExtraMcp, targetIds: config.extraMcpTargetIds },
+    codeGraph: { enabled: config.installCodeGraph },
+    backup: { claudeMd: config.backupClaudeMd, all: config.backupAll },
+  };
+}
+
+export interface ProfileApplyResult {
+  mode: 'global' | 'project';
+  enabledSteps: Record<string, boolean>;
+  selectedComponentIds: string[];
+  claudeHooks: { basePreset: HookLevel; selectedHooks: string[]; isCustom: boolean };
+  mcpEnabled: boolean;
+  mcpTools: string[];
+  mcpProjectRoot: string;
+  codexHooks: { basePreset: HookLevel; selectedHooks: string[]; isCustom: boolean };
+  codexMcpEnabled: boolean;
+  codexMcpTools: string[];
+  codexMcpProjectRoot: string;
+  agyHooks: { basePreset: HookLevel; selectedHooks: string[]; isCustom: boolean };
+  extraMcpTargetIds: ExtraMcpTargetId[];
+  installStatusline: boolean;
+  statuslineTheme: string;
+  backupClaudeMd: boolean;
+  backupAll: boolean;
+}
+
+export function profileToStateValues(profile: InstallProfile): ProfileApplyResult {
+  return {
+    mode: profile.scope,
+    enabledSteps: {
+      components: profile.components.enabled,
+      hooks: profile.claude.hooks.enabled,
+      mcp: profile.claude.mcp.enabled,
+      codexHooks: profile.codex.hooks.enabled,
+      codexMcp: profile.codex.mcp.enabled,
+      agyHooks: profile.agy.hooks.enabled,
+      extraMcp: profile.extraMcp.enabled,
+      statusline: profile.claude.statusline.enabled,
+      codegraph: profile.codeGraph.enabled,
+      backup: profile.backup.claudeMd || profile.backup.all,
+    },
+    selectedComponentIds: profile.components.selectedIds,
+    claudeHooks: { basePreset: profile.claude.hooks.basePreset, selectedHooks: profile.claude.hooks.selectedHooks, isCustom: profile.claude.hooks.isCustom },
+    mcpEnabled: profile.claude.mcp.enabled,
+    mcpTools: profile.claude.mcp.tools,
+    mcpProjectRoot: profile.claude.mcp.projectRoot,
+    codexHooks: { basePreset: profile.codex.hooks.basePreset, selectedHooks: profile.codex.hooks.selectedHooks, isCustom: profile.codex.hooks.isCustom },
+    codexMcpEnabled: profile.codex.mcp.enabled,
+    codexMcpTools: profile.codex.mcp.tools,
+    codexMcpProjectRoot: profile.codex.mcp.projectRoot,
+    agyHooks: { basePreset: profile.agy.hooks.basePreset, selectedHooks: profile.agy.hooks.selectedHooks, isCustom: profile.agy.hooks.isCustom },
+    extraMcpTargetIds: profile.extraMcp.targetIds,
+    installStatusline: profile.claude.statusline.enabled,
+    statuslineTheme: profile.claude.statusline.theme,
+    backupClaudeMd: profile.backup.claudeMd,
+    backupAll: profile.backup.all,
+  };
+}
+
 export function listProfiles(): ProfileSummary[] {
   ensureProfileDir();
   const files = readdirSync(PROFILE_DIR).filter((f) => f.endsWith('.json'));

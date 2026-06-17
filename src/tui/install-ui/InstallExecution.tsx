@@ -1,75 +1,22 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
-import { writeFileSync } from 'node:fs';
-import { paths } from '../../config/paths.js';
 import { C, SYM } from '../shared/index.js';
-import {
-  scanComponents,
-  scanDisabledItems,
-  restoreDisabledState,
-  applyOverlaysPostInstall,
-  addMcpServer,
-  addCodexMcpServer,
-  addExtraMcpServer,
-  copyRecursive,
-  injectDocFile,
-  createTargetBackup,
-  uninstallManifest,
-  type CopyStats,
-} from '../../commands/install-backend.js';
-import {
-  createManifest,
-  addFile,
-  saveManifest,
-  findManifest,
-  recordClaudeHooks,
-  recordCodexHooks,
-  recordAgyHooks,
-  recordStatusline,
-  recordClaudeMcp,
-  recordCodexMcp,
-  recordExtraMcp,
-} from '../../core/manifest.js';
-import {
-  installHooksByLevel,
-  installCodexHooksByLevel,
-  installAgyHooksByLevel,
-  installStatusline as installStatuslineFn,
-} from '../../commands/hooks.js';
+import { executeInstallPipeline, CancelledError, type InstallResult, type StepName } from '../../core/install-executor.js';
 import type { InstallFlowConfig } from './types.js';
 import { t } from '../../i18n/index.js';
 
 // ---------------------------------------------------------------------------
-// InstallExecution — per-step checklist with progress bar
+// InstallExecution — thin TUI renderer over the shared install executor
 // ---------------------------------------------------------------------------
 
-export interface InstallFlowResult {
-  filesInstalled: number;
-  dirsCreated: number;
-  filesSkipped: number;
-  hooksInstalled: number;
-  mcpRegistered: boolean;
-  codexHooksInstalled: number;
-  codexMcpRegistered: boolean;
-  agyHooksInstalled: number;
-  extraMcpRegistered: string[];
-  extraMcpFailed: string[];
-  manifestPath: string;
-  codegraphInstalled: boolean;
-  codegraphError: string | null;
-  statuslineInstalled: boolean;
-  backupPath: string | null;
-  migrationWarnings: string[];
-}
+export type { InstallResult as InstallFlowResult } from '../../core/install-executor.js';
 
 interface InstallExecutionProps {
   config: InstallFlowConfig;
   pkgRoot: string;
   version: string;
-  onComplete: (result: InstallFlowResult) => void;
+  onComplete: (result: InstallResult) => void;
 }
 
 type StepStatus = 'pending' | 'active' | 'done' | 'error';
@@ -105,8 +52,21 @@ function StepRow({ step }: { step: ExecutionStep }) {
   );
 }
 
+const STEP_LABELS: Record<string, string> = {
+  backup: 'Backup',
+  cleanup: 'Cleanup',
+  components: 'Components',
+  hooks: 'Hooks (Claude)',
+  statusline: 'Statusline',
+  mcp: 'MCP Server',
+  codexHooks: 'Codex Hooks',
+  codexMcp: 'Codex MCP',
+  agyHooks: 'Agy Hooks',
+  extraMcp: 'Extra MCP',
+  manifest: 'Save Manifest',
+};
+
 export function InstallExecution({ config, pkgRoot, version, onComplete }: InstallExecutionProps) {
-  // Build dynamic step list from config
   const stepKeys = useMemo(() => {
     const keys: string[] = [];
     if (config.backupClaudeMd || config.backupAll) keys.push('backup');
@@ -123,34 +83,18 @@ export function InstallExecution({ config, pkgRoot, version, onComplete }: Insta
     return keys;
   }, [config]);
 
-  const stepLabels: Record<string, string> = {
-    backup: 'Backup',
-    cleanup: 'Cleanup',
-    components: 'Components',
-    hooks: 'Hooks (Claude)',
-    statusline: 'Statusline',
-    mcp: 'MCP Server',
-    codexHooks: 'Codex Hooks',
-    codexMcp: 'Codex MCP',
-    agyHooks: 'Agy Hooks',
-    extraMcp: 'Extra MCP',
-    manifest: 'Save Manifest',
-  };
-
   const [steps, setSteps] = useState<ExecutionStep[]>(() =>
     stepKeys.map((key) => ({
       key,
-      label: stepLabels[key] ?? key,
+      label: STEP_LABELS[key] ?? key,
       status: 'pending' as StepStatus,
       detail: '',
     })),
   );
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
-  const updateStep = (key: string, status: StepStatus, detail: string) => {
-    setSteps((prev) => prev.map((s) => s.key === key ? { ...s, status, detail } : s));
-  };
+  const cancelledRef = useRef(false);
+  const ranRef = useRef(false);
 
   useEffect(() => {
     const timer = setInterval(() => setElapsed((e) => e + 1), 1000);
@@ -158,240 +102,25 @@ export function InstallExecution({ config, pkgRoot, version, onComplete }: Insta
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    if (ranRef.current) return;
+    ranRef.current = true;
 
-    async function run() {
-      try {
-        const targetBase = config.mode === 'global' ? homedir() : config.projectPath;
-        const targetPath = config.mode === 'global' ? paths.home : config.projectPath;
-        let filesInstalled = 0;
-        let dirsCreated = 0;
-        let filesSkipped = 0;
-        let hooksInstalled = 0;
-        let mcpRegistered = false;
-        let codexHooksInstalled = 0;
-        let codexMcpRegistered = false;
-        let agyHooksInstalled = 0;
-        const extraMcpRegistered: string[] = [];
-        const extraMcpFailed: string[] = [];
-        let codegraphInstalled = false;
-        const codegraphError: string | null = null;
-        let statuslineInstalled = false;
-        let backupPath: string | null = null;
-        const warnings: string[] = [];
+    const updateStep = (step: StepName, status: 'active' | 'done' | 'error', detail: string) => {
+      setSteps((prev) => prev.map((s) => s.key === step ? { ...s, status, detail } : s));
+    };
 
-        // --- Backup ---
-        if (stepKeys.includes('backup')) {
-          if (cancelled) return;
-          updateStep('backup', 'active', 'Creating backup...');
-          const components = scanComponents(pkgRoot, config.mode, config.projectPath)
-            .filter((c) => c.available && config.selectedComponentIds.includes(c.def.id));
-          backupPath = createTargetBackup(components, {
-            backupClaudeMd: config.backupClaudeMd,
-            backupAll: config.backupAll,
-          });
-          updateStep('backup', 'done', backupPath ? `saved` : 'no files to backup');
-        }
+    executeInstallPipeline({
+      config, pkgRoot, version,
+      onProgress: updateStep,
+      isCancelled: () => cancelledRef.current,
+    }).then((result) => {
+      onComplete(result);
+    }).catch((err) => {
+      if (err instanceof CancelledError) return;
+      setError(err instanceof Error ? err.message : String(err));
+    });
 
-        // --- Cleanup ---
-        if (cancelled) return;
-        updateStep('cleanup', 'active', 'Removing prior install...');
-        const disabledItems = scanDisabledItems(targetBase);
-        const prior = findManifest(config.mode, targetPath);
-        if (prior) {
-          uninstallManifest(prior, { skipContentManaged: true });
-        }
-        updateStep('cleanup', 'done', prior ? 'prior manifest removed' : 'clean slate');
-
-        // --- Fresh manifest ---
-        paths.ensure(paths.home);
-        const manifest = createManifest(config.mode, targetPath, {
-          ...(config.installHooks && config.hookLevel !== 'none'
-            ? { hookLevel: config.hookLevel }
-            : {}),
-          selectedComponentIds: config.installComponents ? config.selectedComponentIds : [],
-        });
-
-        // --- Components ---
-        if (config.installComponents && stepKeys.includes('components')) {
-          if (cancelled) return;
-          updateStep('components', 'active', 'Scanning...');
-          const stats: CopyStats = { files: 0, dirs: 0, skipped: 0 };
-          const components = scanComponents(pkgRoot, config.mode, config.projectPath)
-            .filter((c) => c.available && config.selectedComponentIds.includes(c.def.id));
-
-          for (const comp of components) {
-            if (cancelled) return;
-            updateStep('components', 'active', comp.def.label);
-            if (comp.def.build) {
-              const result = comp.def.build(join(pkgRoot, '.claude'), comp.targetDir);
-              stats.files += result.files;
-            } else if (comp.def.inject) {
-              const result = injectDocFile(comp.sourceFull, comp.targetDir, stats, manifest, comp.def.section);
-              if (result.warning) warnings.push(result.warning);
-            } else {
-              copyRecursive(comp.sourceFull, comp.targetDir, stats, manifest);
-            }
-          }
-
-          if (cancelled) return;
-          const versionPath = join(paths.home, 'version.json');
-          writeFileSync(versionPath, JSON.stringify({
-            version, installedAt: new Date().toISOString(), installer: 'maestro',
-          }, null, 2), 'utf-8');
-          addFile(manifest, versionPath);
-
-          restoreDisabledState(disabledItems, targetBase);
-          applyOverlaysPostInstall(config.mode, targetBase);
-
-          filesInstalled = stats.files;
-          dirsCreated = stats.dirs;
-          filesSkipped = stats.skipped;
-          updateStep('components', 'done', `${filesInstalled} files`);
-        }
-
-        // --- Hooks (Claude) ---
-        if (config.installHooks && config.hookLevel !== 'none' && stepKeys.includes('hooks')) {
-          if (cancelled) return;
-          updateStep('hooks', 'active', `${config.hookLevel}...`);
-          const result = installHooksByLevel(config.hookLevel, {
-            project: config.mode === 'project',
-          });
-          hooksInstalled = result.installedHooks.length;
-          recordClaudeHooks(manifest, {
-            settingsPath: result.settingsPath,
-            installed: result.installedHooks,
-            level: config.hookLevel,
-          });
-          updateStep('hooks', 'done', `${hooksInstalled} hooks (${config.hookLevel})`);
-        }
-
-        // --- Statusline ---
-        if (config.installStatusline && stepKeys.includes('statusline')) {
-          if (cancelled) return;
-          updateStep('statusline', 'active', `${config.statuslineTheme}...`);
-          const settingsPath = installStatuslineFn({
-            project: config.mode === 'project',
-            theme: config.statuslineTheme,
-          });
-          statuslineInstalled = true;
-          recordStatusline(manifest, {
-            settingsPath,
-            theme: config.statuslineTheme,
-          });
-          updateStep('statusline', 'done', config.statuslineTheme);
-        }
-
-        // --- Claude MCP ---
-        if (config.installMcp && stepKeys.includes('mcp')) {
-          if (cancelled) return;
-          updateStep('mcp', 'active', 'Registering...');
-          const path = addMcpServer(config.mode, config.projectPath, config.mcpTools, config.mcpProjectRoot || undefined);
-          mcpRegistered = !!path;
-          if (path) {
-            recordClaudeMcp(manifest, { configPath: path, serverName: 'maestro-tools' });
-          }
-          updateStep('mcp', 'done', mcpRegistered ? 'maestro-tools registered' : 'skipped');
-        }
-
-        // --- Codex Hooks ---
-        if (config.installCodexHooks && stepKeys.includes('codexHooks')) {
-          if (cancelled) return;
-          updateStep('codexHooks', 'active', `${config.codexHookLevel}...`);
-          const result = installCodexHooksByLevel(config.codexHookLevel, {
-            project: config.mode === 'project',
-          });
-          codexHooksInstalled = result.installedHooks.length;
-          recordCodexHooks(manifest, {
-            settingsPath: result.settingsPath,
-            installed: result.installedHooks,
-            level: config.codexHookLevel,
-          });
-          updateStep('codexHooks', 'done', `${codexHooksInstalled} hooks`);
-        }
-
-        // --- Codex MCP ---
-        if (config.installCodexMcp && stepKeys.includes('codexMcp')) {
-          if (cancelled) return;
-          updateStep('codexMcp', 'active', 'Registering...');
-          const path = addCodexMcpServer(config.mode, config.projectPath, config.codexMcpTools, config.codexMcpProjectRoot || undefined);
-          codexMcpRegistered = !!path;
-          if (path) {
-            recordCodexMcp(manifest, { configPath: path, serverName: 'maestro-tools' });
-          }
-          updateStep('codexMcp', 'done', codexMcpRegistered ? 'registered' : 'skipped');
-        }
-
-        // --- Agy Hooks ---
-        if (config.installAgyHooks && config.agyHookLevel !== 'none' && stepKeys.includes('agyHooks')) {
-          if (cancelled) return;
-          updateStep('agyHooks', 'active', `${config.agyHookLevel}...`);
-          const result = installAgyHooksByLevel(config.agyHookLevel, {
-            project: config.mode === 'project',
-            projectPath: config.mode === 'project' ? config.projectPath : undefined,
-          });
-          agyHooksInstalled = result.installedHooks.length;
-          recordAgyHooks(manifest, {
-            settingsPath: result.settingsPath,
-            installed: result.installedHooks,
-            level: config.agyHookLevel,
-          });
-          updateStep('agyHooks', 'done', `${agyHooksInstalled} hooks`);
-        }
-
-        // --- Extra MCP ---
-        if (config.installExtraMcp && stepKeys.includes('extraMcp')) {
-          updateStep('extraMcp', 'active', 'Registering targets...');
-          for (const targetId of config.extraMcpTargetIds) {
-            if (cancelled) return;
-            const path = addExtraMcpServer(
-              targetId, config.mode, config.projectPath,
-              config.mcpTools, config.mcpProjectRoot || undefined,
-            );
-            if (path) {
-              extraMcpRegistered.push(targetId);
-              recordExtraMcp(manifest, { targetId, configPath: path, serverName: 'maestro-tools' });
-            } else {
-              extraMcpFailed.push(targetId);
-            }
-          }
-          updateStep('extraMcp', 'done', `${extraMcpRegistered.length} targets`);
-        }
-
-        // --- CodeGraph ---
-        if (config.installCodeGraph) {
-          codegraphInstalled = true;
-        }
-
-        // --- CLI tools config ---
-        if (!cancelled) {
-          const { initCliToolsConfig } = await import('../../config/cli-tools-config.js');
-          await initCliToolsConfig();
-        }
-
-        // --- Manifest ---
-        if (cancelled) return;
-        updateStep('manifest', 'active', 'Saving...');
-        const manifestPath = saveManifest(manifest);
-        updateStep('manifest', 'done', 'saved');
-
-        onComplete({
-          filesInstalled, dirsCreated, filesSkipped,
-          hooksInstalled, mcpRegistered,
-          codexHooksInstalled, codexMcpRegistered,
-          agyHooksInstalled,
-          extraMcpRegistered, extraMcpFailed,
-          codegraphInstalled, codegraphError,
-          manifestPath,
-          statuslineInstalled, backupPath, migrationWarnings: warnings,
-        });
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    }
-
-    run();
-    return () => { cancelled = true; };
+    return () => { cancelledRef.current = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const doneCount = steps.filter((s) => s.status === 'done').length;
@@ -411,26 +140,22 @@ export function InstallExecution({ config, pkgRoot, version, onComplete }: Insta
     );
   }
 
-  // Progress bar
   const barWidth = 30;
   const filled = Math.round(barWidth * percent / 100);
   const bar = '█'.repeat(filled) + '░'.repeat(barWidth - filled);
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      {/* Header + timer */}
       <Box>
         <Text bold color={C.primary}>Installing...</Text>
         <Text dimColor>{'  '}{timeStr}</Text>
       </Box>
 
-      {/* Progress bar */}
       <Box marginTop={1}>
         <Text color={C.primary}>[{bar}]</Text>
         <Text bold> {percent}%</Text>
       </Box>
 
-      {/* Step checklist */}
       <Box flexDirection="column" marginTop={1}>
         {steps.map((step) => (
           <StepRow key={step.key} step={step} />
