@@ -6,98 +6,49 @@
 
 **Strictly follow the cli-tools.json configuration**
 
-Available CLI endpoints are dynamically defined by the config file
-
-## Code Quality Standards
-
-### Code Quality
-- Follow project's existing patterns
-- Match import style and naming conventions
-- Single responsibility per function/class
-- DRY (Don't Repeat Yourself)
-- YAGNI (You Aren't Gonna Need It)
-
-### Testing
-- Test all public functions
-- Test edge cases and error conditions
-- Mock external dependencies
-- Target 80%+ coverage
-
-### Error Handling
-- Proper try-catch blocks
-- Clear error messages
-- Graceful degradation
-- Don't expose sensitive info
-
 ## Core Principles
 
-**Incremental Progress**:
-- Small, testable changes
-- Commit working code frequently
-- Build on previous work (subtasks)
-
-**Evidence-Based**:
+- Follow project's existing patterns and conventions
+- Single responsibility, DRY, YAGNI
+- Small testable changes, commit frequently
 - Study 3+ similar patterns before implementing
-- Match project style exactly
-- Verify with existing code
-
-**Pragmatic**:
 - Boring solutions over clever code
-- Simple over complex
-- Adapt to project reality
 
-**Context Continuity** (Multi-Task):
-- Leverage resume for consistency
-- Maintain established patterns
-- Test integration between subtasks
-
-**Git Operations** (Parallel Task Safety):
-- Only stage/commit files directly produced by current task
-- Never touch unrelated changes or other task outputs
+**Git Operations:**
+- Only stage/commit files produced by current task
 - Use `git add <specific-files>` instead of `git add .`
-- Verify staged files before commit to avoid cross-task conflicts
 
-**Multi-CLI Coexistence** (CRITICAL):
-- If your task conflicts with existing uncommitted changes, **STOP and report the conflict** instead of overwriting
-- Treat all pre-existing uncommitted changes as intentional work-in-progress by other tools
-
+**Multi-CLI Coexistence (CRITICAL):**
+- Conflicts with uncommitted changes → **STOP and report**, never overwrite
 
 ## Knowledge System
 
-### Search — Query Before Acting
+**ALWAYS search before acting.** Never assume context is pre-loaded.
 
-**Before planning or implementing any task, search wiki and spec first** — the knowledge base contains reusable methods, tools, and hard-won experience. Load the right knowledge at the right time: search before you plan, load relevant entries before you implement, and revisit when you hit unfamiliar territory mid-task.
+### Search Commands
 
-- `maestro search "<query>" [--type spec|knowhow|issue] [--category <cat>]` — BM25 full-text across all knowledge types
-- `maestro spec load --category <cat>` — load rules by category (coding/arch/debug/test/review/learning)
-- `maestro spec load --keyword <kw>` — cross-category keyword match
+- `maestro search "<query>" [--type spec|knowhow|issue] [--category <cat>]`
+- `maestro spec load --category <cat>` / `--keyword <kw>`
+- `maestro kg search <symbol>` / `maestro kg context <node>`
+
 ### Proactive Search — ALWAYS Execute
 
-**ALWAYS search before acting.** Do not assume knowledge is auto-loaded.
-
 **L0 — Every task, no exceptions:**
+- `maestro search "<feature/module keywords>"`
 
-ALWAYS run before any implementation, planning, or debugging task:
-- `maestro search "<feature/module keywords>"` — load specs, knowhow, existing issues
+**L1 — Unfamiliar code:**
+- `maestro kg search "<symbol>"`
+- `maestro kg context <file-or-symbol>`
 
-**L1 — Encountering unfamiliar code:**
+**L2 — Architecture / debugging / refactoring / tests:**
+- `maestro search --type spec --category arch`
+- `maestro kg callers <fn>` / `maestro kg callees <fn>`
+- `maestro search --type spec --category test "<module>"`
+- `maestro kg search "<module>" --code`
 
-Run when you hit unknown symbols, modules, or need to understand boundaries:
-- `maestro kg search "<symbol>"` — code structure and dependencies
-- `maestro kg context <file-or-symbol>` — callers, callees, related code
+### Record
 
-**L2 — Deep analysis (architecture / debugging / refactoring / tests):**
+- **Spec** → `/spec-add <category> "title" "content" --keywords kw1,kw2 --description "summary"`
+- **Knowhow** → persist non-obvious knowledge (deviations, root causes, constraints)
 
-- `maestro search --type spec --category arch` — architecture decisions
-- `maestro kg callers <fn>` / `maestro kg callees <fn>` — trace call chains when debugging
-- `maestro search --type spec --category test "<module>"` — before writing tests
-- `maestro kg search "<module>" --code` — map impact radius before refactoring
-
-### Knowledge Capture
-
-- **Spec writes** → always `<spec-entry>` closed-tag format with `title`, `description`, `category`, `keywords`, `date`, `source`. Never raw Markdown. Route through `spec-add` when possible.
-- **Capture signal** → when execution surfaces non-obvious knowledge (plan deviation, retry pattern, root cause, constraint violation), ask user once whether to persist it. Match category to content: decisions→`arch`, pitfalls→`debug`/`learning`, patterns→`coding`, rules→`quality`.
-- **Promotion** → at milestone close, scan learnings for repeated keywords (≥2 entries) and offer to graduate them into formal conventions.
-- **Traceability** → every entry needs a source anchor: `file:line`, `INS-{id}`, commit, or phase path.
-
-
+Category routing: decisions→`arch`, patterns→`coding`, pitfalls→`debug`/`learning`, rules→`review`, tests→`test`.
