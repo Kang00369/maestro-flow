@@ -121,11 +121,23 @@ async function requireCodeGraph(): Promise<{ adapter: any }> {
   }
   const mg = await MaestroGraph.open(resolve('.'));
   const adapter = {
-    searchNodes: (q: string, opts?: { limit?: number }) => mg.searchCode(q, opts),
+    searchNodes: (q: string, opts?: { limit?: number; kinds?: string[] }) => mg.searchCode(q, opts),
     resolveNode: (id: string) => mg.getNode(id),
     getCallers: (id: string, d?: number) => mg.getCallers(id, d),
     getCallees: (id: string, d?: number) => mg.getCallees(id, d),
     getNodesInFile: (fp: string) => mg.getQueryBuilder().getNodesByFile(fp),
+    sync: async () => {
+      const results = await mg.sync();
+      return {
+        sources: results.length,
+        nodesAdded: results.reduce((s, r) => s + r.nodesAdded, 0),
+        nodesUpdated: results.reduce((s, r) => s + r.nodesUpdated, 0),
+        nodesRemoved: results.reduce((s, r) => s + r.nodesRemoved, 0),
+        edgesAdded: results.reduce((s, r) => s + r.edgesAdded, 0),
+        edgesRemoved: results.reduce((s, r) => s + r.edgesRemoved, 0),
+        durationMs: results.reduce((s, r) => s + r.durationMs, 0),
+      };
+    },
     stats: () => mg.getStats(),
     close: () => mg.close(),
   };
@@ -678,8 +690,8 @@ export function registerKgCommand(program: Command): void {
         if (opts.json) {
           console.log(JSON.stringify({ ...result, engine: 'codegraph' }, null, 2));
         } else {
-          const changed = result.filesAdded + result.filesModified + result.filesRemoved;
-          console.log(`Sync complete: ${changed} files changed (${result.filesAdded} added, ${result.filesModified} modified, ${result.filesRemoved} removed), ${result.nodesUpdated} nodes updated (${result.durationMs}ms)`);
+          const totalNodes = result.nodesAdded + result.nodesUpdated + result.nodesRemoved;
+          console.log(`Sync complete: ${totalNodes} nodes changed (${result.nodesAdded} added, ${result.nodesUpdated} updated, ${result.nodesRemoved} removed), ${result.edgesAdded} edges added (${result.durationMs}ms)`);
         }
       } finally {
         adapter.close();
@@ -701,8 +713,8 @@ export function registerKgCommand(program: Command): void {
           projectRoot,
           async () => {
             const result = await adapter.sync();
-            const filesChanged = result.filesAdded + result.filesModified + result.filesRemoved;
-            return { filesChanged, durationMs: result.durationMs };
+            const nodesChanged = result.nodesAdded + result.nodesUpdated + result.nodesRemoved;
+            return { filesChanged: nodesChanged, durationMs: result.durationMs };
           },
           {
             debounceMs,

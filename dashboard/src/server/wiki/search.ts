@@ -56,6 +56,8 @@ export interface Posting {
   tf: number;
 }
 
+export type FieldConfigKey = 'default' | 'kg' | 'scratch';
+
 export interface InvertedIndex {
   postings: Map<string, Posting[]>;
   docLengths: Map<string, number>;
@@ -65,6 +67,7 @@ export interface InvertedIndex {
   _fieldPostings?: Map<string, FieldPosting[]>;
   _fieldLengths?: Map<string, FieldLengths>;
   _avgFieldLengths?: FieldLengths;
+  _docConfigKeys?: Map<string, FieldConfigKey>;
 }
 
 export interface SearchResult {
@@ -147,10 +150,20 @@ function extractFieldTexts(entry: WikiEntry): Record<FieldName, string> {
   };
 }
 
+function getFieldConfigKey(entry: WikiEntry): FieldConfigKey {
+  if (isKgVirtual(entry)) return 'kg';
+  if (isScratchDoc(entry)) return 'scratch';
+  return 'default';
+}
+
+const FIELD_CONFIG_MAP: Record<FieldConfigKey, Record<FieldName, FieldConfig>> = {
+  default: FIELD_CONFIGS,
+  kg: KG_FIELD_CONFIGS,
+  scratch: SCRATCH_FIELD_CONFIGS,
+};
+
 function getFieldConfigs(entry: WikiEntry): Record<FieldName, FieldConfig> {
-  if (isKgVirtual(entry)) return KG_FIELD_CONFIGS;
-  if (isScratchDoc(entry)) return SCRATCH_FIELD_CONFIGS;
-  return FIELD_CONFIGS;
+  return FIELD_CONFIG_MAP[getFieldConfigKey(entry)];
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +173,7 @@ function getFieldConfigs(entry: WikiEntry): Record<FieldName, FieldConfig> {
 export function buildInvertedIndex(entries: WikiEntry[]): InvertedIndex {
   const fieldPostings = new Map<string, FieldPosting[]>();
   const fieldLengths = new Map<string, FieldLengths>();
+  const docConfigKeys = new Map<string, FieldConfigKey>();
 
   // Legacy flat postings + docLengths for backward-compat consumers
   const postings = new Map<string, Posting[]>();
@@ -171,7 +185,9 @@ export function buildInvertedIndex(entries: WikiEntry[]): InvertedIndex {
 
   for (const entry of entries) {
     const texts = extractFieldTexts(entry);
-    const configs = getFieldConfigs(entry);
+    const configKey = getFieldConfigKey(entry);
+    const configs = FIELD_CONFIG_MAP[configKey];
+    docConfigKeys.set(entry.id, configKey);
 
     const perField: Record<FieldName, Map<string, number>> = {
       title: new Map(), summary: new Map(), tags: new Map(), body: new Map(),
@@ -239,6 +255,7 @@ export function buildInvertedIndex(entries: WikiEntry[]): InvertedIndex {
     _fieldPostings: fieldPostings,
     _fieldLengths: fieldLengths,
     _avgFieldLengths: avgFieldLengths,
+    _docConfigKeys: docConfigKeys,
   };
 }
 
@@ -278,6 +295,7 @@ function searchBM25F(index: InvertedIndex, terms: string[], limit: number): Sear
   const fp = index._fieldPostings!;
   const fl = index._fieldLengths!;
   const afl = index._avgFieldLengths!;
+  const dck = index._docConfigKeys;
   const fields: FieldName[] = ['title', 'summary', 'tags', 'body'];
 
   const scores = new Map<string, number>();
@@ -292,11 +310,13 @@ function searchBM25F(index: InvertedIndex, terms: string[], limit: number): Sear
       const docFL = fl.get(docId);
       if (!docFL) continue;
 
+      const docConfigs = FIELD_CONFIG_MAP[dck?.get(docId) ?? 'default'];
+
       // BM25F: compute weighted pseudo-TF across all fields
       let tfTilde = 0;
       for (const f of fields) {
-        const boost = FIELD_CONFIGS[f].boost;
-        const b = FIELD_CONFIGS[f].b;
+        const boost = docConfigs[f].boost;
+        const b = docConfigs[f].b;
         if (boost === 0 || fieldTfs[f] === 0) continue;
         const norm = 1 - b + b * (docFL[f] / (afl[f] || 1));
         tfTilde += boost * (fieldTfs[f] / (norm || 1));
