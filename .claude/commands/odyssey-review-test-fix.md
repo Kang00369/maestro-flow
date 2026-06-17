@@ -1,7 +1,7 @@
 ---
 name: odyssey-review-test-fix
 description: Deep review + fix cycle — archaeology, exploration, multi-dimensional review, targeted fix, generalization, discovery, and knowledge persistence
-argument-hint: "<target> [--dimensions <list>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c]"
+argument-hint: "<target> [--dimensions <list>] [--fix-threshold critical|high|medium|low|all] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c]"
 allowed-tools:
   - Read
   - Write
@@ -13,20 +13,25 @@ allowed-tools:
   - AskUserQuestion
 ---
 <purpose>
-Deep code review with targeted fix and generalization: archaeology → explore → multi-dimensional
-review → fix critical/high → confirm → generalize (举一反三) → discover → persist.
+Deep code review with exhaustive fix and generalization: archaeology → explore → multi-dimensional
+review → fix ALL findings → confirm → generalize (举一反三) → discover → persist.
 
 Unlike `quality-review` (pipeline gate verdict), this goes deeper: exhaustive documentation,
 automated fix, codebase-wide generalization, decision journal. Use `--skip-fix` for review-only.
 
-- **Review to learn AND fix** — depth over speed, action over reports
+**三句哲学约束（穷尽迭代）:**
+1. **零遗留** — 每个 finding 必须是 action item（修复 / issue / 决策），不允许只报告不处理
+2. **穷尽迭代** — 按 severity 从高到低逐轮修复，直到 0 remaining actionable findings 才退出 fix loop
+3. **改进即标准** — 每次修复后重审同区域，发现新问题继续修，直到该区域无可改善
+
+Core behaviors:
 - **Find one, fix one, find all** — every finding triggers fix + codebase-wide scan
 - **Record everything** — ambiguous items → decision journal, never silent skip
 - **CLI-assisted** — delegate for multi-angle analysis and verification
 </purpose>
 
 <boundary>
-**范围内:** 目标代码的多维度深度审查 → 修复 critical/high 发现 → 泛化 pattern 到全项目
+**范围内:** 目标代码的多维度深度审查 → 穷尽修复 ALL 发现（按 severity 递降）→ 泛化 pattern 到全项目
 **范围外:** 深度根因调查（根因不明时）→ `/odyssey-debug` | 需求实现 → `/odyssey-planex` | UI 视觉优化 → `/odyssey-ui`
 **探索自由度:** 边界内自由探索 — 可跨维度关联发现、追溯 git 历史、泛化扫描全项目。修复仅限 critical/high findings。
 </boundary>
@@ -60,14 +65,15 @@ $ARGUMENTS — target and optional flags.
 | PR number | `git diff main...HEAD` |
 
 **Flags:**
-| Flag | Effect |
-|------|--------|
-| `--dimensions <list>` | Comma-separated subset (default: correctness,security,performance,architecture) |
-| `--skip-fix` | Review-only — skip S_FIX and S_CONFIRM |
-| `--skip-generalize` | Skip S_GENERALIZE and S_DISCOVER |
-| `--auto` | CLI delegates without confirmation |
-| `-y` | Auto-confirm at 5 decision points (see appendix) |
-| `-c` | Resume most recent session |
+| Flag | Effect | Default |
+|------|--------|---------|
+| `--dimensions <list>` | Comma-separated subset | correctness,security,performance,architecture |
+| `--fix-threshold <severity>` | 修复到哪个 severity 为止（all = 全部修复）| `all` |
+| `--skip-fix` | Review-only — skip S_FIX and S_CONFIRM | false |
+| `--skip-generalize` | Skip S_GENERALIZE and S_DISCOVER | false |
+| `--auto` | CLI delegates without confirmation | false |
+| `-y` | Auto-confirm at decision points (see appendix) | false |
+| `-c` | Resume most recent session | — |
 
 **Session**: `SESSION_DIR = .workflow/scratch/{YYYYMMDD}-review-odyssey-{slug}/`
 
@@ -85,9 +91,9 @@ SESSION_DIR/
 {
   "session_id": "review-odyssey-{YYYYMMDD-HHmmss}",
   "target": "", "dimensions": [],
-  "flags": { "skip_fix": false, "skip_generalize": false, "auto": false, "auto_confirm": false },
+  "flags": { "skip_fix": false, "skip_generalize": false, "fix_threshold": "all", "auto": false, "auto_confirm": false },
   "current_state": "S_INTAKE",
-  "review_result": { "dimensions_reviewed": [], "finding_count": 0, "severity_distribution": { "critical": 0, "high": 0, "medium": 0, "low": 0 } },
+  "review_result": { "dimensions_reviewed": [], "finding_count": 0, "severity_distribution": { "critical": 0, "high": 0, "medium": 0, "low": 0 }, "remaining_actionable": 0 },
   "patterns": [{ "id": "P1", "source_finding": "F1", "layer": "syntax|semantic|structural", "signature": "", "description": "", "risk": "", "fix_template": "", "confidence": "high|medium|low" }],
   "confirmation": { "test_result": {}, "cli_review": {}, "overall": "confirmed|needs_rework" },
   "generalization_stats": { "patterns_extracted": 0, "total_hits": 0, "true_positives": 0, "false_positives": 0, "uncertain": 0, "cross_layer_confirmed": 0, "regression_risks": 0, "by_layer": {}, "deepening_triggered": false, "self_iteration_rounds": 0 },
@@ -101,14 +107,14 @@ SESSION_DIR/
 **evidence.ndjson unified schema:** `{"ts":"","phase":"<phase>","type":"<type>","dimension":"","title":"","severity":"","file":"","line":0,"description":"","suggestion":"","files_modified":[]}`
 
 **phase_goals[]:**
-| ID | Goal | Phase | skip_when |
-|----|------|-------|-----------|
-| G1 | Review completed | S_REVIEW | — |
-| G2 | Explore context gathered | S_EXPLORE | — |
-| G3 | Fix applied and confirmed | S_CONFIRM | skip_fix |
-| G4 | Pattern generalized | S_GENERALIZE | skip_generalize |
-| G5 | Discoveries triaged | S_DISCOVER | skip_generalize |
-| G6 | Learnings persisted | S_RECORD | — |
+| ID | Goal | Done When | Phase | skip_when |
+|----|------|-----------|-------|-----------|
+| G1 | Review completed | all dimensions reviewed, findings logged | S_REVIEW | — |
+| G2 | Explore context gathered | explore.json populated | S_EXPLORE | — |
+| G3 | Zero remaining: all findings fixed | `remaining_actionable == 0` within fix_threshold | S_CONFIRM | skip_fix |
+| G4 | Pattern generalized | patterns[] ≥1 entry | S_GENERALIZE | skip_generalize |
+| G5 | Discoveries triaged | all scan hits classified | S_DISCOVER | skip_generalize |
+| G6 | Learnings persisted | spec entries created OR no actionable | S_RECORD | — |
 
 Lifecycle: `pending → done | skipped | failed` (all set `completion_confirmed`)
 
@@ -176,9 +182,9 @@ S_ARCHAEOLOGY  → S_EXPLORE      DO A_ARCHAEOLOGY
 S_EXPLORE      → S_REVIEW       DO A_EXPLORE
 
 S_REVIEW:
-  → S_FIX           WHEN !skip_fix AND critical/high exist             DO A_REVIEW
-  → S_GENERALIZE    WHEN (skip_fix OR no actionable) AND !skip_gen     DO A_REVIEW
-  → S_RECORD        WHEN (skip_fix OR no actionable) AND skip_gen      DO A_REVIEW
+  → S_FIX           WHEN !skip_fix AND any findings within fix_threshold   DO A_REVIEW
+  → S_GENERALIZE    WHEN (skip_fix OR no findings) AND !skip_gen           DO A_REVIEW
+  → S_RECORD        WHEN (skip_fix OR no findings) AND skip_gen            DO A_REVIEW
 
 S_FIX          → S_CONFIRM      DO A_FIX
 
@@ -238,28 +244,53 @@ Update `understanding.md` §4 (findings by dimension + severity matrix). Mark G1
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-review({slug}): REVIEW — 多维度审查完成"`
 
 ### A_FIX
-Filter evidence for `phase=="review" AND severity ∈ [critical, high]` → fix candidates.
-**Normal**: AskUserQuestion to confirm which to fix. **`-y`**: auto-fix all, record `deferred`.
-For each: read context (file:line ±20), implement fix, append evidence (phase: "fix").
-Quality Gate check on fixes.
 
-📌 **Auto-commit**: `git add -A && git commit -m "odyssey-review({slug}): FIX — {修复摘要}"`
+**穷尽迭代修复** — 按 severity 递降逐轮修复，直到 `remaining_actionable == 0`。
+
+#### Fix Loop (severity tiers)
+
+```
+fix_tiers = [critical, high, medium, low].filter(s => severity_order(s) >= severity_order(fix_threshold))
+for tier in fix_tiers:
+  candidates = evidence.filter(phase=="review" AND severity==tier AND status!="fixed")
+  if candidates.empty: continue
+  for each candidate:
+    read context (file:line ±20) → implement fix → append evidence (phase: "fix")
+  run local re-review on modified area ("改进即标准"):
+    new_findings in same region? → append to current tier, continue loop
+  tier complete → auto-commit
+```
+
+**Re-review gate** ("改进即标准"): 每轮修复后，对修改区域执行轻量 re-review（同维度）。若发现新问题，追加到当前轮继续修复。单轮最多 re-review 2 次，防止无限循环。
+
+**Normal**: AskUserQuestion 确认每个 tier 的 candidates。**`-y`**: auto-fix all, record `deferred`.
+
+**Remaining check**: 所有 tiers 完成后，count unfixed findings within fix_threshold → 写入 `review_result.remaining_actionable`。若 > 0 且未超 max_loops → 回到 tier 1 重试。
+
+📌 **Auto-commit per tier**: `git add -A && git commit -m "odyssey-review({slug}): FIX-{tier} — {N}项修复"`
 
 ### A_CONFIRM
 Run tests covering modified files. CLI delegate fix review:
 ```
-maestro delegate "PURPOSE: Review fixes for review findings
-TASK: Verify fix correctness | Check regressions | Confirm findings addressed
+maestro delegate "PURPOSE: Verify ALL fixes and confirm zero remaining improvements
+TASK: Verify fix correctness | Check regressions | Count remaining unfixed findings | Confirm zero-residual
 MODE: analysis
-CONTEXT: @{modified_files} | Findings: {summary} | Diff: {git_diff}
-EXPECTED: JSON {verdict, findings_addressed, regression_risk, remaining_concerns}
-CONSTRAINTS: Focus on correctness and regressions
+CONTEXT: @{modified_files} | Findings: {all_findings_summary} | Diff: {git_diff}
+EXPECTED: JSON {verdict, findings_addressed, remaining_unfixed, regression_risk, new_findings_in_modified_area}
+CONSTRAINTS: Focus on correctness AND completeness — flag ANY remaining actionable improvement
 " --role review --mode analysis
 ```
-Run_in_background, STOP, wait. Write `session.json.confirmation`.
-Update `understanding.md` §5. `needs_rework` → S_FIX. `confirmed` → mark G3 done.
+Run_in_background, STOP, wait.
 
-📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-review({slug}): CONFIRM — 修复验证"`
+**Zero-residual gate:**
+- `remaining_unfixed == 0 AND new_findings == 0` → `confirmed`, mark G3 done
+- `remaining_unfixed > 0 OR new_findings > 0` → `needs_rework` → S_FIX（追加新发现）
+- Regression detected → `needs_rework` → S_FIX
+
+Write `session.json.confirmation` + update `review_result.remaining_actionable`.
+Update `understanding.md` §5.
+
+📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-review({slug}): CONFIRM — 零遗留验证"`
 
 ### A_GENERALIZE
 **Multi-layer pattern extraction** from findings (severity >= medium):
@@ -331,17 +362,21 @@ Goals:      {done}/{total} ({skipped} skipped)
 ```
 📋 Review-Test-Fix Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件（执行过程中输入即可）：
 
-/goal 直到 {SESSION_DIR}/session.json 的 phase_goals[*] 全部 completion_confirmed=true
-且 phase_goals_all_done=true 才停。按状态机推进阶段。
-遇到 phase=decision 的 pending 条目必须 AskUserQuestion，不得自行 resolve。
+/goal 穷尽迭代：直到 session.json 的 review_result.remaining_actionable == 0
+且 confirmation.verdict == "confirmed" 且 phase_goals_all_done == true 才停。
+修复按 severity 逐轮迭代（critical→high→medium→low），每轮修复后 re-review 修改区域。
+发现新问题追加到当前轮继续。遇到 phase=decision 的 pending 必须 AskUserQuestion。
+不允许"只报告不处理"，每个 finding 必须有 action（fix/issue/decision）。
 ```
 
 完成时仅输出 completion summary，不重复此提示。
 
-### `-y` Auto-Confirm (5 decision points)
+### `-y` Auto-Confirm (6 decision points)
 | Decision Point | Normal | `-y` |
 |----------------|--------|------|
-| S_FIX fix candidates | AskUserQuestion | auto-fix critical+high, `deferred` |
+| S_FIX tier candidates | AskUserQuestion per tier | auto-fix ALL tiers, `deferred` |
+| S_FIX re-review new findings | AskUserQuestion | auto-append and fix |
+| S_CONFIRM needs_rework | Display, proceed to S_FIX | auto proceed |
 | S_DISCOVER bug routing | AskUserQuestion | auto create issue, `deferred` |
 | S_DISCOVER ambiguous | AskUserQuestion | all `deferred` |
 | S_RECORD pending decisions | AskUserQuestion | skip |
@@ -369,12 +404,14 @@ Goals:      {done}/{total} ({skipped} skipped)
 - [ ] CLI exploration executed, explore.json written
 - [ ] All dimensions reviewed with structured findings
 - [ ] Severity matrix produced
-- [ ] Critical/high findings fixed and confirmed (unless --skip-fix)
+- [ ] **ALL findings within fix_threshold fixed** — remaining_actionable == 0 (unless --skip-fix)
+- [ ] Per-tier fix with re-review gate: modified area re-reviewed, new findings appended
+- [ ] Zero-residual confirmed by CLI external model
 - [ ] Pattern generalized with multi-layer scan + deepening (unless --skip-generalize)
 - [ ] Quality Gate self-iteration triggered when insufficient
 - [ ] Discoveries classified and routed
 - [ ] understanding.md §8 finalized
-- [ ] phase_goals G1-G6 tracked and audited
+- [ ] phase_goals G1-G6 tracked and audited (G3 = zero remaining)
 - [ ] Goal Prompt displayed once
 - [ ] `-y`: no blocking prompts, deferred counted
 - [ ] Session resumable via -c

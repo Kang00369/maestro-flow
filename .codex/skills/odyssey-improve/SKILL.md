@@ -20,6 +20,11 @@ Core philosophy:
 - **Root cause over symptom** — trace each issue to its origin
 - **Fix one, improve many** — every improvement reveals a class of opportunities
 - **Verify improvement** — measure after fix, compare with baseline
+
+**三句哲学约束（穷尽迭代）:**
+1. **零遗留** — 每个 finding 必须是 action item（修复 / issue / 决策），不允许只报告不处理
+2. **穷尽迭代** — 按 severity 从高到低逐轮修复，直到 0 remaining actionable findings 才退出 fix loop
+3. **改进即标准** — 每次修复后重审同区域，发现新问题继续修，直到该区域无可改善
 </purpose>
 
 <boundary>
@@ -400,11 +405,10 @@ Goals:       {done}/{total} ({skipped} skipped)
 ```
 Improve Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件：
 
-/goal 直到 {SESSION_DIR}/session.json 的 phase_goals[*] 全部 completion_confirmed=true
-且 phase_goals_all_done=true 才停。每轮以 session.json 为唯一行动手册，按状态机推进阶段。
-禁止跳过未完成的 phase_goal（除非 flags 指定 skip）。
-遇到 phase=decision 的 pending 条目必须 request_user_input，不得自行 resolve。
-Baseline metrics 必须在任何修复之前采集。修复后必须与 baseline 对比。
+/goal 穷尽迭代：直到所有 findings 均已处理（fix/issue/decision）
+且 phase_goals_all_done=true 才停。修复按 severity 逐轮迭代，每轮修复后 re-verify。
+Baseline metrics 必须在修复前采集，修复后必须与 baseline 对比。
+不允许"只报告不处理"。遇到 phase=decision 的 pending 必须 request_user_input。
 ```
 
 Odyssey outputs prompt then continues without blocking. `/goal` entered by user at any time.

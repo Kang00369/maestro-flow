@@ -17,6 +17,11 @@ Core philosophy:
 - **Diverge before converge** — explore creatively, then implement methodically
 - **Find one, polish all** — a single improvement reveals a class of opportunities
 - **Browser is truth** — verify in real rendering, not just code
+
+**三句哲学约束（穷尽迭代）:**
+1. **零遗留** — 每个 finding/idea 必须是 action item（修复 / issue / 决策），不允许只报告不处理
+2. **穷尽迭代** — 按 impact×severity 递降逐轮修复，直到 0 remaining actionable 才退出 fix loop
+3. **改进即标准** — 每次修复后重审同区域，发现新视觉问题继续修，直到该区域无可改善
 </purpose>
 
 <boundary>
@@ -256,7 +261,7 @@ Consolidate: audit findings + divergent ideas -> prioritized improvement list (i
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-ui({slug}): S_DIVERGE — 发散"`
 
 ### S_FIX
-Skip if `--skip-fix`. Filter audit (severity >= high) + divergent (impact:high, effort:low|medium) -> fix candidates.
+Skip if `--skip-fix`. **穷尽修复** ALL audit findings + divergent ideas（按 impact×severity 递降），不限于 high severity。每轮修复后 re-review，新发现追加。
 **Normal**: `request_user_input` to confirm. **`-y`**: auto-fix, record `deferred`.
 Implement highest impact first. Record evidence (phase: "fix").
 
@@ -346,10 +351,10 @@ Goals: {done}/{total} ({skipped} skipped)
 ```
 UI Odyssey session created. Copy the following /goal to set termination conditions at any time:
 
-/goal Until {SESSION_DIR}/session.json phase_goals[*] all have completion_confirmed=true
-and phase_goals_all_done=true. Advance by state machine. Only modify source in S_FIX.
-phase=decision pending entries MUST use request_user_input, never self-resolve.
-Diverge (S_DIVERGE) MUST run before fix (S_FIX) — never skip creative exploration.
+/goal 穷尽迭代：直到所有 audit + diverge findings 均已处理（fix/issue/decision）
+且 phase_goals_all_done=true 才停。修复按 impact×severity 逐轮迭代。
+每轮修复后重审修改区域，新发现追加继续。
+phase=decision pending 必须 request_user_input。不允许遗留。
 ```
 
 Odyssey outputs prompt then continues without blocking. `/goal` entered by user at any time.

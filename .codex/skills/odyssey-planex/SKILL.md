@@ -14,6 +14,11 @@ Core philosophy:
 - **Iterate, don't restart** — each fix cycle targets only the failing criteria
 - **CLI-assisted verification** — delegate to external tools for objective checks
 - **Evidence-based progress** — every iteration logged with pass/fail per criterion
+
+**三句哲学约束（穷尽迭代）:**
+1. **零遗留** — 验收标准必须 ALL pass，不允许"接近通过"
+2. **穷尽迭代** — verify 失败自动修复重试，直到全部通过或明确升级
+3. **改进即标准** — 修复后重新验证同区域，新发现的标准违反继续修
 </purpose>
 
 <boundary>
@@ -333,12 +338,12 @@ Write understanding.md §6, generalization_stats. Mark G5 done.
 **⚠️ 时机守卫：仅在 Stage 1 完成后显示一次（session 创建后、开始 Plan 前）。Stage 9 完成时禁止重新显示。**
 
 ```
-📋 Planex Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件（执行过程中输入即可）：
+📋 Planex Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件：
 
-/goal 直到 {SESSION_DIR}/session.json 的 acceptance_criteria[*] 全部 status==passed
-且 phase_goals_all_done=true 才停。每轮以 session.json 为唯一行动手册。
-verify 失败时自动进入 fix 循环，不超过 max_iterations 次。
-遇到 phase=decision 的 pending 条目必须 request_user_input，不得自行 resolve。
+/goal 穷尽迭代：直到 acceptance_criteria[*] 全部 status==passed
+且 phase_goals_all_done=true 才停。verify 失败自动 fix→re-verify 循环。
+每轮修复后重新验证，新发现的标准违反继续修，不超过 max_iterations。
+遇到 phase=decision 的 pending 必须 request_user_input，不得自行 resolve。
 ```
 
 完成时仅输出 completion summary，不重复此提示。

@@ -12,8 +12,13 @@ fix critical/high → confirm → generalize (举一反三) → discover → per
 Unlike `quality-review` (pipeline gate verdict), this reviews AND fixes: exhaustive documentation,
 targeted fixes, codebase-wide generalization, decision journal. `--skip-fix` for review-only.
 
-- **Review to learn AND fix** — depth over speed, then act on findings
-- **Find one, find all** — every finding triggers codebase-wide scan
+**三句哲学约束（穷尽迭代）:**
+1. **零遗留** — 每个 finding 必须是 action item（修复 / issue / 决策），不允许只报告不处理
+2. **穷尽迭代** — 按 severity 从高到低逐轮修复，直到 0 remaining actionable findings 才退出 fix loop
+3. **改进即标准** — 每次修复后重审同区域，发现新问题继续修，直到该区域无可改善
+
+Core behaviors:
+- **Find one, fix one, find all** — every finding triggers fix + codebase-wide scan
 - **Record everything** — ambiguous items → decision journal, never silent skip
 - **CLI-assisted** — delegate for multi-angle analysis
 </purpose>
@@ -21,7 +26,7 @@ targeted fixes, codebase-wide generalization, decision journal. `--skip-fix` for
 <boundary>
 **范围内:** 目标代码多维度审查 → 修复 critical/high → 泛化 pattern
 **范围外:** 深度根因 → `$odyssey-debug` | 需求实现 → `$odyssey-planex` | UI 优化 → `$odyssey-ui`
-**探索自由度:** 边界内自由 — 跨维度关联、追溯历史、泛化全项目。修复仅限 critical/high。
+**探索自由度:** 边界内自由 — 跨维度关联、追溯历史、泛化全项目。穷尽修复 ALL 发现（按 severity 递降）。
 </boundary>
 
 <execution_discipline>
@@ -227,13 +232,13 @@ spawn_agents_on_csv({ csv_path: "tasks.csv", id_column: "id",
 ```
 Merge → evidence.ndjson (phase: "review"). Write `session.json.review_result`.
 Update `understanding.md` §4. Mark G1 done.
-Transition: critical/high exist AND !skip_fix → S_FIX. Else → S_GENERALIZE or S_RECORD.
+Transition: any findings exist AND !skip_fix → S_FIX. Else → S_GENERALIZE or S_RECORD.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-review({slug}): S_REVIEW — 审查"`
 
 ### S_FIX
 Skip if `--skip-fix` or no critical/high findings.
-Filter findings for severity >= high → fix candidates.
+**穷尽修复** — 按 severity 递降（critical→high→medium→low）逐轮修复所有 findings。每轮修复后 re-review 修改区域，新发现追加。
 **Normal**: `request_user_input` to confirm. **`-y`**: auto-fix all, record `deferred`.
 Implement targeted fixes. Record evidence (phase: "fix"). Quality Gate check.
 
@@ -323,11 +328,12 @@ Goals:      {done}/{total} ({skipped} skipped)
 **⚠️ 时机守卫：仅在 Stage 1 完成后显示一次（session 创建后、开始考古前）。Stage 8 完成时禁止重新显示。**
 
 ```
-📋 Review-Test-Fix Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件（执行过程中输入即可）：
+📋 Review-Test-Fix Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件：
 
-/goal 直到 {SESSION_DIR}/session.json 的 phase_goals[*] 全部 completion_confirmed=true
-且 phase_goals_all_done=true 才停。按状态机推进阶段，仅在 S_FIX 修改源代码。
-遇到 phase=decision 的 pending 条目必须 request_user_input，不得自行 resolve。
+/goal 穷尽迭代：直到所有 findings 均已处理（fix/issue/decision），remaining_actionable == 0
+且 phase_goals_all_done=true 才停。修复按 severity 逐轮迭代，每轮修复后 re-review。
+不允许"只报告不处理"，每个 finding 必须有 action。
+遇到 phase=decision 的 pending 必须 request_user_input，不得自行 resolve。
 ```
 
 完成时仅输出 completion summary，不重复此提示。

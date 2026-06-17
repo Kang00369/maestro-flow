@@ -23,6 +23,11 @@ Core philosophy:
 - **Decision journal** — human-judgment items recorded, not lost
 - **CLI-assisted review** — delegate for second-opinion analysis
 
+**三句哲学约束（穷尽迭代）:**
+1. **零遗留** — 根因必须确认到底，修复必须验证通过，泛化必须扫描穷尽
+2. **穷尽迭代** — 假设失败不放弃：扩范围 → 换视角 → 升级工具，直到根因确认或明确 INCONCLUSIVE
+3. **改进即标准** — 修复后重新确认同区域无新问题，泛化发现的同类 bug 全部处理
+
 Entry: `/odyssey-debug "issue"` (full cycle) | `-c` (resume) | `--skip-fix` (analysis-only)
 </purpose>
 
@@ -386,7 +391,11 @@ Goals:      {done}/{total} confirmed ({skipped} skipped)
 ```
 📋 Debug Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件：
 
-/goal 直到 {SESSION_DIR}/session.json 的 phase_goals[*] 全部 completion_confirmed=true 且 phase_goals_all_done=true 才停。每轮以 session.json 为唯一行动手册，按状态机推进阶段。禁止跳过未完成的 phase_goal（除非 flags 指定 skip）。遇到 phase=decision 的 pending 条目必须 AskUserQuestion，不得自行 resolve。
+/goal 穷尽迭代：直到根因确认（或明确 INCONCLUSIVE）且修复验证通过
+且泛化扫描穷尽（所有 hits 已分类处理）且 phase_goals_all_done=true 才停。
+假设失败时扩范围→换视角→升级工具，不轻易放弃。
+泛化发现的同类 bug 全部修复或创建 issue，不允许遗留。
+遇到 phase=decision 的 pending 必须 AskUserQuestion，不得自行 resolve。
 ```
 
 Odyssey 输出提示词后继续执行不阻塞。`/goal` 由用户任意时刻输入。

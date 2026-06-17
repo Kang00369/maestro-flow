@@ -26,6 +26,11 @@ Core philosophy:
 - **Find one, polish all** — a single improvement reveals a class of opportunities
 - **Browser is truth** — verify in real rendering, not just in code
 
+**三句哲学约束（穷尽迭代）:**
+1. **零遗留** — 每个 finding/idea 必须是 action item（修复 / issue / 决策），不允许只报告不处理
+2. **穷尽迭代** — 按 impact×severity 递降逐轮修复，直到 0 remaining actionable findings 才退出 fix loop
+3. **改进即标准** — 每次修复后重审同区域，发现新视觉问题继续修，直到该区域无可改善
+
 Entry: `/odyssey-ui "target"` (full cycle) | `-c` (resume) | `--skip-fix` (audit-only)
 </purpose>
 
@@ -68,6 +73,7 @@ $ARGUMENTS — target and optional flags.
 | Flag | Effect | Default |
 |------|--------|---------|
 | `--dimensions <list>` | Comma-separated subset of 6 dimensions | all 6 |
+| `--fix-threshold <severity>` | 修复到哪个 severity 为止（all = 全部修复）| all |
 | `--skip-fix` | Audit + diverge only, no code changes | false |
 | `--skip-generalize` | Skip S_GENERALIZE and S_DISCOVER | false |
 | `--auto` | CLI delegates without confirmation | false |
@@ -111,7 +117,7 @@ SESSION_DIR/
 | G1 | Survey completed | S_SURVEY | — |
 | G2 | Audit completed | S_AUDIT | — |
 | G3 | Divergent exploration done | S_DIVERGE | — |
-| G4 | Fix applied and verified | S_VERIFY | skip_fix |
+| G4 | Zero remaining: all findings/ideas fixed and verified | 0 remaining actionable within fix_threshold | S_VERIFY | skip_fix |
 | G5 | Pattern generalized | S_GENERALIZE | skip_generalize |
 | G6 | Discoveries triaged | S_DISCOVER | skip_generalize |
 | G7 | Learnings persisted | S_RECORD | — |
@@ -290,7 +296,7 @@ Append evidence.ndjson (phase: "diverge"). Update `understanding.md` §4. Mark G
 ### A_FIX
 Skip if `--skip-fix`. Implement improvements prioritized by impact.
 
-1. Group by dimension, fix highest-impact first
+1. **穷尽修复**: Fix ALL findings/ideas by priority tier (critical→high→medium→low + high-impact ideas), not just top items. After each tier, re-review modified area — new findings append.
 2. For each fix: implement → append evidence.ndjson (phase: "fix")
 3. **Normal**: AskUserQuestion per-fix confirmation. **`-y`**: auto-proceed, record `deferred`.
 
@@ -388,9 +394,10 @@ Goals:      {done}/{total} ({skipped} skipped)
 ```
 📋 UI Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件（执行过程中输入即可）：
 
-/goal 直到 {SESSION_DIR}/session.json 的 phase_goals[*] 全部 completion_confirmed=true
-且 phase_goals_all_done=true 才停。按状态机推进阶段。
-遇到 phase=decision 的 pending 条目必须 AskUserQuestion，不得自行 resolve。
+/goal 穷尽迭代：直到 session.json 的 audit + diverge findings 均已处理（fix/issue/decision）
+且 phase_goals_all_done=true 才停。修复按 impact×severity 逐轮迭代。
+每轮修复后重审修改区域，新发现追加继续修。
+遇到 phase=decision 的 pending 必须 AskUserQuestion。不允许"只报告不处理"。
 ```
 
 完成时仅输出 completion summary，不重复此提示。

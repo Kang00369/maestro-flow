@@ -23,6 +23,11 @@ Core philosophy:
 - **Fix one, improve many** — every improvement reveals a class of opportunities
 - **Verify improvement** — measure after fix, compare with baseline
 
+**三句哲学约束（穷尽迭代）:**
+1. **零遗留** — 每个 finding 必须是 action item（修复 / issue / 决策），不允许只报告不处理
+2. **穷尽迭代** — 按 severity 从高到低逐轮修复，直到 0 remaining actionable findings 才退出 fix loop
+3. **改进即标准** — 每次修复后重审同区域，发现新问题继续修，直到该区域无可改善
+
 Entry: `/odyssey-improve "target"` (full cycle) | `-c` (resume) | `--skip-fix` (audit-only)
 </purpose>
 
@@ -65,6 +70,7 @@ $ARGUMENTS — target and optional flags.
 | Flag | Effect | Default |
 |------|--------|---------|
 | `--dimensions <list>` | Comma-separated subset of 6 dimensions | all 6 |
+| `--fix-threshold <severity>` | 修复到哪个 severity 为止（all = 全部修复）| all |
 | `--skip-fix` | Audit + diagnose only, no code changes | false |
 | `--skip-generalize` | Skip S_GENERALIZE and S_DISCOVER | false |
 | `--auto` | CLI delegates without confirmation | false |
@@ -126,7 +132,7 @@ Phase-specific fields:
 | G1 | Survey completed | S_SURVEY | — |
 | G2 | Audit completed | S_AUDIT | — |
 | G3 | Diagnosis completed | S_DIAGNOSE | — |
-| G4 | Fix applied and verified | S_VERIFY | skip_fix |
+| G4 | Zero remaining: all findings fixed and verified | `remaining_actionable == 0` within fix_threshold | S_VERIFY | skip_fix |
 | G5 | Pattern generalized | S_GENERALIZE | skip_generalize |
 | G6 | Discoveries triaged | S_DISCOVER | skip_generalize |
 | G7 | Learnings persisted | S_RECORD | — |
@@ -321,7 +327,7 @@ Increment retries. If < 3: broaden scope via `maestro delegate --role analyze`, 
 ### A_FIX
 Skip if `--skip-fix`. Implement improvements for diagnosed root causes.
 
-1. Fix highest-severity first, one dimension at a time
+1. **穷尽修复**: Fix ALL diagnosed issues by severity tier (critical → high → medium → low within fix_threshold), one dimension at a time. After each tier, re-verify modified area — new findings append to current tier.
 2. For each fix: implement → record evidence.ndjson (phase: "fix")
 3. **Normal**: AskUserQuestion per-fix confirmation. **`-y`**: auto-proceed, record `deferred`.
 
@@ -423,11 +429,12 @@ Goals:       {done}/{total} ({skipped} skipped)
 **⚠️ 时机守卫：仅在 A_INTAKE 完成后显示一次。A_RECORD 完成时禁止重新显示。**
 
 ```
-📋 Improve Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件（执行过程中输入即可）：
+📋 Improve Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件：
 
-/goal 直到 {SESSION_DIR}/session.json 的 phase_goals[*] 全部 completion_confirmed=true
-且 phase_goals_all_done=true 才停。按状态机推进阶段。
-遇到 phase=decision 的 pending 条目必须 AskUserQuestion，不得自行 resolve。
+/goal 穷尽迭代：直到 session.json 的 audit_result 中所有 findings 均已处理（fix/issue/decision）
+且 phase_goals_all_done=true 才停。修复按 severity 逐轮迭代，每轮修复后 re-verify 修改区域。
+Baseline metrics 必须在修复前采集，修复后必须与 baseline 对比确认改进。
+遇到 phase=decision 的 pending 必须 AskUserQuestion。不允许"只报告不处理"。
 ```
 
 完成时仅输出 completion summary，不重复此提示。
