@@ -23,7 +23,7 @@ Available CLI endpoints are dynamically defined by the config file
 
 - **Single search entry** — `maestro search` is the only user-facing search command
 - **Silent-skip-is-bug** — if knowledge exists but search misses it, that is a defect
-- **Layer 2 auto-injection** — agents receive specs via hooks, rarely need manual `spec load`
+- **Search-before-act** — ALWAYS search before implementation; never assume context is pre-loaded
 
 ### Search — Three-Layer Architecture
 
@@ -32,35 +32,32 @@ Available CLI endpoints are dynamically defined by the config file
 | Layer | Command | When to Use |
 |-------|---------|-------------|
 | **1. Unified** | `maestro search "<query>" [--type spec\|knowhow\|issue] [--category <cat>]` | Daily search — BM25 full-text across all knowledge types |
-| **2. Agent injection** | `maestro spec load --category <cat> [--keyword <kw>]` | Domain rules for implementation (auto-injected by hooks) |
+| **2. Domain rules** | `maestro spec load --category <cat> [--keyword <kw>]` | Load domain rules explicitly before coding |
 | **3. Code structure** | `maestro kg search <symbol>` / `maestro kg context <node>` | Tracing dependencies, call chains, module boundaries |
 
 **Deprecated** (do not use): `spec search`, `knowhow search`, `wiki search` — all replaced by Layer 1.
 
-KG stays fresh via hooks (`kg-sync` on UserPromptSubmit, `kg-context-injector` on Agent spawn). Manual `maestro kg index --sqlite` only needed on initial setup.
+### Proactive Search — ALWAYS Execute
 
-### Proactive Search — Mandatory Triggers
+**ALWAYS search before acting.** Do not assume knowledge is auto-loaded. Execute via Bash:
 
-Search is **not optional**. Execute these commands before acting in the corresponding scenarios:
+**L0 — Every task, no exceptions:**
 
-| Trigger Condition | Command | Purpose |
-|---|---|---|
-| Starting any implementation task | `maestro search "<feature/module keywords>"` | Load relevant specs, knowhow, existing issues |
-| Encountering unknown symbol/module | `maestro kg search "<symbol>"` | Understand code structure and dependencies |
-| Understanding module boundaries | `maestro kg context <file-or-symbol>` | Get callers, callees, related code |
-| Making architecture decisions | `maestro search --type spec --category arch` | Load architecture constraints |
-| Debugging unfamiliar code | `maestro kg callers <function>` / `maestro kg callees <function>` | Trace call chains |
-| Before writing tests | `maestro search --type spec --category test "<module>"` | Load test patterns and requirements |
-| Before refactoring | `maestro kg search "<module>" --code` | Map impact radius before changes |
+ALWAYS run before any implementation, planning, or debugging task:
+- `maestro search "<feature/module keywords>"` — load specs, knowhow, existing issues
 
-### Fallback — When Hooks Are Not Firing
+**L1 — Encountering unfamiliar code:**
 
-If automatic injection seems absent (no `<maestro-context>` blocks appearing):
+Run when you hit unknown symbols, modules, or need to understand boundaries:
+- `maestro kg search "<symbol>"` — code structure and dependencies
+- `maestro kg context <file-or-symbol>` — callers, callees, related code
 
-1. Check hook status: `maestro hooks status`
-2. Sync graph manually: `maestro kg sync`
-3. Search directly: `maestro search "<query>"` or `maestro kg search "<symbol>"`
-4. Reinstall hooks if needed: `maestro hooks install --level standard`
+**L2 — Deep analysis (architecture / debugging / refactoring / tests):**
+
+- `maestro search --type spec --category arch` — architecture decisions
+- `maestro kg callers <fn>` / `maestro kg callees <fn>` — trace call chains when debugging
+- `maestro search --type spec --category test "<module>"` — before writing tests
+- `maestro kg search "<module>" --code` — map impact radius before refactoring
 
 ### Record — Capture Knowledge
 
