@@ -352,6 +352,17 @@ export function countFiles(dir: string): number {
   return count;
 }
 
+export function countFilesFiltered(dir: string, filter: (name: string) => boolean): number {
+  if (!existsSync(dir) || !statSync(dir).isDirectory()) return 0;
+  let count = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!filter(entry.name)) continue;
+    if (entry.isFile()) count++;
+    else if (entry.isDirectory()) count += countFiles(join(dir, entry.name));
+  }
+  return count;
+}
+
 export interface ScannedComponent {
   def: ComponentDef;
   sourceFull: string;
@@ -368,7 +379,9 @@ export function scanComponents(
   return COMPONENT_DEFS.map((def) => {
     const sourceFull = join(pkgRoot, def.sourcePath);
     const countDir = def.sourceCountDir ? join(pkgRoot, def.sourceCountDir) : sourceFull;
-    const fileCount = countFiles(countDir);
+    const fileCount = def.fileFilter
+      ? countFilesFiltered(countDir, def.fileFilter)
+      : countFiles(countDir);
     const targetDir = def.target(mode, projectPath);
     return { def, sourceFull, targetDir, fileCount, available: fileCount > 0 };
   });
@@ -387,6 +400,7 @@ export function copyRecursive(
   dest: string,
   stats: CopyStats,
   manifest: Manifest,
+  fileFilter?: (name: string) => boolean,
 ): void {
   const srcStat = statSync(src);
 
@@ -417,6 +431,7 @@ export function copyRecursive(
   }
 
   for (const entry of readdirSync(src)) {
+    if (fileFilter && !fileFilter(entry)) continue;
     if (PRESERVE_FILES.has(entry) && existsSync(join(dest, entry))) {
       stats.skipped++;
       continue;

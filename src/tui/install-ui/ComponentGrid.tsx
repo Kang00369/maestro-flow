@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { CyberItem } from './CyberItem.js';
 import {
@@ -13,8 +13,19 @@ import { t } from '../../i18n/index.js';
 import { C } from '../shared/index.js';
 
 // ---------------------------------------------------------------------------
-// ComponentGrid — multi-select container for installable components
+// ComponentGrid — multi-select container with category grouping
 // ---------------------------------------------------------------------------
+
+interface CategoryGroup {
+  category: string;
+  label: string;
+  components: ScannedComponent[];
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  commands: '── Commands ──────────────────',
+  skills: '── Skills ────────────────────',
+};
 
 export interface ComponentGridProps {
   /** Scanned components from backend */
@@ -37,6 +48,38 @@ export function ComponentGrid({
 
   const count = components.length;
   const safeIndex = clampIndex(selectedIndex, count);
+
+  const groups = useMemo((): CategoryGroup[] => {
+    const ungrouped: ScannedComponent[] = [];
+    const catMap = new Map<string, ScannedComponent[]>();
+    const catOrder: string[] = [];
+
+    for (const comp of components) {
+      const cat = comp.def.category;
+      if (!cat) {
+        ungrouped.push(comp);
+      } else {
+        if (!catMap.has(cat)) {
+          catMap.set(cat, []);
+          catOrder.push(cat);
+        }
+        catMap.get(cat)!.push(comp);
+      }
+    }
+
+    const result: CategoryGroup[] = [];
+    if (ungrouped.length > 0) {
+      result.push({ category: '', label: '', components: ungrouped });
+    }
+    for (const cat of catOrder) {
+      result.push({
+        category: cat,
+        label: CATEGORY_LABELS[cat] || `── ${cat} ──`,
+        components: catMap.get(cat)!,
+      });
+    }
+    return result;
+  }, [components]);
 
   const toggleId = useCallback(
     (id: string) => {
@@ -66,43 +109,30 @@ export function ComponentGrid({
 
   useInput(
     (input, key) => {
-      // Enter: advance
       if (key.return) {
         onDone();
         return;
       }
-
-      // Up arrow: move highlight up with wrapping
       if (key.upArrow) {
         setSelectedIndex((prev) => moveUp(prev, count));
         return;
       }
-
-      // Down arrow: move highlight down with wrapping
       if (key.downArrow) {
         setSelectedIndex((prev) => moveDown(prev, count));
         return;
       }
-
-      // Space: toggle highlighted item
       if (input === ' ') {
         toggleAt(safeIndex);
         return;
       }
-
-      // 'a': select all available
       if (input === 'a' || input === 'A') {
         selectAllAvailable();
         return;
       }
-
-      // 'n': deselect all
       if (input === 'n' || input === 'N') {
         handleDeselectAll();
         return;
       }
-
-      // Number keys '1'-'9': toggle corresponding component by 1-based index
       const idx = parseNumberKey(input, count);
       if (idx >= 0) {
         toggleAt(idx);
@@ -124,24 +154,42 @@ export function ComponentGrid({
 
   const availableCount = components.filter((c) => c.available).length;
 
+  let globalIndex = 0;
+
   return (
     <Box flexDirection="column">
       <Text bold color={C.primary}>
         {t.install.componentsTitle}
       </Text>
       <Box flexDirection="column" marginTop={1}>
-        {components.map((comp, i) => (
-          <CyberItem
-            key={comp.def.id}
-            index={i + 1}
-            label={comp.def.label}
-            fileCount={comp.fileCount}
-            selected={selectedIds.includes(comp.def.id)}
-            available={comp.available}
-            highlighted={i === safeIndex}
-            description={comp.def.description}
-          />
-        ))}
+        {groups.map((group) => {
+          const groupItems = group.components.map((comp) => {
+            const i = globalIndex++;
+            return (
+              <CyberItem
+                key={comp.def.id}
+                index={i + 1}
+                label={comp.def.label}
+                fileCount={comp.fileCount}
+                selected={selectedIds.includes(comp.def.id)}
+                available={comp.available}
+                highlighted={i === safeIndex}
+                description={comp.def.description}
+              />
+            );
+          });
+
+          if (!group.label) return <React.Fragment key="ungrouped">{groupItems}</React.Fragment>;
+
+          return (
+            <React.Fragment key={group.category}>
+              <Box marginTop={1}>
+                <Text color={C.neutral} dimColor>{group.label}</Text>
+              </Box>
+              {groupItems}
+            </React.Fragment>
+          );
+        })}
       </Box>
       <Box marginTop={1}>
         <Text dimColor>

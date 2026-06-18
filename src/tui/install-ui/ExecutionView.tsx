@@ -120,7 +120,7 @@ export function ExecutionView({
             const result = comp.def.build(join(pkgRoot, '.claude'), comp.targetDir);
             totalStats.files += result.files;
           } else {
-            copyRecursive(comp.sourceFull, comp.targetDir, totalStats, manifest);
+            copyRecursive(comp.sourceFull, comp.targetDir, totalStats, manifest, comp.def.fileFilter);
           }
           const delta = totalStats.files - beforeFiles;
           setProgress(`(${delta} files)`);

@@ -45,6 +45,17 @@ export interface ComponentDef {
    * When omitted, `sourcePath` is used as before (backward compat).
    */
   sourceCountDir?: string;
+  /**
+   * Filter for top-level entries in the source directory.
+   * When present, only entries where this returns true are copied/counted.
+   * Receives the entry name (filename or directory name).
+   */
+  fileFilter?: (name: string) => boolean;
+  /**
+   * UI grouping category for ComponentGrid.
+   * Components sharing the same category display under a shared header.
+   */
+  category?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -86,14 +97,44 @@ export const COMPONENT_DEFS: ComponentDef[] = [
   },
   {
     id: 'commands',
-    label: 'Commands',
-    description: 'Claude Code slash commands',
+    label: 'Commands (Core)',
+    description: 'Core maestro/manage/spec/quality commands',
     sourcePath: join('.claude', 'commands'),
     target: (mode, projectPath) =>
       mode === 'global'
         ? join(homedir(), '.claude', 'commands')
         : join(projectPath, '.claude', 'commands'),
     alwaysGlobal: false,
+    category: 'commands',
+    fileFilter: (name) => !name.startsWith('odyssey-') && !name.startsWith('learn-'),
+  },
+  {
+    id: 'commands-odyssey',
+    label: 'Odyssey Commands',
+    description: 'Long-running cycles: debug, improve, planex, review, UI',
+    sourcePath: join('.claude', 'commands'),
+    target: (mode, projectPath) =>
+      mode === 'global'
+        ? join(homedir(), '.claude', 'commands')
+        : join(projectPath, '.claude', 'commands'),
+    alwaysGlobal: false,
+    category: 'commands',
+    defaultSelected: false,
+    fileFilter: (name) => name.startsWith('odyssey-'),
+  },
+  {
+    id: 'commands-learn',
+    label: 'Learn Commands',
+    description: 'Knowledge extraction: decompose, follow, investigate',
+    sourcePath: join('.claude', 'commands'),
+    target: (mode, projectPath) =>
+      mode === 'global'
+        ? join(homedir(), '.claude', 'commands')
+        : join(projectPath, '.claude', 'commands'),
+    alwaysGlobal: false,
+    category: 'commands',
+    defaultSelected: false,
+    fileFilter: (name) => name.startsWith('learn-'),
   },
   {
     id: 'agents',
@@ -108,14 +149,44 @@ export const COMPONENT_DEFS: ComponentDef[] = [
   },
   {
     id: 'skills',
-    label: 'Skills',
-    description: 'Claude Code skills',
+    label: 'Skills (Core)',
+    description: 'Core workflow and utility skills',
     sourcePath: join('.claude', 'skills'),
     target: (mode, projectPath) =>
       mode === 'global'
         ? join(homedir(), '.claude', 'skills')
         : join(projectPath, '.claude', 'skills'),
     alwaysGlobal: false,
+    category: 'skills',
+    fileFilter: (name) => !name.startsWith('team-') && !name.startsWith('scholar-'),
+  },
+  {
+    id: 'skills-team',
+    label: 'Team Skills',
+    description: 'Multi-agent team collaboration skills',
+    sourcePath: join('.claude', 'skills'),
+    target: (mode, projectPath) =>
+      mode === 'global'
+        ? join(homedir(), '.claude', 'skills')
+        : join(projectPath, '.claude', 'skills'),
+    alwaysGlobal: false,
+    category: 'skills',
+    defaultSelected: false,
+    fileFilter: (name) => name.startsWith('team-'),
+  },
+  {
+    id: 'skills-scholar',
+    label: 'Scholar Skills',
+    description: 'Academic writing and research skills',
+    sourcePath: join('.claude', 'skills'),
+    target: (mode, projectPath) =>
+      mode === 'global'
+        ? join(homedir(), '.claude', 'skills')
+        : join(projectPath, '.claude', 'skills'),
+    alwaysGlobal: false,
+    category: 'skills',
+    defaultSelected: false,
+    fileFilter: (name) => name.startsWith('scholar-'),
   },
   {
     id: 'claude-md',

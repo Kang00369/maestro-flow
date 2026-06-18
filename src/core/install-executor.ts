@@ -155,7 +155,7 @@ export async function executeInstallPipeline(opts: ExecutorOptions): Promise<Ins
         const result = injectDocFile(comp.sourceFull, comp.targetDir, stats, manifest, comp.def.section);
         if (result.warning) warnings.push(result.warning);
       } else {
-        copyRecursive(comp.sourceFull, comp.targetDir, stats, manifest);
+        copyRecursive(comp.sourceFull, comp.targetDir, stats, manifest, comp.def.fileFilter);
       }
     }
 
