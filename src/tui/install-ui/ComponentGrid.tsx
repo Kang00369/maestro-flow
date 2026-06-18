@@ -25,6 +25,9 @@ interface CategoryGroup {
 const CATEGORY_LABELS: Record<string, string> = {
   commands: '── Commands ──────────────────',
   skills: '── Skills ────────────────────',
+  'extra-team': '── Extra Team Skills ─────────',
+  'extra-scholar': '── Scholar Skills ────────────',
+  'extra-meta': '── Meta Skills (Skill Tooling) ─',
 };
 
 export interface ComponentGridProps {
