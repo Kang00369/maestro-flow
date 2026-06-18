@@ -12,6 +12,7 @@ import {
   readdirSync,
   statSync,
   copyFileSync,
+  cpSync,
   readFileSync,
   writeFileSync,
   renameSync,
@@ -22,6 +23,8 @@ import {
   addDir,
   cleanManifestFiles,
   deleteManifest,
+  findManifest,
+  manifestFile,
   type Manifest,
 } from '../core/manifest.js';
 import { applyOverlays, ensureOverlayDir, deleteOverlayManifest } from '../core/overlay/applier.js';
@@ -201,7 +204,7 @@ export function scanToggleItems(pkgRoot: string, targetBase: string): ToggleItem
         const state: ToggleState = isMd ? 'on' : 'off';
         const existing = items.get(key);
         if (existing) {
-          existing.state = state;
+          if (existing.state !== 'on') existing.state = state;
         } else {
           items.set(key, {
             name, type, state,
@@ -245,7 +248,7 @@ export function applyToggle(item: ToggleItem, pkgRoot: string): boolean {
     if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true });
     const srcStat = statSync(item.sourcePath);
     if (srcStat.isDirectory()) {
-      copyRecursive(item.sourcePath, dirname(item.targetActive), { files: 0, dirs: 0, skipped: 0 }, { id: '', version: '', scope: 'global', targetPath: '', installedAt: '', entries: [] } as Manifest);
+      cpSync(item.sourcePath, targetDir, { recursive: true });
     } else {
       copyFileSync(item.sourcePath, item.targetActive);
     }
@@ -259,26 +262,10 @@ export function updateManifestDisabledItems(
   targetPath: string,
   disabledNames: string[],
 ): void {
-  const manifest = findManifestForToggle(scope, targetPath);
+  const manifest = findManifest(scope, targetPath);
   if (!manifest) return;
   manifest.disabledItems = disabledNames;
-  const manifestPath = join(paths.home, 'manifests', `${manifest.id}.json`);
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
-}
-
-function findManifestForToggle(scope: 'global' | 'project', targetPath: string): Manifest | null {
-  const manifestDir = join(paths.home, 'manifests');
-  if (!existsSync(manifestDir)) return null;
-  const norm = targetPath.toLowerCase().replace(/[\\/]+$/, '');
-  for (const f of readdirSync(manifestDir).filter((f: string) => f.endsWith('.json'))) {
-    try {
-      const m = JSON.parse(readFileSync(join(manifestDir, f), 'utf-8')) as Manifest;
-      if (m.scope === scope && m.targetPath.toLowerCase().replace(/[\\/]+$/, '') === norm) {
-        return m;
-      }
-    } catch { /* skip */ }
-  }
-  return null;
+  writeFileSync(manifestFile(manifest.id), JSON.stringify(manifest, null, 2), 'utf-8');
 }
 
 // ---------------------------------------------------------------------------

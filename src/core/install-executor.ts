@@ -136,6 +136,9 @@ export async function executeInstallPipeline(opts: ExecutorOptions): Promise<Ins
       : {}),
     selectedComponentIds: config.installComponents ? config.selectedComponentIds : [],
   });
+  if (prior?.disabledItems?.length) {
+    manifest.disabledItems = prior.disabledItems;
+  }
 
   // --- Components ---
   if (config.installComponents) {

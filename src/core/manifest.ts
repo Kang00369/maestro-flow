@@ -105,7 +105,7 @@ function ensureDir(): void {
   }
 }
 
-function manifestFile(id: string): string {
+export function manifestFile(id: string): string {
   return join(MANIFESTS_DIR, `${id}.json`);
 }
 
@@ -246,7 +246,7 @@ export function deleteManifest(manifest: Manifest): void {
 const PRESERVE = new Set(['settings.json', 'settings.local.json']);
 
 /** Files that should have maestro content removed via tag injection instead of being deleted entirely. */
-const CONTENT_MANAGED = new Set(['CLAUDE.md', 'AGENTS.md']);
+const CONTENT_MANAGED = new Set(['CLAUDE.md', 'AGENTS.md', 'GEMINI.md']);
 
 /**
  * Remove maestro-injected content from a doc file using `<!-- maestro:start/end -->` markers.
