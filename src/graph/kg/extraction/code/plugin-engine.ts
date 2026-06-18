@@ -36,7 +36,7 @@ export class PluginEngine {
 
   // ── Loading ────────────────────────────────────────────────────────
 
-  async load(): Promise<boolean> {
+  async load(options?: { allowScripts?: boolean }): Promise<boolean> {
     const hasConfig = existsSync(this.configPath);
     const hasScripts = existsSync(this.scriptDir);
     if (!hasConfig && !hasScripts) return false;
@@ -50,7 +50,17 @@ export class PluginEngine {
     }
 
     if (hasScripts) {
-      await this.loadScriptPlugins();
+      if (options?.allowScripts) {
+        await this.loadScriptPlugins();
+      } else {
+        const scripts = readdirSync(this.scriptDir).filter(f => f.endsWith('.mjs'));
+        if (scripts.length > 0) {
+          process.stderr.write(
+            `[MaestroGraph] Found ${scripts.length} script extractor(s) in ${this.scriptDir} — ` +
+            'skipped for security. Use --allow-extractor-scripts to enable.\n',
+          );
+        }
+      }
     }
 
     return this.config !== null || this.scriptModules.size > 0;

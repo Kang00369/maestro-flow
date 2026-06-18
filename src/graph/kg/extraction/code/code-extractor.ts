@@ -37,6 +37,8 @@ export interface ScanOptions {
   excludeFiles?: string[];
   /** 是否在缺失时创建 .maestroignore */
   createMaestroIgnore?: boolean;
+  /** 允许执行 .workflow/kg/extractors/*.mjs 脚本插件 */
+  allowExtractorScripts?: boolean;
   /** 是否包含测试文件 */
   includeTests?: boolean;
   /** 最大文件大小 (bytes) */
@@ -220,7 +222,7 @@ async function runCodeExtraction(
   const projectRoot = options.projectRoot ?? resolve(resolvedSrcDir, '..');
   const pluginEngine = new PluginEngine(projectRoot);
   let hasPlugins = false;
-  try { hasPlugins = await pluginEngine.load(); } catch { /* plugins optional */ }
+  try { hasPlugins = await pluginEngine.load({ allowScripts: options.allowExtractorScripts }); } catch { /* plugins optional */ }
 
   // 扫描文件
   const scannedFiles = scanFiles(options);

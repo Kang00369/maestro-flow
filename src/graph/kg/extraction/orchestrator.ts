@@ -20,6 +20,7 @@ export interface CodegraphSyncOptions {
   excludeDirs?: string[];
   excludeFiles?: string[];
   createMaestroIgnore?: boolean;
+  allowExtractorScripts?: boolean;
 }
 
 export async function syncKnowledgeGraph(
@@ -189,6 +190,7 @@ export async function syncKnowledgeGraph(
           excludeDirs: options?.codegraph?.excludeDirs,
           excludeFiles: options?.codegraph?.excludeFiles,
           createMaestroIgnore: options?.codegraph?.createMaestroIgnore,
+          allowExtractorScripts: options?.codegraph?.allowExtractorScripts,
         }, async (result) => {
           if (result.nodes.length > 0) {
             allResults.push(result);

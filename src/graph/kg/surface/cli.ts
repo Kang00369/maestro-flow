@@ -35,12 +35,13 @@ function normalizeCodegraphOptions(opts: {
   excludeDir?: string;
   excludeFile?: string;
   noCreateMaestroIgnore?: boolean;
+  allowExtractorScripts?: boolean;
 }): CodegraphSyncOptions | undefined {
   const srcDirs = parseCsv(opts.src);
   const excludeDirs = parseCsv(opts.excludeDir);
   const excludeFiles = parseCsv(opts.excludeFile);
   const maxFileSize = parseInteger(opts.maxFileSize);
-  if (!srcDirs && !excludeDirs && !excludeFiles && !maxFileSize && !opts.includeTests && !opts.noCreateMaestroIgnore) {
+  if (!srcDirs && !excludeDirs && !excludeFiles && !maxFileSize && !opts.includeTests && !opts.noCreateMaestroIgnore && !opts.allowExtractorScripts) {
     return undefined;
   }
   return {
@@ -50,6 +51,7 @@ function normalizeCodegraphOptions(opts: {
     maxFileSize,
     includeTests: opts.includeTests,
     createMaestroIgnore: opts.noCreateMaestroIgnore ? false : undefined,
+    allowExtractorScripts: opts.allowExtractorScripts,
   };
 }
 
@@ -75,6 +77,7 @@ async function syncProject(
     excludeDir?: string;
     excludeFile?: string;
     noCreateMaestroIgnore?: boolean;
+    allowExtractorScripts?: boolean;
   },
   label = 'Syncing MaestroGraph...',
 ): Promise<void> {
@@ -163,6 +166,7 @@ export function registerKgCommands(program: Command): void {
     .option('--exclude-dir <patterns>', 'Comma-separated directory ignore patterns')
     .option('--exclude-file <patterns>', 'Comma-separated file ignore patterns')
     .option('--no-create-maestro-ignore', 'Do not create .maestroignore when missing')
+    .option('--allow-extractor-scripts', 'Allow execution of .mjs extractor plugins')
     .option('--json', 'Output as JSON')
     .action(async (opts) => syncProject(opts));
 
@@ -177,6 +181,7 @@ export function registerKgCommands(program: Command): void {
     .option('--exclude-dir <patterns>', 'Comma-separated directory ignore patterns')
     .option('--exclude-file <patterns>', 'Comma-separated file ignore patterns')
     .option('--no-create-maestro-ignore', 'Do not create .maestroignore when missing')
+    .option('--allow-extractor-scripts', 'Allow execution of .mjs extractor plugins')
     .option('--json', 'Output as JSON')
     .action(async (opts) => syncProject(opts, 'Syncing MaestroGraph (all knowledge sources)...'));
 
@@ -189,6 +194,7 @@ export function registerKgCommands(program: Command): void {
     .option('--exclude-dir <patterns>', 'Comma-separated directory ignore patterns')
     .option('--exclude-file <patterns>', 'Comma-separated file ignore patterns')
     .option('--no-create-maestro-ignore', 'Do not create .maestroignore when missing')
+    .option('--allow-extractor-scripts', 'Allow execution of .mjs extractor plugins')
     .option('--json', 'Output as JSON')
     .action(async (opts) => syncProject({ ...opts, source: 'codegraph' }, 'Indexing code with MaestroGraph...'));
 
