@@ -21,7 +21,6 @@
 | **2. Domain rules** | `maestro spec load --category <cat> [--keyword <kw>]` | Load rules before coding |
 | **3. Code structure** | `maestro kg search <symbol>` / `maestro kg context <node>` | Dependencies, call chains |
 
-Do not use deprecated commands: `spec search`, `knowhow search`, `wiki search`.
 
 ### Proactive Search — ALWAYS Execute
 
