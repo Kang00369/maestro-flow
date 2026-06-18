@@ -214,12 +214,13 @@ async function runCodeExtraction(
   collectResults: boolean,
 ): Promise<{ results: ExtractionResult[]; stats: CodeExtractionStats }> {
   const startMs = Date.now();
+  const resolvedSrcDir = resolve(options.srcDir);
   const engine = getTreeSitterEngine();
   const hasTreeSitter = engine.isAvailable();
   const parser = new CodeParseRunner();
 
   // 插件引擎
-  const projectRoot = options.projectRoot ?? resolve(options.srcDir, '..');
+  const projectRoot = options.projectRoot ?? resolve(resolvedSrcDir, '..');
   const pluginEngine = new PluginEngine(projectRoot);
   let hasPlugins = false;
   try { hasPlugins = await pluginEngine.load(); } catch { /* plugins optional */ }
@@ -252,7 +253,7 @@ async function runCodeExtraction(
 
       try {
         const sourceCode = readFileSync(file.path, 'utf-8');
-        const relPath = relative(options.srcDir, file.path).replace(/\\/g, '/');
+        const relPath = relative(resolvedSrcDir, file.path).replace(/\\/g, '/');
 
         // 自定义提取器优先 (vue/svelte/liquid/mybatis/dfm)
         const customResult = await extractWithCustomExtractor(sourceCode, file.path);
@@ -293,7 +294,8 @@ async function runCodeExtraction(
         }
 
         let extracted: LanguageExtractionResult | null = null;
-        if (hasPlugins) {
+        const fileMatchesPlugin = hasPlugins && pluginEngine.hasMatchingPlugin(file.path, file.language);
+        if (fileMatchesPlugin) {
           const tree = await engine.parse(sourceCode, file.language);
           if (tree) {
             try {

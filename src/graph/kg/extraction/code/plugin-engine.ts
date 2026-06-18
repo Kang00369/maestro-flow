@@ -193,6 +193,18 @@ export class PluginEngine {
     }
   }
 
+  hasMatchingPlugin(filePath: string, language: Language): boolean {
+    if (this.config?.plugins) {
+      for (const plugin of this.config.plugins) {
+        if (!this.matchesLanguage(plugin, language)) continue;
+        if (!this.matchesFile(plugin, filePath)) continue;
+        return true;
+      }
+    }
+    if (this.scriptModules.size > 0) return true;
+    return false;
+  }
+
   // ── Execution ──────────────────────────────────────────────────────
 
   async run(

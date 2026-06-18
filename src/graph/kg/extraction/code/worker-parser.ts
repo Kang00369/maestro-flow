@@ -8,6 +8,7 @@ import { getExtractor } from './languages/index.js';
 import type { LanguageExtractionResult } from './tree-sitter-types.js';
 
 const PARSE_TIMEOUT_MS = 10_000;
+const MAX_PARSE_TIMEOUT_MS = 120_000;
 const WORKER_RECYCLE_INTERVAL = 250;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -65,7 +66,7 @@ export class CodeParseRunner {
     const worker = this.ensureWorker();
     const id = this.nextId++;
     this.workerParseCount++;
-    const timeoutMs = PARSE_TIMEOUT_MS + Math.floor(sourceCode.length / 100_000) * 10_000;
+    const timeoutMs = Math.min(PARSE_TIMEOUT_MS + Math.floor(sourceCode.length / 100_000) * 10_000, MAX_PARSE_TIMEOUT_MS);
 
     return new Promise<LanguageExtractionResult | null>((resolve, reject) => {
       const timer = setTimeout(() => {

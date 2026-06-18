@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import ignore, { type Ignore } from 'ignore';
 
 export const MAESTRO_IGNORE_FILE = '.maestroignore';
@@ -103,7 +103,7 @@ export function buildScanScope(options: ScanScopeOptions): ScanScope {
     srcDir,
     ignores(absPath: string, isDirectory = false): boolean {
       const rel = relative(projectRoot, absPath).replace(/\\/g, '/');
-      if (!rel || rel.startsWith('..') || rel === '.') return false;
+      if (!rel || rel === '.' || rel === '..' || rel.startsWith('../') || isAbsolute(rel)) return false;
       const candidate = isDirectory && !rel.endsWith('/') ? `${rel}/` : rel;
       return matcher.ignores(candidate);
     },

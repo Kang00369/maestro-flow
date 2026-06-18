@@ -193,12 +193,16 @@ export async function syncKnowledgeGraph(
           if (result.nodes.length > 0) {
             try {
               mg.insertExtractionResults(result);
-            } catch {
-              // FK or unique constraint — insert nodes only, skip edges
+            } catch (err) {
               try {
                 mg.getQueryBuilder().insertNodes(result.nodes);
                 mg.getQueryBuilder().upsertFile(result.fileRecord);
-              } catch { /* skip this file entirely */ }
+                if (process.env.DEBUG) {
+                  process.stderr.write(`[MaestroGraph] Partial write for ${result.fileRecord.path}: edges skipped (${err instanceof Error ? err.message : String(err)})\n`);
+                }
+              } catch (innerErr) {
+                process.stderr.write(`[MaestroGraph] Failed to index ${result.fileRecord.path}: ${innerErr instanceof Error ? innerErr.message : String(innerErr)}\n`);
+              }
             }
           }
         });
@@ -244,8 +248,10 @@ export async function syncKnowledgeGraph(
       for (const node of knowledgeNodes) {
         store.upsert(node.id, contentHash(node.body), nowMs);
       }
-    } catch {
-      // Credibility sync is best-effort — never fail the extraction pipeline
+    } catch (err) {
+      if (process.env.DEBUG) {
+        process.stderr.write(`[MaestroGraph] Credibility sync skipped: ${err instanceof Error ? err.message : String(err)}\n`);
+      }
     }
 
     return results;
