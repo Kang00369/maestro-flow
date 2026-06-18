@@ -104,6 +104,78 @@ function registerMcpSubcommand(install: Command): void {
 
 
 
+function registerToggleSubcommand(install: Command): void {
+  install
+    .command('toggle')
+    .description('Enable/disable individual commands, skills, and agents')
+    .option('--global', 'Toggle items in global installation (default)')
+    .option('--path <dir>', 'Toggle items in project installation')
+    .option('--type <type>', 'Filter by type: command, skill, agent')
+    .option('--enable <names>', 'Non-interactive: enable items (comma-separated)')
+    .option('--disable <names>', 'Non-interactive: disable items (comma-separated)')
+    .option('--list', 'List all items with their status (no TUI)')
+    .action(async (opts: { global?: boolean; path?: string; type?: string; enable?: string; disable?: string; list?: boolean }) => {
+      const { homedir } = await import('node:os');
+      const { scanInstalledItems, toggleItem, updateManifestDisabledItems } = await import('./install-backend.js');
+
+      const mode: 'global' | 'project' = opts.path ? 'project' : 'global';
+      const targetBase = opts.path ? resolve(opts.path) : homedir();
+      const targetPath = opts.path ? resolve(opts.path) : (await import('../config/paths.js')).paths.home;
+
+      // Non-interactive: --list
+      if (opts.list) {
+        const items = scanInstalledItems(targetBase);
+        const filtered = opts.type ? items.filter(i => i.type === opts.type) : items;
+        let currentType = '';
+        for (const item of filtered) {
+          if (item.type !== currentType) {
+            currentType = item.type;
+            console.error(`\n  ${currentType}s:`);
+          }
+          const status = item.enabled ? '✓' : '✗';
+          console.error(`    ${status} ${item.name}`);
+        }
+        const enabled = filtered.filter(i => i.enabled).length;
+        console.error(`\n  ${enabled}/${filtered.length} enabled\n`);
+        return;
+      }
+
+      // Non-interactive: --enable / --disable
+      if (opts.enable || opts.disable) {
+        const items = scanInstalledItems(targetBase);
+        let changed = 0;
+        if (opts.enable) {
+          for (const name of opts.enable.split(',')) {
+            const item = items.find(i => i.name === name.trim() && !i.enabled);
+            if (item && toggleItem(item)) { item.enabled = true; changed++; console.error(`  ✓ enabled: ${item.name}`); }
+          }
+        }
+        if (opts.disable) {
+          for (const name of opts.disable.split(',')) {
+            const item = items.find(i => i.name === name.trim() && i.enabled);
+            if (item && toggleItem(item)) { item.enabled = false; changed++; console.error(`  ✗ disabled: ${item.name}`); }
+          }
+        }
+        if (changed > 0) {
+          const disabledNames = items.filter(i => !i.enabled).map(i => `${i.type}:${i.name}`);
+          updateManifestDisabledItems(mode, targetPath, disabledNames);
+          console.error(`\n  ${changed} items toggled, manifest updated.`);
+        }
+        return;
+      }
+
+      // Interactive TUI
+      const { renderTui } = await import('../tui/render.js');
+      const { ToggleView } = await import('../tui/install-ui/ToggleView.js');
+      await renderTui(ToggleView, {
+        targetBase,
+        scope: mode,
+        targetPath,
+        filter: opts.type,
+      });
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Command registration
 // ---------------------------------------------------------------------------
@@ -179,6 +251,7 @@ export function registerInstallCommand(program: Command): void {
   registerComponentsSubcommand(install);
   registerHooksSubcommand(install);
   registerMcpSubcommand(install);
+  registerToggleSubcommand(install);
   registerFontsSubcommand(install);
 
   // Legacy TUI wizard

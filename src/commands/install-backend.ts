@@ -122,6 +122,114 @@ export function restoreDisabledState(items: DisabledItem[], targetBase: string):
 }
 
 // ---------------------------------------------------------------------------
+// Toggle — list installed items with enable/disable state
+// ---------------------------------------------------------------------------
+
+export interface InstalledItem {
+  name: string;
+  type: 'command' | 'skill' | 'agent';
+  enabled: boolean;
+  /** Absolute path to the active file (.md or SKILL.md) */
+  activePath: string;
+  /** Absolute path to the disabled file (.md.disabled or SKILL.md.disabled) */
+  disabledPath: string;
+}
+
+export function scanInstalledItems(targetBase: string): InstalledItem[] {
+  const items: InstalledItem[] = [];
+
+  const scanFlat = (dir: string, type: InstalledItem['type']) => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      if (entry.name.endsWith('.md.disabled')) {
+        const name = entry.name.replace('.md.disabled', '');
+        items.push({
+          name, type, enabled: false,
+          activePath: join(dir, `${name}.md`),
+          disabledPath: join(dir, entry.name),
+        });
+      } else if (entry.name.endsWith('.md')) {
+        const name = entry.name.replace('.md', '');
+        items.push({
+          name, type, enabled: true,
+          activePath: join(dir, entry.name),
+          disabledPath: join(dir, `${entry.name}.disabled`),
+        });
+      }
+    }
+  };
+
+  const scanSkills = (dir: string) => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const skillMd = join(dir, entry.name, 'SKILL.md');
+      const skillMdDisabled = join(dir, entry.name, 'SKILL.md.disabled');
+      if (existsSync(skillMdDisabled)) {
+        items.push({
+          name: entry.name, type: 'skill', enabled: false,
+          activePath: skillMd, disabledPath: skillMdDisabled,
+        });
+      } else if (existsSync(skillMd)) {
+        items.push({
+          name: entry.name, type: 'skill', enabled: true,
+          activePath: skillMd, disabledPath: skillMdDisabled,
+        });
+      }
+    }
+  };
+
+  scanFlat(join(targetBase, '.claude', 'commands'), 'command');
+  scanSkills(join(targetBase, '.claude', 'skills'));
+  scanFlat(join(targetBase, '.claude', 'agents'), 'agent');
+
+  return items.sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+export function toggleItem(item: InstalledItem): boolean {
+  if (item.enabled) {
+    if (existsSync(item.activePath)) {
+      renameSync(item.activePath, item.disabledPath);
+      return true;
+    }
+  } else {
+    if (existsSync(item.disabledPath)) {
+      renameSync(item.disabledPath, item.activePath);
+      return true;
+    }
+  }
+  return false;
+}
+
+export function updateManifestDisabledItems(
+  scope: 'global' | 'project',
+  targetPath: string,
+  disabledNames: string[],
+): void {
+  const manifest = findManifestForToggle(scope, targetPath);
+  if (!manifest) return;
+  manifest.disabledItems = disabledNames;
+  const manifestPath = join(paths.home, 'manifests', `${manifest.id}.json`);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+}
+
+function findManifestForToggle(scope: 'global' | 'project', targetPath: string): Manifest | null {
+  const manifestDir = join(paths.home, 'manifests');
+  if (!existsSync(manifestDir)) return null;
+  const norm = targetPath.toLowerCase().replace(/[\\/]+$/, '');
+  for (const f of readdirSync(manifestDir).filter((f: string) => f.endsWith('.json'))) {
+    try {
+      const m = JSON.parse(readFileSync(join(manifestDir, f), 'utf-8')) as Manifest;
+      if (m.scope === scope && m.targetPath.toLowerCase().replace(/[\\/]+$/, '') === norm) {
+        return m;
+      }
+    } catch { /* skip */ }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Overlay post-install hook
 // ---------------------------------------------------------------------------
 

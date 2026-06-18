@@ -73,6 +73,9 @@ export interface Manifest {
   /** Component IDs selected during interactive install (omitted = all) */
   selectedComponentIds?: string[];
 
+  /** Individually disabled items (type:name format, e.g. "command:odyssey-debug") */
+  disabledItems?: string[];
+
   // --- Extended tracking (schema v2) ---
   hooks?: {
     claude?: HookRecord;
