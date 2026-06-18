@@ -25,13 +25,22 @@ Core philosophy:
 **范围内:** 单一需求的实现闭环 — 需求 → 验收标准 → 计划 → 实现 → 验证 → 迭代 → 泛化
 **范围外:** 多需求编排 → `/maestro-roadmap` | 深度 debug → `$odyssey-debug` | 代码审查 → `$odyssey-review-test-fix` | UI 优化 → `$odyssey-ui`
 **探索自由度:** 边界内自由 — 可自主分解任务、选择实现策略、verify→fix 循环内尝试不同方案
+**Zero-residual principle:** Every failing criterion MUST be fixed or explicitly escalated with specific reason. "Close enough" is not passing. "Pre-existing gap" is not a valid skip reason — if within scope, address it.
 **模板:** `--template <name>` — feature | bugfix | refactor | migration | api-endpoint
 </boundary>
 
 <execution_discipline>
 **三条铁律（所有阶段适用）:**
 1. **Phase auto-commit** — 阶段完成后**自动** `git commit`，无需用户确认（session.json/evidence.ndjson 不纳入）
-2. **有把握才改** — 有把握→改代码 commit；不确定→记录 `evidence.ndjson {"phase":"decision","status":"pending"}` 不改代码
+2. **Confident edits only, but must attempt** — only modify what you're confident about; record decisions only when genuinely requiring human judgment
+   - Confident → edit code directly, commit
+   - Needs decision → record `evidence.ndjson {"phase":"decision","status":"pending"}`, don't touch code
+   - No speculative changes
+   - ⚠️ **Decision gate** — ONLY these qualify as decisions (not fixes):
+     - Cross-module architectural tradeoffs requiring human direction
+     - Ambiguous business semantics where the fix could alter intended behavior
+     - Requires new dependency or breaking API change
+   - ❌ "Unsure how to fix", "Large scope", "Pre-existing issue" are NOT valid decision reasons — either fix it, or explain specifically why it's unfixable
 3. **多 CLI 辅助** — plan 用 `--role analyze`，verify 用 cli-review delegate，fix 前后用 `--role review`
 </execution_discipline>
 
@@ -80,7 +89,7 @@ SESSION_DIR/
   "phase_goals": [],
   "phase_goals_all_done": false,
   "self_iteration_log": [],
-  "cross_phase_loops": 0, "max_loops": 3,
+  "cross_phase_loops": 0, "max_loops": 5,
   "created_at": "", "updated_at": ""
 }
 ```
@@ -134,9 +143,9 @@ S_RECORD 将可沉淀知识 **写入 understanding.md §8 Learnings**，按分�
 | Depth | ≥80% findings have file:line evidence | Most findings lack specifics |
 | Actionability | Each conclusion has concrete next action | Only vague "consider" recommendations |
 
-**Rules:** stage complete → evaluate 3 dims → any insufficient → re-enter (max **2 rounds** per stage). Record to evidence.ndjson `{"phase":"self-iteration","type":"quality-gate","stage":"S_XXX","round":N,"assessment":{...},"expansion":"strategy"}`.
+**Rules:** stage complete → evaluate 3 dims → any insufficient → re-enter (max **3 rounds** per stage). Record to evidence.ndjson `{"phase":"self-iteration","type":"quality-gate","stage":"S_XXX","round":N,"assessment":{...},"expansion":"strategy"}`.
 
-**Expansion:** Round 1 = broaden scope (more dirs, more delegate angles). Round 2 = shift perspective (different CLI tool, reverse-trace from expected result).
+**Expansion:** Round 1 = broaden scope (more dirs, more delegate angles). Round 2 = shift perspective (different CLI tool, reverse-trace from expected result). Round 3 = combine both + targeted deep-dive on remaining gaps.
 
 **Applies to:** S_PLAN, S_VERIFY, S_GENERALIZE
 </self_iteration>
@@ -210,7 +219,7 @@ id,title,description,task_type,criterion_refs,deps,wave,status,findings,evidence
    EXPECTED: JSON [{task_id, title, description, criteria_refs, deps}]
    " --role analyze --mode analysis
    ```
-   Run_in_background, STOP, wait for callback.
+   Execute with `run_in_background: true`, then wait for callback (do NOT halt the Odyssey flow).
 3. Write session.json.plan, append evidence (planning), update understanding.md §2. Mark G2 done.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-planex({slug}): S_PLAN — 计划"`
@@ -248,7 +257,7 @@ spawn_agents_on_csv({ csv_path: "tasks.csv", id_column: "id",
 
 Record per criterion to evidence (verification). Update acceptance_criteria[].status. Append to iterations[]. Update understanding.md §4 with pass/fail table.
 
-**Route:** all passed → mark G4 done → next state. Some failed + iteration < max → S_FIX. Fundamental plan flaw → S_PLAN (loops < max_loops → cross_phase_loops++, 重规划). Some failed + iteration >= max → **Normal**: `request_user_input` (continue/lower/accept) / **`-y`**: `deferred`, proceed S_RECORD.
+**Route:** all passed → mark G4 done → next state. Some failed + iteration < max → S_FIX. Fundamental plan flaw → S_PLAN (cross_phase_loops++, re-plan). Some failed + iteration >= max → **Normal**: `request_user_input` (continue/lower/accept) / **`-y`**: `deferred`, proceed S_RECORD.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-planex({slug}): S_VERIFY — 验证"`
 
@@ -299,7 +308,10 @@ Write understanding.md §6, generalization_stats. Mark G5 done.
    | needs_treatment | `request_user_input`: create issue / plan next iter | auto create issue, `deferred` |
    | low_risk | Record only | Record only |
    | already_handled | Skip | Skip |
-3. **Cross-phase loop**: needs_treatment area → S_EXECUTE (loops < max_loops → cross_phase_loops++); triage complete OR budget exhausted → S_RECORD
+3. **Cross-phase loop / exit transitions:**
+   - S_DISCOVER → S_EXECUTE: needs_treatment area → cross_phase_loops++
+   - S_DISCOVER → S_RECORD: triage complete AND remaining_actionable == 0
+   - S_DISCOVER → S_RECORD: loops >= max_loops → MUST log each unfixed item with specific reason (blanket "pre-existing" is forbidden)
 4. Append evidence (discovery + decision), update understanding.md §7. Mark G6 done.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-planex({slug}): S_DISCOVER — 发现"`
@@ -363,14 +375,14 @@ Write understanding.md §6, generalization_stats. Mark G5 done.
 ### Iteration Model
 
 ```
-S_EXECUTE → S_VERIFY ──all pass──→ S_GENERALIZE → S_DISCOVER → S_RECORD
-                │                       │
+S_EXECUTE → S_VERIFY ──all pass──→ S_GENERALIZE → S_DISCOVER ──remaining_actionable==0──→ S_RECORD
+                │                       │               │
            some fail + iter < max       no hits ─→ S_RECORD
-                ▼
-             S_FIX ──→ S_VERIFY (loop)
+                ▼                                       │
+             S_FIX ──→ S_VERIFY (loop)          needs_treatment → S_EXECUTE (cross_phase_loops++)
 ```
 
-Max iterations (default 3) prevents infinite loops. Each iteration records criteria_before, gaps_fixed, criteria_after.
+Max iterations (default 3) prevents infinite loops. Each iteration records criteria_before, gaps_fixed, criteria_after. S_DISCOVER exits to S_RECORD only when all actionable items are resolved or max_loops is reached (with per-item justification required).
 
 ### Phase Goal Lifecycle
 
@@ -406,4 +418,5 @@ Max iterations (default 3) prevents infinite loops. Each iteration records crite
 - [ ] `-y` mode: no blocking prompts, deferred counted
 - [ ] Session resumable via -c
 - [ ] Completion summary with iteration stats
+- [ ] **Every unfixed criterion has individual classification and reason** — blanket "pre-existing" labels are forbidden
 </success_criteria>

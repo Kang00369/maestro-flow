@@ -31,12 +31,22 @@ Core philosophy:
 **范围内:** 目标代码运行质量提升 — 性能/安全/架构/可靠性/可观测性/可维护性
 **范围外:** UI → `$odyssey-ui` | 新功能 → `$odyssey-planex` | 单一 bug → `$odyssey-debug` | 代码审查 → `$odyssey-review-test-fix`
 **探索自由度:** profiling、安全扫描、架构分析、依赖审计，在约束下尽可能发现深层问题
+
+**Zero-residual principle:** Every finding MUST have a concrete action (fix / issue / decision). "Report and shelve" is not allowed. "Pre-existing issue" is not a valid skip reason — if discovered within scope, it must be addressed.
 </boundary>
 
 <execution_discipline>
 **三条铁律（所有阶段适用）:**
 1. **Phase auto-commit** — 阶段完成后**自动** `git commit`，无需用户确认（session.json/evidence.ndjson 不纳入）
-2. **有把握才改** — 确定性高→改代码 commit；不确定→记录 `evidence.ndjson {"phase":"decision","status":"pending"}` 不改代码
+2. **Confident edits only, but must attempt** — only modify what you're confident about; record decisions only when genuinely requiring human judgment
+   - Confident → edit code directly, commit
+   - Needs decision → record `evidence.ndjson {"phase":"decision","status":"pending"}`, don't touch code
+   - No speculative changes
+   - ⚠️ **Decision gate** — ONLY these qualify as decisions (not fixes):
+     - Cross-module architectural tradeoffs requiring human direction
+     - Ambiguous business semantics where the fix could alter intended behavior
+     - Requires new dependency or breaking API change
+   - ❌ "Unsure how to fix", "Large scope", "Pre-existing issue" are NOT valid decision reasons — either fix it, or explain specifically why it's unfixable
 3. **多 CLI 辅助** — `maestro delegate` 多 `--role`（analyze/review/explore）交叉验证关键判断
 </execution_discipline>
 
@@ -93,7 +103,7 @@ SESSION_DIR/
   "generalization_stats": null,
   "phase_goals": [], "phase_goals_all_done": false,
   "self_iteration_log": [],
-  "cross_phase_loops": 0, "max_loops": 3,
+  "cross_phase_loops": 0, "max_loops": 5,
   "created_at": "", "updated_at": ""
 }
 ```
@@ -146,7 +156,7 @@ Write to understanding.md §9 during execution (temporary). Completion summary s
 </context>
 
 <self_iteration>
-**Quality Gate** — auto-evaluate after each analytical phase. Insufficient -> re-enter (max 2 rounds).
+**Quality Gate** — auto-evaluate after each analytical phase. Insufficient -> re-enter (max **3 rounds**).
 
 | Dimension | Sufficient | Insufficient |
 |-----------|-----------|-------------|
@@ -154,11 +164,11 @@ Write to understanding.md §9 during execution (temporary). Completion summary s
 | Depth | >=80% findings have file:line evidence | Most findings lack specifics |
 | Actionability | Each conclusion has concrete next action | "Consider reviewing" without action |
 
-**Expansion:** Round 1 = widen scope (more directories, deeper dependency analysis, additional delegate angles). Round 2 = shift perspective (different CLI tool, reverse trace, manual code reading).
+**Expansion:** Round 1 = widen scope (more directories, deeper dependency analysis, additional delegate angles). Round 2 = shift perspective (different CLI tool, reverse trace, manual code reading). Round 3 = combine both + targeted deep-dive on remaining gaps.
 
 **Applicable stages:** S_SURVEY, S_AUDIT, S_DIAGNOSE, S_GENERALIZE
 
-**Exit:** All sufficient -> advance | 2-round cap -> record gap, continue. Logged to `evidence.ndjson` + `session.json.self_iteration_log[]`.
+**Exit:** All sufficient -> advance | 3-round cap -> record gap, continue. Logged to `evidence.ndjson` + `session.json.self_iteration_log[]`.
 </self_iteration>
 
 <csv_schema>
@@ -217,9 +227,10 @@ id,title,description,task_type,dimension,deps,wave,status,findings,evidence,erro
 **Cross-phase loops:**
 - S_DIAGNOSE -> S_DIAGNOSE (hypothesis retry, max 3)
 - S_VERIFY -> S_FIX (rework on failed verification)
-- S_DISCOVER -> S_DIAGNOSE (new critical issue found, loops < max_loops)
-- S_DISCOVER -> S_FIX (same-pattern fix with template, loops < max_loops)
-- S_DISCOVER -> S_RECORD (complete or budget exhausted)
+- S_DISCOVER -> S_DIAGNOSE (new critical issue found, cross_phase_loops++)
+- S_DISCOVER -> S_FIX (same-pattern fix with template)
+- S_DISCOVER -> S_RECORD       : triage complete AND remaining_actionable == 0
+- S_DISCOVER -> S_RECORD       : loops >= max_loops → MUST log each unfixed item with specific reason (blanket "pre-existing" is forbidden)
 
 ### S_INTAKE
 1. Parse target + flags -> resolve file list
@@ -279,7 +290,7 @@ EXPECTED: JSON [{finding_ids, root_cause, origin_file, origin_line, blast_radius
 CONSTRAINTS: Trace to origin, not just symptoms | Group related findings
 " --role analyze --mode analysis
 ```
-Run_in_background, STOP, wait for callback.
+Execute with `run_in_background: true`, then wait for callback (do NOT halt the Odyssey flow).
 
 3. **Hypothesis testing**: for each root cause — design verification -> execute -> evidence (phase: "diagnose")
 4. **Decision journal**: ambiguity -> evidence (phase: "decision"); Normal: request_user_input | `-y`: defer
@@ -315,7 +326,7 @@ EXPECTED: JSON {verdict, findings [{severity, description, suggestion}], regress
 CONSTRAINTS: Focus on correctness and measurable improvement
 " --role review --mode analysis
 ```
-Run_in_background, STOP, wait for callback.
+Execute with `run_in_background: true`, then wait for callback (do NOT halt the Odyssey flow).
 
 3. **Metrics comparison**: measure post-fix metrics, compare with `baseline_metrics`
 4. `needs_rework` -> S_FIX (loop). `confirmed` -> mark G4 done, advance
@@ -361,9 +372,18 @@ Append Wave 3 rows to `tasks.csv`:
 ### S_DISCOVER
 Skip if no generalization hits.
 
-1. **Triage** each hit: read +-10 lines -> classify `safe` / `risk` / `bug`
-2. **Route**: see appendix `-y` behavior. Append evidence (phase: "discovery" + "decision")
-3. **Cross-phase loop**: discovery finds new critical issue -> S_DIAGNOSE (loops < max_loops -> cross_phase_loops++); same-pattern with fix template -> S_FIX (!skip_fix, loops < max_loops); triage complete OR loops >= max_loops -> S_RECORD (remaining -> issue)
+1. **Triage** each hit: read +-10 lines -> classify `safe` / `risk` / `bug` / `issue`
+2. **Route**:
+   - `bug`/`issue` + directly fixable → **fix immediately** → back to S_FIX
+   - `bug`/`issue` + requires cross-module/architectural decision → create issue (with fix suggestion + impact analysis)
+   - `risk` → evaluate if guard/validation can mitigate directly; if yes, fix it
+   - `safe` → mark skip
+   See appendix for `-y` behavior. Append evidence (phase: "discovery" + "decision")
+3. **Cross-phase loop**:
+   - Discovery finds new critical issue → S_DIAGNOSE (cross_phase_loops++)
+   - Same-pattern with fix template → S_FIX (!skip_fix)
+   - S_DISCOVER → S_RECORD: triage complete AND remaining_actionable == 0
+   - S_DISCOVER → S_RECORD: loops >= max_loops → MUST log each unfixed item with specific reason (blanket "pre-existing" is forbidden)
 4. Update §7. Mark G6 done.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-improve({slug}): S_DISCOVER — 发现"`
@@ -463,4 +483,5 @@ Odyssey outputs prompt then continues without blocking. `/goal` entered by user 
 - [ ] Quality Gate self-iteration logged in self_iteration_log
 - [ ] Before/after metrics comparison in completion summary
 - [ ] Completion summary with all stats
+- [ ] **Every unfixed finding has individual classification and reason** — blanket "pre-existing" labels are forbidden
 </success_criteria>
