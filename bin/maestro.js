@@ -43,8 +43,14 @@ if (
     windowsHide: true,
   });
 
-  if (!result.error) {
-    process.exit(result.status ?? (result.signal ? 1 : 0));
+  if (result.error) {
+    process.stderr.write(
+      `[MaestroGraph] Warning: Failed to relaunch with WASM flags (${result.error.message}). ` +
+      'Continuing without --liftoff-only; large repositories may trigger V8 WASM OOM.\n',
+    );
+  } else {
+    const SIGNAL_EXIT_CODES = { SIGINT: 130, SIGTERM: 143, SIGKILL: 137 };
+    process.exit(result.status ?? SIGNAL_EXIT_CODES[result.signal] ?? 1);
   }
 }
 

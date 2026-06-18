@@ -35,6 +35,7 @@ interface PendingExtract {
 
 export class CodeParseRunner {
   private worker: Worker | null = null;
+  private workerGeneration = 0;
   private workerParseCount = 0;
   private nextId = 0;
   private pending = new Map<number, PendingExtract>();
@@ -89,6 +90,7 @@ export class CodeParseRunner {
 
   private ensureWorker(): Worker {
     if (this.worker) return this.worker;
+    const gen = ++this.workerGeneration;
     this.worker = new Worker(this.workerPath);
     this.worker.on('message', (message: WorkerMessage) => {
       if (message.type !== 'extract-result') return;
@@ -100,11 +102,13 @@ export class CodeParseRunner {
       else pending.reject(new Error(message.error));
     });
     this.worker.on('error', err => {
+      if (this.workerGeneration !== gen) return;
       this.rejectAllPending(`Parse worker error: ${err.message}`);
       this.worker = null;
       this.workerParseCount = 0;
     });
     this.worker.on('exit', code => {
+      if (this.workerGeneration !== gen) return;
       if (code !== 0) this.rejectAllPending(`Parse worker exited with code ${code}`);
       this.worker = null;
       this.workerParseCount = 0;
