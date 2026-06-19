@@ -3,6 +3,7 @@
 //
 // Subcommands:
 //   skills     List effective commands + skills (global + project, project wins)
+//   list       List all ralph / maestro sessions and warn on multiple running
 //   check      Run health check against current ralph status.json
 //   session    Show current ralph session summary
 //   next       Load next pending step + required_reading, write status.json
@@ -18,6 +19,9 @@ import type { Command } from 'commander';
 // Lazy module loader — keeps cold start cheap and isolates ralph-only deps.
 async function loadSkillsCmd() {
   return (await import('../ralph/cmd-skills.js')).runSkills;
+}
+async function loadListCmd() {
+  return (await import('../ralph/cmd-list.js')).runList;
 }
 async function loadCheckCmd() {
   return (await import('../ralph/cmd-check.js')).runCheck;
@@ -51,6 +55,18 @@ export function registerRalphCommand(program: Command): void {
       const run = await loadSkillsCmd();
       const platform = opts.platform as ('claude' | 'codex' | 'agent' | 'agy' | undefined);
       const code = await run({ json: !!opts.json, quiet: !!opts.quiet, platform });
+      process.exit(code);
+    });
+
+  // -- list ----------------------------------------------------------------
+  ralph
+    .command('list')
+    .description('List all ralph / maestro sessions and warn when multiple are running')
+    .option('--json', 'Output sessions as JSON')
+    .option('--strict', 'Exit 2 when multiple running sessions are detected')
+    .action(async (opts: { json?: boolean; strict?: boolean }) => {
+      const run = await loadListCmd();
+      const code = await run({ json: !!opts.json, strict: !!opts.strict });
       process.exit(code);
     });
 

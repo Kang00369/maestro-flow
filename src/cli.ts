@@ -42,6 +42,7 @@ const commandLoaders: Record<string, () => Promise<(p: Command) => void>> = {
   hooks:      async () => (await import('./commands/hooks.js')).registerHooksCommand,
   coordinate: async () => (await import('./commands/coordinate.js')).registerCoordinateCommand,
   ralph:      async () => (await import('./commands/ralph.js')).registerRalphCommand,
+  'csv-wave': async () => (await import('./commands/csv-wave.js')).registerCsvWaveCommand,
   launcher:   async () => (await import('./commands/launcher.js')).registerLauncherCommand,
   delegate:   async () => (await import('./commands/delegate.js')).registerDelegateCommand,
   'agent-msg': async () => (await import('./commands/msg.js')).registerMsgCommand,

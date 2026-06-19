@@ -176,14 +176,26 @@ Enrichment table:
 1. Filter pending rows for target wave
 2. Build prev_context from completed predecessor findings
 3. Write wave-{N}.csv with prev_context column
-4. spawn_agents_on_csv({
+4. Prepare artifact dir: {session_folder}/artifacts/wave-{N}
+5. Append `maestro csv-wave contract --artifact-dir {session_folder}/artifacts/wave-{N}`
+   semantics to every worker instruction:
+   - worker writes the final non-empty JSON object to `<artifact-dir>/<safe-row-id>.json`
+   - worker then calls report_agent_job_result exactly once with the same object
+6. spawn_agents_on_csv({
      csv_path: wave-{N}.csv,
      instruction: instruction_builder(context),
      output_csv_path: wave-{N}-results.csv
    })
-5. Merge results into master CSV
-6. Delete wave-{N}.csv
-7. Return: updated master CSV rows
+7. Run:
+   maestro csv-wave verify wave-{N}-results.csv \
+     --artifact-dir {session_folder}/artifacts/wave-{N} \
+     --require-artifacts \
+     --repair-from-artifacts \
+     --allow-empty-result-json \
+     --required id,result_status,findings
+8. Merge results into master CSV only if verify exits 0
+9. Delete wave-{N}.csv
+10. Return: updated master CSV rows
 ```
 
 各 skill 通过不同的 `instruction_builder` 和上下文参数调用此 MACRO，不重复描述流程。
