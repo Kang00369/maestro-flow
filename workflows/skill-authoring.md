@@ -176,24 +176,25 @@ Enrichment table:
 1. Filter pending rows for target wave
 2. Build prev_context from completed predecessor findings
 3. Write wave-{N}.csv with prev_context column
-4. Prepare artifact dir: {session_folder}/artifacts/wave-{N}
-5. Append `maestro csv-wave contract --artifact-dir {session_folder}/artifacts/wave-{N}`
-   semantics to every worker instruction:
-   - worker writes the final non-empty JSON object to `<artifact-dir>/<safe-row-id>.json`
-   - worker then calls report_agent_job_result exactly once with the same object
+4. Define a strict output_schema with required fields (minimum: id, result_status, findings)
+5. Do not manually paste anti-empty-result text into every worker prompt.
+   Standard Codex hooks run csv-wave-guard on spawn_agents_on_csv and inject the
+   anti-empty contract automatically. Use `maestro csv-wave contract` only as a
+   fallback when hooks are unavailable.
 6. spawn_agents_on_csv({
      csv_path: wave-{N}.csv,
      instruction: instruction_builder(context),
-     output_csv_path: wave-{N}-results.csv
+     output_csv_path: wave-{N}-results.csv,
+     output_schema: RESULT_SCHEMA
    })
-7. Run:
+7. Merge wave-{N}-results.csv into the master CSV.
+8. Optional recovery check for hookless/interrupted runs:
    maestro csv-wave verify wave-{N}-results.csv \
-     --artifact-dir {session_folder}/artifacts/wave-{N} \
+     --artifact-dir wave-{N}-results.csv.artifacts \
      --require-artifacts \
      --repair-from-artifacts \
      --allow-empty-result-json \
      --required id,result_status,findings
-8. Merge results into master CSV only if verify exits 0
 9. Delete wave-{N}.csv
 10. Return: updated master CSV rows
 ```

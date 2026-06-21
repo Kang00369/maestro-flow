@@ -162,11 +162,11 @@ export const en: LocaleStrings = {
     codexHooksLevelDescriptions: {
       none: 'No hooks',
       minimal: 'Session context (SessionStart)',
-      standard: '+ spec/keyword-injector + skill-context + delegate-monitor + coordinator/team/telemetry(Stop) + preflight/spec guards',
+      standard: '+ spec/keyword-injector + skill-context + delegate-monitor + coordinator/team/telemetry(Stop) + preflight/spec guards + csv-wave-guard',
       full: '+ workflow-guard (PreToolUse, Bash only) + prompt-guard (UserPromptSubmit)',
     },
     codexHooksWinWarning: 'Warning: Codex hooks are not yet supported on Windows.',
-    codexHooksFeatureFlagHint: 'Add codex_hooks = true to [features] in ~/.codex/config.toml to enable hooks.',
+    codexHooksFeatureFlagHint: 'Add hooks = true to [features] in ~/.codex/config.toml to enable hooks.',
 
     // Agy Hooks (Antigravity)
     agyHooksLevelDescriptions: {

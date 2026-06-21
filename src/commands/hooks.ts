@@ -14,6 +14,7 @@ import { runTeamMonitor } from '../hooks/team-monitor.js';
 import { evaluateSpecInjection } from '../hooks/spec-injector.js';
 import { evaluateSessionContext } from '../hooks/session-context.js';
 import { evaluateSkillContext } from '../hooks/skill-context.js';
+import { evaluateCsvWaveGuard } from '../hooks/csv-wave-guard.js';
 import { resolveWorkspace } from '../hooks/workspace.js';
 import {
   readMaestroSession,
@@ -131,12 +132,13 @@ export const CODEX_HOOK_DEFS: Record<string, CodexHookDef> = {
   'search-cache-invalidator': { event: 'PostToolUse', matcher: 'Write|Edit', level: 'standard', requiresWorkspace: true },
   'workflow-guard':        { event: 'PreToolUse', matcher: 'Bash', level: 'full', requiresWorkspace: true, statusMessage: 'Checking command safety' },
   'prompt-guard':          { event: 'UserPromptSubmit', level: 'full', requiresWorkspace: false },
+  'csv-wave-guard':        { event: 'PreToolUse', matcher: 'spawn_agents_on_csv|report_agent_job_result', level: 'standard', requiresWorkspace: false, statusMessage: 'Validating CSV wave' },
 };
 
 export const CODEX_HOOK_LEVEL_DESCRIPTIONS: Record<HookLevel, string> = {
   none: 'No hooks',
   minimal: 'Session context (SessionStart)',
-  standard: '+ spec/keyword-injector + skill-context + kg-sync + kg-auto-init(SessionStart) + kg-context-injector + delegate-monitor + coordinator/team/telemetry(Stop) + preflight/spec guards + kg-unified-injector (opt-in) + search-daemon-start(SessionStart) + search-cache-invalidator',
+  standard: '+ spec/keyword-injector + skill-context + kg-sync + kg-auto-init(SessionStart) + kg-context-injector + delegate-monitor + coordinator/team/telemetry(Stop) + preflight/spec guards + csv-wave-guard + kg-unified-injector (opt-in) + search-daemon-start(SessionStart) + search-cache-invalidator',
   full: '+ workflow-guard (PreToolUse, Bash only) + prompt-guard (UserPromptSubmit)',
 };
 
@@ -486,7 +488,9 @@ function countCodexHookEntries(hooksFile: CodexHooksFile): number {
 }
 
 /**
- * Check whether `codex_hooks = true` is set in config.toml.
+ * Check whether Codex hooks are enabled in config.toml.
+ * Modern Codex uses `hooks = true`; `codex_hooks = true` is accepted for
+ * compatibility with older Maestro-generated hints.
  * Returns true if the flag is found; prints a hint otherwise.
  */
 export function checkCodexHooksFeatureFlag(opts: { project?: boolean } = {}): boolean {
@@ -495,7 +499,7 @@ export function checkCodexHooksFeatureFlag(opts: { project?: boolean } = {}): bo
     : join(homedir(), '.codex', 'config.toml');
   if (!existsSync(configPath)) return false;
   const content = readFileSync(configPath, 'utf8');
-  return /codex_hooks\s*=\s*true/i.test(content);
+  return /^\s*(?:codex_)?hooks\s*=\s*true\b/im.test(content);
 }
 
 /**
@@ -869,6 +873,31 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
           additionalContext: `[SpecValidator] Format warnings:\n${errorSummary}`,
         }));
       }
+    }
+  },
+
+  'csv-wave-guard': async () => {
+    const config = loadHooksConfig();
+    if (config.toggles['csvWaveGuard'] === false) return;
+
+    const raw = await readStdin();
+    const data = raw ? JSON.parse(raw) : {};
+    const result = evaluateCsvWaveGuard(data);
+    if (result.blocked) {
+      process.stdout.write(JSON.stringify({
+        decision: 'block',
+        reason: result.reason,
+      }));
+      process.exit(2);
+    }
+    if (result.updatedInput) {
+      process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'allow',
+          updatedInput: result.updatedInput,
+        },
+      }));
     }
   },
 
@@ -1368,7 +1397,7 @@ export function registerHooksCommand(program: Command): void {
         }
         // Feature flag hint
         if (!checkCodexHooksFeatureFlag({ project: opts.project })) {
-          console.log('Hint: Add codex_hooks = true to [features] in ~/.codex/config.toml to enable hooks.');
+          console.log('Hint: Add hooks = true to [features] in ~/.codex/config.toml to enable hooks.');
         }
         const result = installCodexHooksByLevel(level, { project: opts.project });
         console.log(`Maestro hooks installed for Codex (level: ${level}):`);

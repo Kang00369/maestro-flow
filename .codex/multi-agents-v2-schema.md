@@ -1,24 +1,32 @@
-# Multi Agents V2 Schema
+# Legacy Multi Agents V2 Schema
 
 生成日期：2026-06-07
 
-本文档记录当前会话中可直接调用的 `multi_agents v2` 相关底层方法。这里的 schema 以当前运行时暴露给根 Agent 的工具定义为准。
+> Legacy reference only. Do not use this document to decide whether Maestro CSV
+> Wave requires `multi_agent_v2`.
+>
+> Current Codex CSV Wave uses `spawn_agents_on_csv` through the `agent_jobs`
+> handler and worker-side `report_agent_job_result`. It does not require the
+> `multi_agents_v2/spawn` entry point. Native `spawn_agent` remains disallowed
+> for Maestro coordination; use Maestro CSV Wave instead.
+
+本文档记录旧会话中暴露过的 `multi_agents v2` 相关底层方法。这里的 schema 仅供历史排查参考，不作为当前安装或运行配置依据。
 
 ## 方法总览
 
 | 方法 | 作用 | 是否触发目标 Agent 执行 |
 | --- | --- | --- |
-| `spawn_agent` | 创建新的子 Agent，并给它初始任务 | 是 |
+| `spawn_agent` | Legacy native subagent API；Maestro coordination 禁用 | 是 |
 | `send_message` | 向已有 Agent 发送消息 | 否 |
 | `followup_task` | 向已有 Agent 发送后续任务 | 是 |
 | `wait_agent` | 等待任意 live Agent 的 mailbox 更新或 final 通知 | 不适用 |
 | `close_agent` | 关闭指定 Agent 及其 descendants | 不适用 |
 | `list_agents` | 列出当前 root thread tree 中的 live Agents | 不适用 |
-| `spawn_agents_on_csv` | 按 CSV 行批量创建 worker Agent，并导出结构化结果 | 是 |
+| `spawn_agents_on_csv` | Maestro CSV Wave 入口；Codex 0.141 走 `agent_jobs` handler，不依赖 `multi_agents_v2/spawn` | 是 |
 
-## `spawn_agent`
+## `spawn_agent` (legacy; do not use for Maestro)
 
-创建一个新的子 Agent 来执行指定任务。
+创建一个新的子 Agent 来执行指定任务。Maestro coordination 不使用这个 native API；需要多 agent 时使用 CSV Wave。
 
 ```ts
 spawn_agent({
@@ -236,7 +244,7 @@ spawn_agents_on_csv({
 | `max_workers` | `number` | 否 | `16` | `max_concurrency` 的别名。 |
 | `max_runtime_seconds` | `number` | 否 | `1800` 或配置默认值 | 单个 worker 的最大运行时间，单位秒。 |
 | `output_csv_path` | `string` | 否 | 输入 CSV 同目录下的默认结果路径 | 结果 CSV 输出路径。 |
-| `output_schema` | `object` | 否 | 无 | 每个 worker 上报结果需要匹配的 JSON Schema。 |
+| `output_schema` | `object` | Codex 技术上可选；Maestro 必填 | 无 | 每个 worker 上报结果需要匹配的 JSON Schema。Maestro 必须提供 strict object schema，至少包含 `id`、`result_status`、`findings` 等 required 字段。 |
 
 ### 行为
 
@@ -245,7 +253,7 @@ spawn_agents_on_csv({
 - 调用会阻塞，直到所有 worker 完成或失败。
 - 所有结果会自动导出到 `output_csv_path`，如果未提供则使用默认路径。
 - 每个 worker 必须调用内部的 `report_agent_job_result` 上报 JSON 对象。
-- 如果提供了 `output_schema`，worker 上报对象需要匹配该 schema。
+- Maestro 必须提供 strict `output_schema`；缺失或弱 schema 会被 `csv-wave-guard` 阻断。
 - 未上报结果的 worker 会被视为失败。
 
 ### 示例
@@ -312,4 +320,3 @@ Payload:
 ## 非 multi-agent v2 方法
 
 `multi_tool_use.parallel` 不是 `multi_agents v2`。它只是并行调用多个工具，用于提高独立工具调用的执行效率，不会创建 Agent，也不会产生 Agent mailbox 或 final answer。
-
