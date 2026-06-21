@@ -3,7 +3,7 @@
 // Atomic write via `.tmp` + rename so a crash never leaves a partial file.
 // ---------------------------------------------------------------------------
 
-import { existsSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { RalphSession } from './status-schema.js';
 
@@ -16,6 +16,18 @@ export interface ResolvedSession {
 
 function ralphRoot(workflowRoot: string): string {
   return join(workflowRoot, '.workflow', '.maestro');
+}
+
+export function ralphSessionRoot(workflowRoot: string): string {
+  return ralphRoot(workflowRoot);
+}
+
+export function sessionDir(workflowRoot: string, sessionId: string): string {
+  return join(ralphRoot(workflowRoot), sessionId);
+}
+
+export function statusPathFor(workflowRoot: string, sessionId: string): string {
+  return join(sessionDir(workflowRoot, sessionId), 'status.json');
 }
 
 /**
@@ -40,6 +52,25 @@ export function listRalphSessions(workflowRoot: string): string[] {
   }
   entries.sort((a, b) => b.mtimeMs - a.mtimeMs);
   return entries.map(e => e.name);
+}
+
+export function listRunningRalphSessions(workflowRoot: string): ResolvedSession[] {
+  const sessions: ResolvedSession[] = [];
+  for (const name of listRalphSessions(workflowRoot)) {
+    const statusPath = statusPathFor(workflowRoot, name);
+    if (!existsSync(statusPath)) continue;
+    try {
+      const data = readStatus(statusPath);
+      if (data.status !== 'running') continue;
+      sessions.push({
+        sessionId: name,
+        sessionDir: sessionDir(workflowRoot, name),
+        statusPath,
+        data,
+      });
+    } catch { /* skip corrupt */ }
+  }
+  return sessions;
 }
 
 function isSessionDirName(name: string): boolean {
@@ -84,6 +115,16 @@ export function writeStatus(statusPath: string, data: RalphSession): void {
   const tmp = `${statusPath}.tmp`;
   writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
   renameSync(tmp, statusPath);
+}
+
+export function createSessionDir(workflowRoot: string, sessionId: string): { sessionDir: string; statusPath: string } {
+  const dir = sessionDir(workflowRoot, sessionId);
+  const statusPath = join(dir, 'status.json');
+  if (existsSync(statusPath)) {
+    throw new Error(`session already exists: ${sessionId}`);
+  }
+  mkdirSync(dir, { recursive: true });
+  return { sessionDir: dir, statusPath };
 }
 
 export function workflowRoot(): string {
