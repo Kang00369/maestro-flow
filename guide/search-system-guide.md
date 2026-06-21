@@ -97,9 +97,10 @@ tf~ = Σ(boost_f × tf_f / (1 - b + b × dl_f / avgdl_f))
 
 ### CJK 分词
 
-中文字符自动按 unigram 分词：
-- 输入 `"认证"` → tokens: `["认", "证"]`
-- 输入 `"JWT认证"` → tokens: `["jwt", "认", "证"]`
+中文字符自动按 bigram + trigram 分词（`cjkNgrams`，n=2..3），单字不单独输出：
+- 输入 `"认证"` → tokens: `["认证"]`
+- 输入 `"用户认证"` → tokens: `["用户", "户认", "认证", "用户认", "户认证"]`
+- 输入 `"JWT认证"` → tokens: `["jwt", "认证"]`
 
 ### 双语索引
 
