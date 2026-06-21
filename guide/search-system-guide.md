@@ -133,6 +133,27 @@ maestro search "token token jwt"
 
 ---
 
+## 索引来源
+
+WikiIndexer 会自动索引以下数据源：
+
+| 来源 | 路径 | 说明 |
+|------|------|------|
+| Spec | `.workflow/spec/` | 规范文档 |
+| Knowhow | `.workflow/knowhow/` | 知识条目 |
+| Scratch | `.workflow/scratch/` | 临时文档，使用独立 BM25F 配置（权重较低） |
+| Session Archive | `.workflow/session/` | 归档会话记录 |
+
+索引构建时，WikiIndexer 根据条目类型自动选择对应的 BM25F 配置（default/kg/scratch）。
+
+---
+
+## 可信度与搜索热度
+
+搜索命中会异步更新节点的 `search_hits` 计数（通过 `CredibilityStore`），用于后续可信度评分。该操作为 best-effort，不阻塞搜索返回。
+
+---
+
 ## 性能特性
 
 | 优化项 | 改进 | 说明 |
