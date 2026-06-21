@@ -36,6 +36,7 @@ export default defineConfig({
       'src/graph/kg/__tests__/orchestrator.test.ts',
       'src/graph/kg/__tests__/search-benchmark.test.ts',
       'src/hooks/__tests__/spec-bridge.test.ts',
+      'src/hooks/__tests__/csv-wave-guard.test.ts',
       'src/hooks/__tests__/keyword-spec-injector.test.ts',
       'src/hooks/__tests__/wiki-role-loader.test.ts',
       'src/hooks/__tests__/spec-injector-vitest.test.ts',

@@ -2,8 +2,9 @@
 // CSV wave verification helpers.
 //
 // Codex `spawn_agents_on_csv` can export rows marked completed while the nested
-// `result_json` is `{}`. The helpers below make that state observable, and can
-// optionally repair result_json from worker-written artifact JSON files.
+// `result_json` is `{}` when hooks are unavailable or disabled. The helpers
+// below make that state observable, and can optionally repair result_json from
+// worker-written artifact JSON files.
 // ---------------------------------------------------------------------------
 
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -197,15 +198,18 @@ export function buildCsvWaveContract(opts: {
   requiredFields?: string[];
   idColumn?: string;
 } = {}): string {
-  const artifactDir = opts.artifactDir || '<sessionFolder>/artifacts/wave-N';
+  const artifactDir = opts.artifactDir || '<wave-results.csv>.artifacts';
   const required = (opts.requiredFields && opts.requiredFields.length > 0)
     ? opts.requiredFields.join(',')
     : 'id,result_status,findings';
   const idColumn = opts.idColumn || 'id';
   return [
-    'CSV Wave Reliability Contract',
+    'CSV Wave Reliability Contract (manual fallback)',
     '',
-    'Worker instruction additions:',
+    'Standard Codex installs use csv-wave-guard to inject this contract automatically for spawn_agents_on_csv.',
+    'Use this text only when hooks are unavailable, disabled, or you need an explicit inline contract.',
+    '',
+    'Worker instruction additions for hookless/manual mode:',
     `1. Your row id comes from the CSV column "${idColumn}".`,
     `2. Build the final non-empty JSON result object with required fields: ${required}.`,
     `3. Before calling report_agent_job_result, write the same JSON object to: ${artifactDir}/<safe-row-id>.json`,
@@ -216,7 +220,7 @@ export function buildCsvWaveContract(opts: {
     'Coordinator check after spawn_agents_on_csv:',
     `maestro csv-wave verify <wave-results.csv> --artifact-dir "${artifactDir}" --require-artifacts --repair-from-artifacts --allow-empty-result-json --required ${required}`,
     '',
-    'Merge only after the verify command exits 0. With --repair-from-artifacts, result_json is restored from the artifact when Codex exported {}.',
+    'Merge only after the verify command exits 0. With standard hooks, empty result_json should be blocked before export; --repair-from-artifacts remains a recovery path for hookless or interrupted runs.',
   ].join('\n');
 }
 

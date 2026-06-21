@@ -131,6 +131,27 @@ const HOOKS = {
       }));
     }
   },
+  'csv-wave-guard': async (raw) => {
+    const { loadHooksConfig } = await import('../dist/src/config/index.js');
+    const config = loadHooksConfig();
+    if (config.toggles['csvWaveGuard'] === false) return;
+    const { evaluateCsvWaveGuard } = await import('../dist/src/hooks/csv-wave-guard.js');
+    const data = raw ? JSON.parse(raw) : {};
+    const result = evaluateCsvWaveGuard(data);
+    if (result.blocked) {
+      process.stdout.write(JSON.stringify({ decision: 'block', reason: result.reason }));
+      process.exit(2);
+    }
+    if (result.updatedInput) {
+      process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'allow',
+          updatedInput: result.updatedInput,
+        },
+      }));
+    }
+  },
   'telemetry': async (raw) => {
     const { loadHooksConfig } = await import('../dist/src/config/index.js');
     const config = loadHooksConfig();
