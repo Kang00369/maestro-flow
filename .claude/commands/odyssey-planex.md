@@ -54,6 +54,8 @@ plan → execute → verify → fix gaps → iterate until ALL criteria pass.
    - 计划阶段: `--role analyze` 获取任务分解建议
    - 修复前后: `--role review` 确认无回归
    - verify 阶段: cli-review 类型标准自动 delegate
+
+4. **禁止以上下文消耗为由中断** — harness 自动处理 context compression，以"上下文不足"或"已执行 N 个阶段"为由中断属于纪律违反；必须完整走完状态机直到 S_RECORD → END
 </execution_discipline>
 
 <context>
@@ -513,7 +515,15 @@ Write understanding.md §6, generalization_stats. Mark G5 done.
 ```
 📋 Planex Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件（执行过程中输入即可）：
 
-/goal 穷尽迭代：直到 acceptance_criteria[*] 全部 status==passed
+/goal 完成以下目标：
+{for each G in phase_goals where status != "skipped":}
+- {G.id}: {G.goal} — 完成条件: {G.done_when}
+{end for}
+验收标准：
+{for each AC in acceptance_criteria:}
+- {AC.id}: {AC.criterion} (验证方式: {AC.verify_method})
+{end for}
+穷尽迭代：直到 acceptance_criteria[*] 全部 status==passed
 且 phase_goals_all_done=true 才停。verify 失败自动 fix→re-verify 循环。
 每轮修复后重新验证，新发现的标准违反继续修，不超过 max_iterations。
 遇到 phase=decision 的 pending 必须 AskUserQuestion，不得自行 resolve。

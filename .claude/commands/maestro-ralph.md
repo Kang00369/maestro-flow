@@ -406,7 +406,7 @@ Generate steps from `session.lifecycle_position` to `milestone-complete`.
 1. Validate: 所有 step 的 `command_scope != "missing"`；否则 raise E006 + 列出缺失 skill
 2. Write `.workflow/.maestro/ralph-{YYYYMMDD-HHmmss}/status.json` (Appendix: Session Schema)
 3. Display chain overview：每步显示 `{index}. {skill} [{type}] [{command_scope}]`
-4. If `task_decomposition` present: display **Goal Prompt block** (Appendix)，不阻塞流程，继续 handoff
+4. **Goal Prompt 显示（强制）**：`task_decomposition` 存在时，chain overview 之后**必须逐字显示** Goal Prompt block（Appendix），不得省略或摘要。显示后继续 handoff，不阻塞
 
 ### A_DELEGATE_EVALUATE
 
@@ -684,7 +684,11 @@ decision:post-goal-audit {retry+1}
 ```
 📋 任务分解完成。可随时复制以下 /goal 设定终止条件（执行过程中输入即可）：
 
-/goal 直到 {session_dir}/status.json 的 task_decomposition[*] 与 steps[*] 全部 completion_confirmed=true 才停。每轮以 status.json 为唯一行动手册，通过 /maestro-ralph-execute 推进 step；decision 节点由其自动 handoff 回 ralph 评估。禁止手动执行 skill 或修改 boundary_contract.out_of_scope。
+/goal 完成以下子目标：
+{for each G in task_decomposition:}
+- {G.id}: {G.goal} — 完成条件: {G.done_when}
+{end for}
+直到 {session_dir}/status.json 的 task_decomposition[*] 与 steps[*] 全部 completion_confirmed=true 才停。每轮以 status.json 为唯一行动手册，通过 /maestro-ralph-execute 推进 step；decision 节点由其自动 handoff 回 ralph 评估。禁止手动执行 skill 或修改 boundary_contract.out_of_scope。
 ```
 
 `/goal` 由用户输入；ralph 输出提示词后继续 handoff，不阻塞。

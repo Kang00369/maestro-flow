@@ -44,6 +44,8 @@ fix ALL findings → confirm → generalize → discover → persist. Zero-resid
 3. **多 CLI 辅助** — 利用 `maestro delegate` 调用多个 CLI 工具交叉验证
    - 关键判断用不同 `--role`（analyze / review / explore）获取多视角
    - 修复前后各做一次 CLI review 确认
+
+4. **禁止以上下文消耗为由中断** — harness 自动处理 context compression，以"上下文不足"或"已执行 N 个阶段"为由中断属于纪律违反；必须完整走完状态机直到 S_RECORD → END
 </execution_discipline>
 
 <context>
@@ -364,7 +366,11 @@ Goals:      {done}/{total} ({skipped} skipped)
 ```
 📋 Review-Test-Fix Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件（执行过程中输入即可）：
 
-/goal 穷尽迭代：直到 session.json 的 review_result.remaining_actionable == 0
+/goal 完成以下目标：
+{for each G in phase_goals where status != "skipped":}
+- {G.id}: {G.goal} — 完成条件: {G.done_when}
+{end for}
+穷尽迭代：直到 session.json 的 review_result.remaining_actionable == 0
 且 confirmation.verdict == "confirmed" 且 phase_goals_all_done == true 才停。
 修复按 severity 逐轮迭代（critical→high→medium→low），每轮修复后 re-review 修改区域。
 发现新问题追加到当前轮继续。遇到 phase=decision 的 pending 必须 AskUserQuestion。

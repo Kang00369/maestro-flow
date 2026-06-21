@@ -55,6 +55,8 @@ Treats every bug as a learning signal with exhaustive iteration until root cause
    - 关键判断用不同 `--role`（analyze / review / explore）获取多视角
    - 修复前后各做一次 CLI review 确认
    - 不同阶段可调用不同工具，综合多方意见再行动
+
+4. **禁止以上下文消耗为由中断** — harness 自动处理 context compression，以"上下文不足"或"已执行 N 个阶段"为由中断属于纪律违反；必须完整走完状态机直到 S_RECORD → END
 </execution_discipline>
 
 <context>
@@ -390,7 +392,11 @@ Goals:      {done}/{total} confirmed ({skipped} skipped)
 ```
 📋 Debug Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件：
 
-/goal 穷尽迭代：直到根因确认（或明确 INCONCLUSIVE）且修复验证通过
+/goal 完成以下目标：
+{for each G in phase_goals where status != "skipped":}
+- {G.id}: {G.goal} — 完成条件: {G.done_when}
+{end for}
+穷尽迭代：直到根因确认（或明确 INCONCLUSIVE）且修复验证通过
 且泛化扫描穷尽（所有 hits 已分类处理）且 phase_goals_all_done=true 才停。
 假设失败时扩范围→换视角→升级工具，不轻易放弃。
 泛化发现的同类 bug 全部修复或创建 issue，不允许遗留。

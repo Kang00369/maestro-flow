@@ -53,6 +53,7 @@ HARD RULES:
 7. **status.json 每步骤后由 CLI 原子写盘** — resume-safe
 8. **STATUS 枚举受限** — 仅 `DONE | DONE_WITH_CONCERNS | NEEDS_RETRY | BLOCKED`；`NEEDS_CONTEXT` 已废除
 9. **CLI 输出禁止截断** — `maestro ralph next` 的 stdout 包含完整 skill prompt，必须全量捕获。**严禁** `| head`、`| tail`、`2>&1 | head -N` 等任何截断管道。Bash timeout 可加长但不可截断输出
+10. **禁止以上下文消耗为由中断自调用链** — harness 自动处理 context compression（消息摘要），模型无需判断上下文剩余空间。自调用链的唯一合法终止条件是：全部 `completion_confirmed`、session paused、或 decision handoff 到 ralph。以"上下文不足"、"已连续完成 N 个 step"、"避免 context overflow"等理由中断属于 invariant violation
 </invariants>
 
 <state_machine>

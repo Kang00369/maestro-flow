@@ -49,6 +49,7 @@ Remaining     → intent (new session)
 9. **Decomposition is outcome-oriented** — sub-goals 为可观测交付，禁止 lifecycle 复刻；`/goal` 由用户输入
 10. **planning_mode governs arg granularity** — `unified` → skill args 无 `{phase}`；`independent` → 含 `{phase}`
 11. **task_decomposition 驱动 steps[] 动态生长** — `post-goal-audit` 按 unmet 子目标插入 scoped mini-loop；字段累加，既有字段不删不改
+12. **禁止以上下文消耗为由中断自调用链** — harness 自动处理 context compression（消息摘要），模型无需判断上下文剩余空间。自调用的唯一合法终止条件是：router 命中终止条件（S_COMPLETE / S_FALLBACK / END）、session paused、或 decision 末尾的 A_PAUSE_ESCALATE。以"上下文不足"、"已连续完成 N 个 step"、"避免 context overflow"等理由中断属于 invariant violation
 </invariants>
 
 <router>
@@ -447,7 +448,7 @@ narrow → derive defaults from intent + codebase, skip questions.
 1. 校验所有 step 的 `command_scope != "missing"`；否则 raise E006 + 列出缺失 skill
 2. Write `.workflow/.maestro/ralph-{YYYYMMDD-HHmmss}/status.json`
 3. Display chain overview：每步显示 `{index}. {skill} [{command_scope}]`
-4. `task_decomposition` 存在 → display Goal Prompt block，继续进入 tick
+4. **Goal Prompt 显示（强制）**：`task_decomposition` 存在时，chain overview 之后**必须逐字显示** Goal Prompt block（Appendix），不得省略或摘要。显示后继续进入 tick
 
 ### A_LOCATE_SESSION
 
@@ -839,7 +840,11 @@ decomposition 产出后，链路概览之后逐字显示：
 ```
 📋 任务分解完成。可随时复制以下 /goal 设定终止条件：
 
-/goal 直到 {session_dir}/status.json 的 task_decomposition[*] 与 steps[*] 全部 completion_confirmed=true 才停。每轮以 status.json 为唯一行动手册，通过 /maestro-ralph-beta 推进 tick；decision 节点由 ralph 内联评估。禁止手动执行 skill 或修改 boundary_contract.out_of_scope。
+/goal 完成以下子目标：
+{for each G in task_decomposition:}
+- {G.id}: {G.goal} — 完成条件: {G.done_when}
+{end for}
+直到 {session_dir}/status.json 的 task_decomposition[*] 与 steps[*] 全部 completion_confirmed=true 才停。每轮以 status.json 为唯一行动手册，通过 /maestro-ralph-beta 推进 tick；decision 节点由 ralph 内联评估。禁止手动执行 skill 或修改 boundary_contract.out_of_scope。
 ```
 
 ### Error Codes

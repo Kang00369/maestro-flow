@@ -45,6 +45,8 @@ Baseline-first approach with exhaustive iteration until zero remaining actionabl
    - survey 阶段: `--role explore` 发现依赖/复杂度热点
    - audit/diagnose: `--role analyze` 获取多视角分析
    - fix 前后: `--role review` 确认改进正确性
+
+4. **禁止以上下文消耗为由中断** — harness 自动处理 context compression，以"上下文不足"或"已执行 N 个阶段"为由中断属于纪律违反；必须完整走完状态机直到 S_RECORD → END
 </execution_discipline>
 
 <context>
@@ -429,7 +431,11 @@ Goals:       {done}/{total} ({skipped} skipped)
 ```
 📋 Improve Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件：
 
-/goal 穷尽迭代：直到 session.json 的 audit_result 中所有 findings 均已处理（fix/issue/decision）
+/goal 完成以下目标：
+{for each G in phase_goals where status != "skipped":}
+- {G.id}: {G.goal} — 完成条件: {G.done_when}
+{end for}
+穷尽迭代：直到 session.json 的 audit_result 中所有 findings 均已处理（fix/issue/decision）
 且 phase_goals_all_done=true 才停。修复按 severity 逐轮迭代，每轮修复后 re-verify 修改区域。
 Baseline metrics 必须在修复前采集，修复后必须与 baseline 对比确认改进。
 遇到 phase=decision 的 pending 必须 AskUserQuestion。不允许"只报告不处理"。
