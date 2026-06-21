@@ -17,6 +17,18 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '0.5.34',
+    date: '2026-06',
+    changes: [
+      { type: 'feat', text_en: 'Spec confidence system with conflict marking — high/medium/low/contested states + audit resolution', text_zh: 'Spec 置信度系统与冲突标记——high/medium/low/contested 四态 + 审查消除' },
+      { type: 'feat', text_en: 'Knowledge extractor plugin registry + node type registration for extensible KG extraction', text_zh: '知识提取器插件注册 + 节点类型注册，扩展化 KG 提取' },
+      { type: 'feat', text_en: 'Knowledge command conflict resolution — harvest pre-check + audit 4-state decisions + review conflict marking', text_zh: '知识命令冲突解决闭环——harvest 预检 + audit 四态决策 + review 冲突标记' },
+      { type: 'fix', text_en: 'Search system 16 quality fixes — dedup, BM25F scoring, CJK bigram/trigram, performance', text_zh: '搜索系统 16 项质量修复——去重/BM25F 评分/CJK bigram+trigram/性能' },
+      { type: 'fix', text_en: 'Fix install/registry/config 7 bugs — component resolution, migration, CLI tools config', text_zh: '修复 install/registry/config 系统 7 个 bug' },
+      { type: 'fix', text_en: 'Fix 3 performance risks — Math.max spread overflow, O(n²) includes, linear find', text_zh: '泛化修复 3 项性能风险——Math.max spread 溢出/O(n²) includes/线性查找' },
+    ],
+  },
+  {
     version: '0.5.33',
     date: '2026-06',
     changes: [
