@@ -164,14 +164,14 @@ export const zh: LocaleStrings = {
     confirmSkipped: '已跳过',
 
     // Codex Hooks
-    codexHooksLevelDescriptions: {
-      none: '无 Hooks',
-      minimal: '会话上下文 (SessionStart)',
-      standard: '+ UserPromptSubmit 规范/关键词/KG 注入 + skill 感知 + delegate 监控 + 协调器/团队/遥测(Stop) + preflight/spec 守护',
-      full: '+ 工作流防护 (PreToolUse，仅 Bash) + prompt-guard (UserPromptSubmit)',
-    },
+      codexHooksLevelDescriptions: {
+        none: '无 Hooks',
+        minimal: '会话上下文 (SessionStart)',
+        standard: '+ UserPromptSubmit 规范/关键词/KG 注入 + skill 感知 + delegate 监控 + 协调器/团队/遥测(Stop) + preflight/spec 守护 + csv-wave-guard',
+        full: '+ 工作流防护 (PreToolUse，仅 Bash) + prompt-guard (UserPromptSubmit)',
+      },
     codexHooksWinWarning: '警告：Codex hooks 暂不支持 Windows。',
-    codexHooksFeatureFlagHint: '在 ~/.codex/config.toml 的 [features] 中添加 codex_hooks = true 以启用 hooks。',
+    codexHooksFeatureFlagHint: '在 ~/.codex/config.toml 的 [features] 中添加 hooks = true 以启用 hooks。',
 
     // Agy Hooks (Antigravity)
     agyHooksLevelDescriptions: {
