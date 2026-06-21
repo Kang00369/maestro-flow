@@ -40,25 +40,52 @@ maestro search "UserService" --code
 
 ### 字段权重
 
-搜索系统使用 BM25F（Best Match 25 with Field weighting）算法，对不同字段赋予不同权重：
+搜索系统使用 BM25F（Best Match 25 with Field weighting）算法，对不同字段赋予不同权重。系统针对三类文档维护独立配置：
 
-| 字段 | 权重 | 说明 |
-|------|------|------|
-| `title` | 2.0x | 标题匹配权重最高 |
-| `keywords` | 1.5x | 关键词匹配 |
-| `category` | 1.2x | 分类匹配 |
-| `content` | 1.0x | 内容匹配（基准） |
+**Default（spec/knowhow/issue 等标准文档）**
+
+| 字段 | boost | b | 说明 |
+|------|-------|---|------|
+| `title` | 3 | 0.3 | 标题匹配权重最高 |
+| `tags` | 2 | 0 | 标签匹配，无长度归一化 |
+| `summary` | 1.5 | 0.75 | 摘要匹配 |
+| `body` | 1 | 0.75 | 正文匹配（基准） |
+
+**KG（知识图谱虚拟节点）**
+
+| 字段 | boost | b | 说明 |
+|------|-------|---|------|
+| `title` | 2 | 0.3 | 仅标题参与评分 |
+| `tags` | 1 | 0 | 标签匹配 |
+| `summary` | 0 | 0 | 不参与评分 |
+| `body` | 0 | 0 | 不参与评分 |
+
+**Scratch（scratch 文档）**
+
+| 字段 | boost | b | 说明 |
+|------|-------|---|------|
+| `title` | 1 | 0.3 | 标题匹配（权重较低） |
+| `summary` | 0.5 | 0.75 | 摘要匹配 |
+| `tags` | 0.5 | 0 | 标签匹配，无长度归一化 |
+| `body` | 0.3 | 0.75 | 正文匹配 |
 
 ### 评分公式
 
 ```
-score = Σ(field_weight × BM25(tf, dl, avgdl))
+score = Σ_idf(tf~ × (k1 + 1)) / (tf~ + k1)
 ```
 
-其中：
-- `tf` — 词频（term frequency）
-- `dl` — 文档长度（document length）
-- `avgdl` — 平均文档长度
+其中 `tf~` 为跨字段加权词频：
+
+```
+tf~ = Σ(boost_f × tf_f / (1 - b + b × dl_f / avgdl_f))
+```
+
+- `tf_f` — 字段 f 内的词频
+- `dl_f` — 字段 f 的文档长度
+- `avgdl_f` — 字段 f 的平均文档长度
+- `k1 = 1.5` — 饱和参数
+- `boost` / `b` — 按上表各配置独立设定
 
 ### 除零保护
 

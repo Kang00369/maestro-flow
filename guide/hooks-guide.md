@@ -243,6 +243,37 @@ maestro hooks list      # 可用 Hook 列表
 
 检查受保护文件和工作流阶段约束。退出码 `2` 阻止操作。
 
+### CooldownGuard — 跨进程抖动抑制
+
+> `src/utils/cooldown-guard.ts` — 非独立 Hook，供 kg-sync / kg-auto-init 内部使用。
+
+通过 tmpdir bridge 文件实现跨子进程调用的时序节流。每次执行后写入 JSON bridge 文件，冷却期内的后续调用被跳过（`shouldRun()` 返回 `false`）。
+
+| 预设实例 | 冷却时间 | 用途 |
+|---------|---------|------|
+| `kgSyncGuard` | 30 秒 | `kg-sync` 增量同步去抖 |
+| `kgInitGuard` | 5 分钟 | `kg-auto-init` 初始化去抖 |
+
+**API**：
+
+```typescript
+import { CooldownGuard, kgSyncGuard, kgInitGuard } from '../utils/cooldown-guard.js';
+
+// 自定义 guard
+const guard = new CooldownGuard({ prefix: 'my-guard-', cooldownMs: 60_000 });
+
+// 使用
+if (guard.shouldRun(sessionId)) {
+  // 执行操作
+  guard.markDone(sessionId, { extra: 'data' });
+}
+
+// 查询距上次执行的时间
+const elapsed = guard.timeSinceLastMs(sessionId); // number | null
+```
+
+**Bridge 文件**：`{tmpdir}/{prefix}{sessionId}.json`，格式为 `{ last_trigger: number, session_id?: string, extra?: Record<string, unknown> }`。
+
 ### Coordinator 插件
 
 `SpecInjectionPlugin`（进程内）通过关键词推断规范分类：
