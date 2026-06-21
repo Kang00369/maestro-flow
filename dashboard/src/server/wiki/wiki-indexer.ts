@@ -86,12 +86,7 @@ export class WikiIndexer {
     return this.rebuild();
   }
 
-  /**
-   * Quick mtime scan of known source directories. If any file's mtime
-   * changed since the last rebuild, the cache is stale.
-   */
-  private async hasSourceChanges(): Promise<boolean> {
-    if (this.mtimeSnapshot.size === 0) return true;
+  private getSourcePaths(): { singletons: string[]; dirs: string[] } {
     const dirs = [
       join(this.workflowRoot, 'specs'),
       join(this.workflowRoot, 'knowhow'),
@@ -99,16 +94,23 @@ export class WikiIndexer {
       join(this.workflowRoot, 'domain'),
       join(this.workflowRoot, 'scratch'),
     ];
-    // Include linked workspace directories in staleness check
     for (const lw of this.linkedWorkspaces) {
       if (lw.shareTypes.has('spec')) dirs.push(join(lw.workflowRoot, 'specs'));
       if (lw.shareTypes.has('knowhow')) dirs.push(join(lw.workflowRoot, 'knowhow'));
       if (lw.shareTypes.has('domain')) dirs.push(join(lw.workflowRoot, 'domain'));
       if (lw.shareTypes.has('codebase')) dirs.push(join(lw.workflowRoot, 'codebase'));
     }
-    const singletons = ['project.md', 'roadmap.md'];
-    for (const s of singletons) {
-      const p = join(this.workflowRoot, s);
+    const singletons = [
+      join(this.workflowRoot, 'project.md'),
+      join(this.workflowRoot, 'roadmap.md'),
+    ];
+    return { singletons, dirs };
+  }
+
+  private async hasSourceChanges(): Promise<boolean> {
+    if (this.mtimeSnapshot.size === 0) return true;
+    const { singletons, dirs } = this.getSourcePaths();
+    for (const p of singletons) {
       try {
         const st = await stat(p);
         const prev = this.mtimeSnapshot.get(p);
@@ -131,22 +133,8 @@ export class WikiIndexer {
 
   private async captureMtimeSnapshot(): Promise<Map<string, number>> {
     const snap = new Map<string, number>();
-    const dirs = [
-      join(this.workflowRoot, 'specs'),
-      join(this.workflowRoot, 'knowhow'),
-      join(this.workflowRoot, 'issues'),
-      join(this.workflowRoot, 'domain'),
-      join(this.workflowRoot, 'scratch'),
-    ];
-    for (const lw of this.linkedWorkspaces) {
-      if (lw.shareTypes.has('spec')) dirs.push(join(lw.workflowRoot, 'specs'));
-      if (lw.shareTypes.has('knowhow')) dirs.push(join(lw.workflowRoot, 'knowhow'));
-      if (lw.shareTypes.has('domain')) dirs.push(join(lw.workflowRoot, 'domain'));
-      if (lw.shareTypes.has('codebase')) dirs.push(join(lw.workflowRoot, 'codebase'));
-    }
-    const singletons = ['project.md', 'roadmap.md'];
-    for (const s of singletons) {
-      const p = join(this.workflowRoot, s);
+    const { singletons, dirs } = this.getSourcePaths();
+    for (const p of singletons) {
       try { snap.set(p, (await stat(p)).mtimeMs); } catch { /* missing is fine */ }
     }
     for (const dir of dirs) {
@@ -974,22 +962,21 @@ export class WikiIndexer {
     type: WikiNodeType,
   ): Promise<WikiEntry | null> {
     if (!this.isInsideRoot(absPath)) return null;
+    let ls;
     try {
-      const ls = await lstat(absPath);
-      if (ls.isSymbolicLink()) return null;
-      if (!ls.isFile()) return null;
+      ls = await lstat(absPath);
+      if (ls.isSymbolicLink() || !ls.isFile()) return null;
     } catch {
       return null;
     }
 
     let raw: string;
-    let stats;
     try {
       raw = await readFile(absPath, 'utf-8');
-      stats = await stat(absPath);
     } catch {
       return null;
     }
+    const stats = ls;
 
     const { data, content } = parseFrontmatter(raw);
     const fileName = basename(absPath);
@@ -1042,15 +1029,16 @@ export class WikiIndexer {
     entries: WikiEntry[],
     byId: Record<string, WikiEntry>,
   ): Record<string, string[]> {
-    const bl: Record<string, string[]> = {};
+    const blSets = new Map<string, Set<string>>();
     const titleIndex = new Map<string, string>();
     for (const d of entries) titleIndex.set(d.title.toLowerCase(), d.id);
 
     const push = (target: string, source: string) => {
       const resolved = resolveLink(target, byId, titleIndex);
       if (!resolved) return;
-      if (!bl[resolved]) bl[resolved] = [];
-      if (!bl[resolved].includes(source)) bl[resolved].push(source);
+      let s = blSets.get(resolved);
+      if (!s) { s = new Set(); blSets.set(resolved, s); }
+      s.add(source);
     };
 
     for (const d of entries) {
@@ -1061,6 +1049,8 @@ export class WikiIndexer {
         while ((m = linkRe.exec(d.body))) push(m[1], d.id);
       }
     }
+    const bl: Record<string, string[]> = {};
+    for (const [k, v] of blSets) bl[k] = [...v];
     return bl;
   }
 

@@ -27,7 +27,6 @@ export interface SearchResult {
   snippet: string | null;
   source: WikiEntry['source'];
   workspace?: string;
-  credibilityFactor?: number;
 }
 
 /** A code search result from CodeGraph. */
@@ -44,6 +43,7 @@ export interface CodeSearchResult {
 export interface UnifiedSearchOptions {
   type?: string;
   category?: string;
+  workspace?: string;
   limit: number;
 }
 
@@ -83,15 +83,18 @@ export async function runUnifiedSearch(q: string, opts: UnifiedSearchOptions): P
   if (opts.category) {
     filtered = filtered.filter(r => r.entry.category === opts.category);
   }
-
-  const seen = new Map<string, typeof scored[number]>();
-  for (const r of filtered) {
-    const sourceKey = r.entry.source?.path || r.entry.id;
-    if (!seen.has(sourceKey)) {
-      seen.set(sourceKey, r);
-    }
+  if (opts.workspace) {
+    filtered = filtered.filter(r => r.entry.source.workspace === opts.workspace);
   }
-  const deduped = [...seen.values()].slice(0, limit);
+
+  const seen = new Set<string>();
+  const deduped: typeof filtered = [];
+  for (const r of filtered) {
+    if (seen.has(r.entry.id)) continue;
+    seen.add(r.entry.id);
+    deduped.push(r);
+    if (deduped.length >= limit) break;
+  }
 
   const results = deduped.map(({ entry, score }) => ({
     id: entry.id,
@@ -114,22 +117,22 @@ export async function runUnifiedSearch(q: string, opts: UnifiedSearchOptions): P
 }
 
 function incrementSearchHitsAsync(entryIds: string[]): void {
-  let mg: import('../graph/kg/engine.js').MaestroGraph | null = null;
-  try {
-    const { MaestroGraph } = require('../graph/kg/engine.js') as typeof import('../graph/kg/engine.js');
+  import('../graph/kg/engine.js').then(({ MaestroGraph }) => {
     const projectRoot = resolve('.');
     if (!MaestroGraph.isInitialized(projectRoot)) return;
-    mg = MaestroGraph.openSync(projectRoot);
+    const mg = MaestroGraph.openSync(projectRoot);
     if (!mg) return;
-    const { CredibilityStore, wikiIdToNodeId } = require('../graph/kg/credibility.js') as typeof import('../graph/kg/credibility.js');
-    const store = new CredibilityStore(mg.rawDb);
-    const nodeIds = entryIds.map(wikiIdToNodeId).filter(Boolean) as string[];
-    store.incrementSearchHits(nodeIds);
-  } catch {
-    // Best-effort — never fail the search flow
-  } finally {
-    mg?.close();
-  }
+    try {
+      import('../graph/kg/credibility.js').then(({ CredibilityStore, wikiIdToNodeId }) => {
+        const store = new CredibilityStore(mg.rawDb);
+        const nodeIds = entryIds.map(wikiIdToNodeId).filter(Boolean) as string[];
+        store.incrementSearchHits(nodeIds);
+        mg.close();
+      }).catch(() => { mg.close(); });
+    } catch {
+      mg.close();
+    }
+  }).catch(() => {});
 }
 
 /**
@@ -180,10 +183,7 @@ export function registerSearchCommand(program: Command): void {
         process.exit(1);
       }
 
-      let wikiResults = await runUnifiedSearch(q, { type: opts.type, category: opts.category, limit });
-      if (opts.workspace) {
-        wikiResults = wikiResults.filter(r => r.workspace === opts.workspace);
-      }
+      let wikiResults = await runUnifiedSearch(q, { type: opts.type, category: opts.category, workspace: opts.workspace, limit });
       const codeResults = includeCode ? await runCodeSearch(q, limit) : [];
 
       // --all: normalize and merge scores for unified ranking
@@ -247,9 +247,8 @@ export function registerSearchCommand(program: Command): void {
           const catTag = r.category ? ` ${r.category}` : '';
           const wsTag = r.workspace ? ` [ws:${r.workspace}]` : '';
           const scoreTag = r.score !== null ? `  (${r.score.toFixed(2)})` : '';
-          const staleTag = (r.credibilityFactor !== undefined && r.credibilityFactor < 0.5) ? ' ⚠️' : '';
           const title = isTTY ? highlightTerms(r.title, qTerms) : r.title;
-          console.log(`${indent}${typeTag}${catTag}${wsTag}  ${r.id}  ${title}${scoreTag}${staleTag}`);
+          console.log(`${indent}${typeTag}${catTag}${wsTag}  ${r.id}  ${title}${scoreTag}`);
           if (r.snippet) {
             const snippet = isTTY ? highlightTerms(r.snippet, qTerms) : r.snippet;
             console.log(`${indent}  ${snippet}`);
@@ -281,14 +280,14 @@ interface MergedResult {
   normalizedScore: number;
 }
 
-function minMaxNormalize(scores: number[]): Map<number, number> {
-  const norm = new Map<number, number>();
-  if (scores.length === 0) return norm;
-  const min = Math.min(...scores);
-  const max = Math.max(...scores);
-  const range = max - min || 1;
-  for (const s of scores) norm.set(s, (s - min) / range);
-  return norm;
+function getMinMax(scores: number[]): { min: number; max: number } {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const s of scores) {
+    if (s < min) min = s;
+    if (s > max) max = s;
+  }
+  return { min, max };
 }
 
 function mergeAndNormalize(wiki: SearchResult[], code: CodeSearchResult[], limit: number): MergedResult[] {
@@ -297,8 +296,10 @@ function mergeAndNormalize(wiki: SearchResult[], code: CodeSearchResult[], limit
 
   const wikiScores = wiki.map(r => r.score ?? 0);
   const codeScores = code.map(r => r.score ?? 0);
-  const wikiNorm = minMaxNormalize(wikiScores);
-  const codeNorm = minMaxNormalize(codeScores);
+  const wikiMM = wikiScores.length > 0 ? getMinMax(wikiScores) : { min: 0, max: 0 };
+  const codeMM = codeScores.length > 0 ? getMinMax(codeScores) : { min: 0, max: 0 };
+  const wikiRange = wikiMM.max - wikiMM.min || 1;
+  const codeRange = codeMM.max - codeMM.min || 1;
 
   const merged: MergedResult[] = [];
   for (const r of wiki) {
@@ -308,7 +309,7 @@ function mergeAndNormalize(wiki: SearchResult[], code: CodeSearchResult[], limit
       kind: r.type,
       name: r.title,
       detail: r.category ? `${r.category}  ${r.id}` : r.id,
-      normalizedScore: (wikiNorm.get(raw) ?? 0) * WIKI_WEIGHT,
+      normalizedScore: ((raw - wikiMM.min) / wikiRange) * WIKI_WEIGHT,
     });
   }
   for (const r of code) {
@@ -318,7 +319,7 @@ function mergeAndNormalize(wiki: SearchResult[], code: CodeSearchResult[], limit
       kind: r.kind,
       name: r.name,
       detail: r.filePath,
-      normalizedScore: (codeNorm.get(raw) ?? 0) * CODE_WEIGHT,
+      normalizedScore: ((raw - codeMM.min) / codeRange) * CODE_WEIGHT,
     });
   }
 

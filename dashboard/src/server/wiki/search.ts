@@ -51,6 +51,7 @@ const SCRATCH_FIELD_CONFIGS: Record<FieldName, FieldConfig> = {
 // Public types — kept unchanged for backward compatibility
 // ---------------------------------------------------------------------------
 
+/** @deprecated Legacy flat posting — kept for test backward compat only. */
 export interface Posting {
   docId: string;
   tf: number;
@@ -59,15 +60,17 @@ export interface Posting {
 export type FieldConfigKey = 'default' | 'kg' | 'scratch';
 
 export interface InvertedIndex {
+  /** @deprecated Legacy flat postings — not used by BM25F scoring. */
   postings: Map<string, Posting[]>;
+  /** @deprecated Legacy flat doc lengths — not used by BM25F scoring. */
   docLengths: Map<string, number>;
+  /** @deprecated Legacy flat avg doc length — not used by BM25F scoring. */
   avgDocLength: number;
   totalDocs: number;
-  /** BM25F internals — opaque to external consumers. */
-  _fieldPostings?: Map<string, FieldPosting[]>;
-  _fieldLengths?: Map<string, FieldLengths>;
-  _avgFieldLengths?: FieldLengths;
-  _docConfigKeys?: Map<string, FieldConfigKey>;
+  fieldPostings: Map<string, FieldPosting[]>;
+  fieldLengths: Map<string, FieldLengths>;
+  avgFieldLengths: FieldLengths;
+  docConfigKeys: Map<string, FieldConfigKey>;
 }
 
 export interface SearchResult {
@@ -95,6 +98,10 @@ const HAS_CJK = /[一-鿿㐀-䶿]/;
 
 function cjkNgrams(run: string): string[] {
   const out: string[] = [];
+  if (run.length === 1) {
+    out.push(run);
+    return out;
+  }
   for (let n = 2; n <= 3; n++) {
     if (run.length < n) break;
     for (let i = 0; i <= run.length - n; i++) {
@@ -228,8 +235,8 @@ export function buildInvertedIndex(entries: WikiEntry[]): InvertedIndex {
       });
     }
 
-    // Flat postings for legacy compatibility
-    const flatTotal = [...flatTermCounts.values()].reduce((a, b) => a + b, 0);
+    let flatTotal = 0;
+    for (const c of flatTermCounts.values()) flatTotal += c;
     docLengths.set(entry.id, flatTotal);
     totalLength += flatTotal;
     for (const [term, tf] of flatTermCounts) {
@@ -252,10 +259,10 @@ export function buildInvertedIndex(entries: WikiEntry[]): InvertedIndex {
     docLengths,
     avgDocLength: totalDocs === 0 ? 0 : totalLength / totalDocs,
     totalDocs,
-    _fieldPostings: fieldPostings,
-    _fieldLengths: fieldLengths,
-    _avgFieldLengths: avgFieldLengths,
-    _docConfigKeys: docConfigKeys,
+    fieldPostings,
+    fieldLengths,
+    avgFieldLengths,
+    docConfigKeys,
   };
 }
 
@@ -273,12 +280,7 @@ export function searchBM25(
   if (terms.length === 0 || index.totalDocs === 0) return [];
 
   const fetchLimit = (credibilityFactors && credibilityFactors.size > 0) ? limit * 2 : limit;
-  let results: SearchResult[];
-  if (index._fieldPostings && index._fieldLengths && index._avgFieldLengths) {
-    results = searchBM25F(index, terms, fetchLimit);
-  } else {
-    results = searchBM25Flat(index, terms, fetchLimit);
-  }
+  const results = searchBM25F(index, terms, fetchLimit);
 
   if (credibilityFactors && credibilityFactors.size > 0) {
     for (const r of results) {
@@ -292,14 +294,15 @@ export function searchBM25(
 }
 
 function searchBM25F(index: InvertedIndex, terms: string[], limit: number): SearchResult[] {
-  const fp = index._fieldPostings!;
-  const fl = index._fieldLengths!;
-  const afl = index._avgFieldLengths!;
-  const dck = index._docConfigKeys;
+  const fp = index.fieldPostings;
+  const fl = index.fieldLengths;
+  const afl = index.avgFieldLengths;
+  const dck = index.docConfigKeys;
   const fields: FieldName[] = ['title', 'summary', 'tags', 'body'];
 
+  const uniqueTerms = [...new Set(terms)];
   const scores = new Map<string, number>();
-  for (const term of terms) {
+  for (const term of uniqueTerms) {
     const postings = fp.get(term);
     if (!postings || postings.length === 0) continue;
 
@@ -310,15 +313,15 @@ function searchBM25F(index: InvertedIndex, terms: string[], limit: number): Sear
       const docFL = fl.get(docId);
       if (!docFL) continue;
 
-      const docConfigs = FIELD_CONFIG_MAP[dck?.get(docId) ?? 'default'];
+      const docConfigs = FIELD_CONFIG_MAP[dck.get(docId) ?? 'default'];
 
-      // BM25F: compute weighted pseudo-TF across all fields
       let tfTilde = 0;
       for (const f of fields) {
         const boost = docConfigs[f].boost;
         const b = docConfigs[f].b;
         if (boost === 0 || fieldTfs[f] === 0) continue;
-        const norm = 1 - b + b * (docFL[f] / (afl[f] || 1));
+        if (afl[f] === 0) continue;
+        const norm = 1 - b + b * (docFL[f] / afl[f]);
         tfTilde += boost * (fieldTfs[f] / (norm || 1));
       }
 
@@ -333,25 +336,3 @@ function searchBM25F(index: InvertedIndex, terms: string[], limit: number): Sear
   return ranked.slice(0, limit);
 }
 
-function searchBM25Flat(index: InvertedIndex, terms: string[], limit: number): SearchResult[] {
-  const scores = new Map<string, number>();
-  for (const term of terms) {
-    const postings = index.postings.get(term);
-    if (!postings || postings.length === 0) continue;
-
-    const df = postings.length;
-    const idf = Math.log(1 + (index.totalDocs - df + 0.5) / (df + 0.5));
-
-    for (const { docId, tf } of postings) {
-      const dl = index.docLengths.get(docId) ?? 0;
-      const denom = tf + BM25_K1 * (1 - BM25_K1 + (BM25_K1 * dl) / (index.avgDocLength || 1));
-      const termScore = idf * ((tf * (BM25_K1 + 1)) / (denom || 1));
-      scores.set(docId, (scores.get(docId) ?? 0) + termScore);
-    }
-  }
-
-  const ranked: SearchResult[] = [];
-  for (const [docId, score] of scores) ranked.push({ docId, score });
-  ranked.sort((a, b) => b.score - a.score || a.docId.localeCompare(b.docId));
-  return ranked.slice(0, limit);
-}
