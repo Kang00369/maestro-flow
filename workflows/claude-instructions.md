@@ -34,16 +34,21 @@ Category routing: decisions→`arch`, patterns→`coding`, pitfalls→`debug`/`l
 
 ### Confidence & Conflict Marking
 
-When search results conflict with current context, mark the entry:
+When search results conflict with current context, **mark the entry**:
 
 ```bash
 maestro spec conflict mark <file> <line> --note "<conflict reason>"
 maestro spec conflict list                    # view all marked entries
-maestro spec conflict clear <file> <line>     # clear after audit resolution
 ```
 
 Confidence levels: `high` (verified) → `medium` (default) → `low` (stale) → `contested` (conflict detected).
 
-- `contested` entries are injected last with `[CONTESTED]` badge + conflict note
-- `low` entries show `[LOW CONFIDENCE]` badge
-- Use `/manage-knowledge-audit` to review and resolve all conflicts
+**注入行为**：
+- `contested` → 排末尾，`[CONTESTED]` 标记 + 冲突说明
+- `low` → `[LOW CONFIDENCE]` 标记
+
+**冲突消除**（通过审查命令处理）：
+- `/manage-knowledge-audit --scope spec` — 批量审查所有冲突/降级条目，三态决策（keep/deprecate/delete）
+- `maestro spec conflict clear <file> <line>` — 逐条清除已解决的冲突
+- `maestro spec conflict clear-all <file>` — 批量清除文件内所有标记
+- `maestro spec conflict set-confidence <file> <line> high` — 审查后提升置信度
