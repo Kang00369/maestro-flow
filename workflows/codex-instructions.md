@@ -23,28 +23,19 @@
 
 ## Knowledge System
 
-**ALWAYS search before acting.** Never assume context is pre-loaded.
+**Gate rule: On any coding/modification/debugging task, the FIRST tool call MUST be `maestro search`. Do NOT read code or edit files until search is done.**
 
-### Search Commands
+### Required search (every task, no exceptions)
 
-- `maestro search "<query>" [--type spec|knowhow|issue] [--category <cat>]`
-- `maestro spec load --category <cat>` / `--keyword <kw>`
-- `maestro kg search <symbol>` / `maestro kg context <node>`
+```bash
+maestro search "<feature/module keywords>"
+```
 
-### Proactive Search — ALWAYS Execute
-
-**L0 — Every task, no exceptions:**
-- `maestro search "<feature/module keywords>"`
-
-**L1 — Unfamiliar code:**
-- `maestro kg search "<symbol>"`
-- `maestro kg context <file-or-symbol>`
-
-**L2 — Architecture / debugging / refactoring / tests:**
-- `maestro search --type spec --category arch`
-- `maestro kg callers <fn>` / `maestro kg callees <fn>` 
-- `maestro search --type spec --category test "<module>"`
-- `maestro kg search "<module>" --code`
+Then add follow-up searches based on results:
+- Specific symbol/function → `maestro kg search <symbol>` or `maestro kg context <node>`
+- Architecture/testing → `maestro search --type spec --category arch|test`
+- Call chains → `maestro kg callers <fn>` / `maestro kg callees <fn>`
+- Domain rules → `maestro spec load --category <cat> [--keyword <kw>]`
 
 ### Record
 
@@ -52,3 +43,19 @@
 - **Knowhow** → persist non-obvious knowledge (deviations, root causes, constraints)
 
 Category routing: decisions→`arch`, patterns→`coding`, pitfalls→`debug`/`learning`, rules→`review`, tests→`test`.
+
+### Confidence & Conflict Marking
+
+When search results conflict with current context, mark the entry:
+
+```bash
+maestro spec conflict mark <file> <line> --note "<conflict reason>"
+maestro spec conflict list                    # view all marked entries
+maestro spec conflict clear <file> <line>     # clear after audit resolution
+```
+
+Confidence levels: `high` (verified) → `medium` (default) → `low` (stale) → `contested` (conflict detected).
+
+- `contested` entries are injected last with `[CONTESTED]` badge + conflict note
+- `low` entries show `[LOW CONFIDENCE]` badge
+- Use `/manage-knowledge-audit` to review and resolve all conflicts

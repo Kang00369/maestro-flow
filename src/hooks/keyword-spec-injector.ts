@@ -219,12 +219,15 @@ function buildKeywordSection(entries: IndexedEntry[]): ContextSection {
 
   const lines = entries.map(e => {
     const body = e.content
-      .replace(/^#{1,6}\s+.*$/gm, '') // strip markdown headings (title is added separately)
+      .replace(/^#{1,6}\s+.*$/gm, '')
       .replace(/\s+/g, ' ')
       .trim();
     const kws = e.keywords.join(',');
     const titlePrefix = e.title ? `${e.title}: ` : '';
-    return `${e.category} · ${kws} · ${titlePrefix}${body}`;
+    const badge = e.confidence === 'contested' ? '[CONTESTED] '
+      : e.confidence === 'low' ? '[LOW CONFIDENCE] '
+      : '';
+    return `${badge}${e.category} · ${kws} · ${titlePrefix}${body}`;
   });
 
   return { label, lines };

@@ -56,6 +56,49 @@ Revoked column must be set rather than deleting tokens.
 | `date` | 是 | `YYYY-MM-DD` |
 | `source` | 否 | 来源（manual / agent / phase） |
 | `ref` | 否 | 指向 knowhow 详情文档的路径 |
+| `confidence` | 否 | 置信度：`high` / `medium` / `low` / `contested` |
+| `conflict-marker` | 否 | 冲突标记 ID（格式 `CMK-YYYYMMDD-xxxx`） |
+| `conflict-note` | 否 | 冲突说明（描述与哪条知识矛盾） |
+
+### 置信度与冲突标记
+
+每条 spec entry 可标注置信度等级，用于注入时的降级与警告：
+
+| 等级 | 含义 | 注入行为 |
+|------|------|---------|
+| `high` | 经过审查验证 | 正常注入 |
+| `medium` | 默认（无标注） | 正常注入 |
+| `low` | 老旧或少用 | 注入时带 `[LOW CONFIDENCE]` 前缀 |
+| `contested` | 检测到冲突 | 排在末尾，带 `[CONTESTED]` 前缀和冲突说明 |
+
+**冲突标记流程**：
+
+1. Agent 搜索知识 → 发现与当前上下文矛盾 → 调用 `maestro spec conflict mark` 标记
+2. 注入时：`contested` 条目移到末尾并显示警告；`low` 条目添加降级标记
+3. 审计清除：`/manage-knowledge-audit` 或 `maestro spec conflict clear` 消除标记
+
+<details>
+<summary>冲突标记示例</summary>
+
+```markdown
+<spec-entry category="coding" keywords="auth,token" date="2026-06-15"
+  confidence="contested" conflict-marker="CMK-20260621-a1b2"
+  conflict-note="Contradicts auth-v2 spec re: token storage">
+### Token Storage Strategy
+Store tokens in httpOnly cookies.
+</spec-entry>
+```
+
+注入显示效果：
+```
+### Token Storage Strategy
+> [CONTESTED] coding · auth, token · 2026-06-15
+> Conflict: Contradicts auth-v2 spec re: token storage (CMK-20260621-a1b2)
+
+Store tokens in httpOnly cookies.
+```
+
+</details>
 
 ### Tool 发现
 
@@ -310,6 +353,13 @@ maestro spec load [--category <cat>] [--keyword <kw>] [--scope <scope>] [--json]
 maestro spec add <category> "<title>" "<content>" [--keywords kw1,kw2] [--source <src>] [--ref <path>] [--knowhow-type <type>] [--uid <uid>] [--stdin] [--json]
 maestro spec list [--scope <scope>] [--uid <uid>]
 maestro spec status [--scope <scope>] [--uid <uid>]
+
+# -- Conflict 置信度与冲突标记 ------------------------------------------------
+maestro spec conflict list [--json]                                       # 列出所有冲突/降级条目
+maestro spec conflict mark <file> <line> --note "<reason>" [--marker <id>] [--confidence <level>]
+maestro spec conflict clear <file> <line> [--confidence <level>]          # 清除冲突标记
+maestro spec conflict set-confidence <file> <line> <level>                # 设置置信度
+maestro spec conflict clear-all <file> [--confidence <level>]             # 批量清除文件内所有冲突
 
 # -- Tool 发现 ------------------------------------------------------------
 /maestro-tools-register "<description>"

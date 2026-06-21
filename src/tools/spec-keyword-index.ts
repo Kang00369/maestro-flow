@@ -22,6 +22,8 @@ export interface IndexedEntry {
   content: string;
   title: string;
   id: string;
+  confidence?: string;
+  conflictMarker?: string;
 }
 
 // ============================================================================
@@ -66,6 +68,8 @@ export function buildKeywordIndex(projectPath: string): Map<string, IndexedEntry
         content: entry.content,
         title: entry.title,
         id: `${file}:${entry.lineStart}`,
+        confidence: entry.confidence,
+        conflictMarker: entry.conflictMarker,
       };
 
       for (const kw of entry.keywords) {
