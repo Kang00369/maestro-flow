@@ -141,11 +141,13 @@ Use when testing payment integration endpoints for retry safety.
 
 ```bash
 maestro spec init [--scope <scope>] [--uid <uid>]
-maestro spec add <category> "<title>" "<content>" --keywords kw1,kw2 [--ref <path>] [--json]
+maestro spec add <category> "<title>" "<content>" --keywords kw1,kw2 [--description "<desc>"] [--ref <path>] [--json]
 maestro spec load --category <category>              # 主文档 + 跨文件 + tools
 maestro spec load --category <category> --keyword <kw>
 maestro spec load --keyword <kw>                     # 跨所有文件
 ```
+
+> **迁移说明**：`--role` 选项已替换为 `--category`；`<spec-entry>` 的 `roles` 属性已替换为 `category`（单值）。旧版 `roles`/`--role` 仍可解析但已弃用。
 
 ### Progressive Fill
 
@@ -350,9 +352,20 @@ WikiIndexer 将 `<spec-entry>` 和 `<knowhow-entry>` 解析为独立的 WikiEntr
 # -- Spec -----------------------------------------------------------------
 maestro spec init [--scope <scope>] [--uid <uid>]
 maestro spec load [--category <cat>] [--keyword <kw>] [--scope <scope>] [--json] [--uid <uid>] [--stdin]
-maestro spec add <category> "<title>" "<content>" [--keywords kw1,kw2] [--source <src>] [--ref <path>] [--knowhow-type <type>] [--uid <uid>] [--stdin] [--json]
+maestro spec add <category> "<title>" "<content>" [--keywords kw1,kw2] [--description <desc>] [--source <src>] [--ref <path>] [--knowhow-type <type>] [--uid <uid>] [--stdin] [--json]
 maestro spec list [--scope <scope>] [--uid <uid>]
 maestro spec status [--scope <scope>] [--uid <uid>]
+
+# -- Injection 注入配置 -------------------------------------------------------
+maestro spec injection show [--json]                                       # 显示当前注入配置
+maestro spec injection agent <agent> --categories <cats> [--include <kw>] [--exclude <kw>] [--extras <paths>] [--remove]
+maestro spec injection category <cat> [--spec-files <files>] [--docs <paths>] [--remove]
+maestro spec injection always [--docs <paths>] [--keywords <kw>] [--categories <cats>] [--remove-docs] [--remove-keywords] [--remove-categories] [--clear]
+maestro spec injection filter [--include <kw>] [--exclude <kw>] [--clear]
+maestro spec injection preview <agent> [--json]
+
+# -- Analytics 分析统计 -------------------------------------------------------
+maestro spec analytics [--json] [--recent <n>] [--summary] [--clear] [--tui]
 
 # -- Conflict 置信度与冲突标记 ------------------------------------------------
 maestro spec conflict list [--json]                                       # 列出所有冲突/降级条目
@@ -385,3 +398,5 @@ maestro wiki health | graph | orphans | hubs [--limit N] | backlinks <id> | forw
 # -- Hooks ----------------------------------------------------------------
 maestro hooks install --level standard | status
 ```
+
+> **Scoped ID 格式**：WikiIndexer 使用冒号分隔的 scoped ID（如 `spec:project:coding-001`）。旧版连字符格式（`spec-xxx`）不再生成。

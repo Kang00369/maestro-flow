@@ -36,7 +36,7 @@ Maestro-Flow is built on two interconnected systems that reinforce each other:
           ┌──────────────┴──────────────┐  ┌──────────────────┴───────────────┐
           │   Workflow Orchestration     │  │      Knowledge System            │
           │                             │  │                                  │
-          │  Intent Router              │  │  Knowledge Graph (SQLite)        │
+          │  Intent Router              │  │  MaestroGraph (SQLite)            │
           │    └─ 40+ chain types       │  │    └─ Code + Knowledge unified   │
           │  Ralph Decision Engine      │  │  Spec Injection (Hooks)          │
           │    └─ 11-state FSM          │  │    └─ Auto-inject into prompts   │
@@ -67,6 +67,8 @@ maestro install
 
 **Prerequisites**: Node.js ≥ 18, Claude Code CLI. Optional: Codex CLI, Gemini CLI for multi-agent workflows.
 
+`maestro install` provides an interactive component selector — choose which assets (commands, hooks, MCP, agents) to install. Use `maestro workspace link` to share knowledge (specs, knowhow, domain) across multiple projects.
+
 ---
 
 ## Quick Start
@@ -94,6 +96,18 @@ Ralph automatically determines where you are (brainstorm → plan → execute �
 | `/maestro "..."` | Describe intent, let AI route to the optimal command chain |
 | `/maestro-quick` | Quick fixes, small features (analyze → plan → execute) |
 | `/maestro-*` | Step-by-step: brainstorm, blueprint, analyze, plan, execute, verify |
+
+### Odyssey — Long-Running Iterative Cycles
+
+Odyssey commands run extended, self-correcting loops that combine archaeology, diagnosis, fix, verification, and knowledge persistence until acceptance criteria are met:
+
+| Command | Focus |
+|---------|-------|
+| `odyssey-debug` | Debug cycle — archaeology, diagnosis, fix, confirmation, generalization |
+| `odyssey-planex` | Requirement-driven cycle — plan, execute, strict verify, fix loop |
+| `odyssey-improve` | Codebase improvement — multi-dimensional audit, targeted fix, verify |
+| `odyssey-review-test-fix` | Deep review + fix — multi-dimensional review, targeted fix, generalization |
+| `odyssey-ui` | UI optimization — visual survey, audit, divergent exploration, fix |
 
 ---
 
@@ -159,9 +173,9 @@ These patterns compose: a team coordinator can delegate subtasks to different LL
 
 ## Knowledge System
 
-### Knowledge Graph
+### Knowledge Graph (MaestroGraph)
 
-A SQLite-backed unified graph that stores both **code structure** (functions, classes, call chains via tree-sitter extraction) and **project knowledge** (specs, knowhow, domain terms, issues) in one queryable structure.
+**MaestroGraph** is the unified code index engine that replaces the former CodeGraph dependency. Built on `web-tree-sitter` for AST-level extraction, it stores both **code structure** (functions, classes, call chains) and **project knowledge** (specs, knowhow, domain terms, issues) in a single SQLite-backed graph with dual FTS5 indexes.
 
 ```bash
 maestro kg search <symbol>        # Find nodes
@@ -186,6 +200,10 @@ Agent executes task
 ```
 
 Four learning tools feed this cycle: `learn-retro` (retrospective), `learn-follow` (pattern study), `learn-decompose` (architecture breakdown), `learn-investigate` (deep dive).
+
+### Domain Knowledge
+
+A semantic glossary layer that defines **what things mean** in your project. Domain terms (`maestro domain`) standardize terminology, map concept relationships, and serve as a MaestroGraph knowledge source — bridging the gap between code-level symbols and business-level concepts.
 
 ### Wiki & Search
 
@@ -225,7 +243,7 @@ Built with React 19, Zustand, Tailwind CSS 4, Framer Motion, Hono, WebSocket.
 
 | Metric | Count |
 |--------|-------|
-| Source files (TypeScript) | 446 |
+| Source files (TypeScript) | 454 |
 | Lines of code | ~111,000 |
 | Slash commands | 64 |
 | Workflow definitions | 115 |
@@ -233,7 +251,7 @@ Built with React 19, Zustand, Tailwind CSS 4, Framer Motion, Hono, WebSocket.
 | Agent definitions | 23 |
 | CLI commands | 32 |
 | Templates | 92 |
-| Guides (bilingual) | 66 |
+| Guides (bilingual) | 67 |
 
 ### Tech Stack
 
@@ -277,6 +295,7 @@ maestro/
 
 **Getting Started**
 - **[Quick Start Guide](guide/quick-start-guide.en.md)** — Install, first workflow, key concepts
+- **[Install Guide](guide/install-guide.md)** — Step-by-step installation, component selection, workspace setup
 - **[Maestro Ralph Guide](guide/maestro-ralph-guide.en.md)** — Adaptive lifecycle engine, decision nodes, quality modes
 
 **Workflow**
@@ -288,6 +307,9 @@ maestro/
 
 **Knowledge**
 - **[Knowledge Management Guide](guide/knowledge-management-guide.en.md)** — KG, specs, knowhow, wiki
+- **[Search System Guide](guide/search-system-guide.md)** — Unified BM25F search, MaestroGraph integration, type filtering
+- **[MaestroGraph Plan](guide/plan-maestrograph.md)** — Unified KG engine design, CodeGraph replacement, tree-sitter integration
+- **[Domain Knowledge Plan](guide/plan-domain-knowledge.md)** — Semantic glossary, term relationships, concept layer
 - **[Spec System Guide](guide/spec-system-guide.en.md)** — Spec entries, keyword loading, validation hooks
 - **[Hooks Guide](guide/hooks-guide.en.md)** — 17 hooks, spec injection, context budget
 - **[Learning Tools Guide](guide/learn-tools-guide.en.md)** — Retro, follow, decompose, investigate
@@ -296,6 +318,7 @@ maestro/
 - **[Delegate Async Guide](guide/delegate-async-guide.en.md)** — Multi-CLI delegation, message injection, chaining
 - **[Overlay Guide](guide/overlay-guide.en.md)** — Non-invasive command extensions
 - **[Worktree Guide](guide/worktree-guide.en.md)** — Milestone-level parallel development
+- **[Workspace Guide](guide/workspace-guide.md)** — Cross-workspace knowledge sharing, link/unlink
 - **[MCP Tools Reference](guide/mcp-tools-guide.en.md)** — All 9 MCP endpoint tools
 - **[Collab Guide](guide/team-lite-guide.en.md)** — 2-8 person team collaboration
 

@@ -371,6 +371,42 @@ export const guideRegistry: Array<{
     description_zh: '关联多个项目实现 Spec、Knowhow、Domain、Codebase 的跨工作空间检索与注入',
     icon: 'link',
   },
+  {
+    slug: 'search-system',
+    file: 'search-system-guide.md',
+    title: 'Search System Guide',
+    description: 'Unified knowledge search with BM25F, type filtering, and multi-source integration',
+    title_zh: '搜索系统指南',
+    description_zh: '基于 BM25F 的统一知识搜索 — 类型过滤、多源集成、WikiIndexer 与 MaestroGraph',
+    icon: 'search',
+  },
+  {
+    slug: 'install',
+    file: 'install-guide.md',
+    title: 'Installation Guide',
+    description: 'Global CLI install and project initialization — prerequisites, workflow, and verification',
+    title_zh: '安装指南',
+    description_zh: '全局 CLI 安装与项目初始化 — 前置要求、安装流程、验证步骤',
+    icon: 'download',
+  },
+  {
+    slug: 'plan-maestrograph',
+    file: 'plan-maestrograph.md',
+    title: 'MaestroGraph Unified Knowledge Graph',
+    description: 'Unified knowledge graph engine — 6 sources, 24 query capabilities, AST-level code search',
+    title_zh: 'MaestroGraph 统一知识图谱引擎',
+    description_zh: '统一知识图谱引擎 — 6 种知识源、24 项查询能力、AST 级代码符号搜索',
+    icon: 'share-2',
+  },
+  {
+    slug: 'plan-domain-knowledge',
+    file: 'plan-domain-knowledge.md',
+    title: 'Domain Knowledge System',
+    description: 'Semantic layer for terminology standardization and concept relationships',
+    title_zh: 'Domain 领域知识系统',
+    description_zh: '语义层设计 — 术语标准化、概念关系、MaestroGraph 知识源集成',
+    icon: 'book',
+  },
 ];
 
 // Use import.meta.glob to load all markdown files

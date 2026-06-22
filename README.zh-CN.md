@@ -36,7 +36,7 @@ Maestro-Flow 建立在两个相互增强的系统之上：
           ┌──────────────┴──────────────┐  ┌──────────────────┴───────────────┐
           │      工作流编排              │  │         知识系统                  │
           │                             │  │                                  │
-          │  意图路由                    │  │  知识图谱 (SQLite)               │
+          │  意图路由                    │  │  MaestroGraph (SQLite)            │
           │    └─ 40+ 链类型            │  │    └─ 代码 + 知识统一存储        │
           │  Ralph 决策引擎             │  │  Spec 注入 (Hooks)               │
           │    └─ 11 状态 FSM           │  │    └─ 自动注入 agent 提示词      │
@@ -66,6 +66,8 @@ maestro install
 
 **前置条件**：Node.js ≥ 18，Claude Code CLI。可选：Codex CLI、Gemini CLI 用于多智能体工作流。
 
+`maestro install` 提供交互式组件选择器 — 可选择安装哪些资产（命令、Hook、MCP、Agent）。使用 `maestro workspace link` 跨多个项目共享知识（spec、knowhow、domain）。
+
 ---
 
 ## 快速开始
@@ -93,6 +95,18 @@ Ralph 自动判断你在哪个阶段（brainstorm → plan → execute → verif
 | `/maestro "..."` | 描述意图，AI 自动路由最优命令链 |
 | `/maestro-quick` | 快速修复、小功能（analyze → plan → execute） |
 | `/maestro-*` | 逐步执行：brainstorm、blueprint、analyze、plan、execute、verify |
+
+### Odyssey — 长周期迭代循环
+
+Odyssey 命令运行扩展的自校正循环，组合考古式分析、诊断、修复、验证和知识持久化，直到满足验收标准：
+
+| 命令 | 聚焦场景 |
+|------|---------|
+| `odyssey-debug` | 调试循环 — 考古分析、诊断、修复、确认、泛化 |
+| `odyssey-planex` | 需求驱动循环 — 计划、执行、严格验证、修复迭代 |
+| `odyssey-improve` | 代码库改进 — 多维审计、定向修复、验证 |
+| `odyssey-review-test-fix` | 深度审查 + 修复 — 多维审查、定向修复、泛化 |
+| `odyssey-ui` | UI 优化 — 视觉巡检、审计、发散探索、修复 |
 
 ---
 
@@ -158,9 +172,9 @@ Maestro 通过四种可组合的编排模式协调 **Claude Code、Codex、Gemin
 
 ## 知识系统
 
-### 知识图谱
+### 知识图谱（MaestroGraph）
 
-SQLite 支撑的统一图数据库，同时存储**代码结构**（函数、类、调用链，通过 tree-sitter 提取）和**项目知识**（spec、knowhow、领域术语、issue），合并在一个可查询的结构中。
+**MaestroGraph** 是统一的代码索引引擎，替代了原有的 CodeGraph 外部依赖。基于 `web-tree-sitter` 实现 AST 级提取，将**代码结构**（函数、类、调用链）和**项目知识**（spec、knowhow、领域术语、issue）存储在同一个 SQLite 图数据库中，配备双 FTS5 索引。
 
 ```bash
 maestro kg search <symbol>        # 查找节点
@@ -185,6 +199,10 @@ Agent 执行任务
 ```
 
 四个学习工具驱动这个循环：`learn-retro`（复盘）、`learn-follow`（模式学习）、`learn-decompose`（架构拆解）、`learn-investigate`（深度探究）。
+
+### 领域知识
+
+语义词汇表层，定义项目中**事物的含义**。Domain 术语（`maestro domain`）标准化命名、映射概念关系，并作为 MaestroGraph 的知识源之一 — 桥接代码级符号与业务级概念。
 
 ### Wiki 与搜索
 
@@ -224,7 +242,7 @@ maestro command-help           # 交互式命令参考（别名: ch）
 
 | 指标 | 数量 |
 |------|------|
-| 源文件 (TypeScript) | 446 |
+| 源文件 (TypeScript) | 454 |
 | 代码行数 | ~111,000 |
 | 斜杠命令 | 64 |
 | 工作流定义 | 115 |
@@ -232,7 +250,7 @@ maestro command-help           # 交互式命令参考（别名: ch）
 | Agent 定义 | 23 |
 | CLI 命令 | 32 |
 | 模板 | 92 |
-| 指南（双语） | 66 |
+| 指南（双语） | 67 |
 
 ### 技术栈
 
@@ -276,6 +294,7 @@ maestro/
 
 **快速入门**
 - **[快速开始指南](guide/quick-start-guide.md)** — 安装、第一个工作流、核心概念
+- **[安装指南](guide/install-guide.md)** — 分步安装、组件选择、工作空间配置
 - **[Maestro Ralph 指南](guide/maestro-ralph-guide.md)** — 自适应生命周期引擎、decision 节点、质量模式
 
 **工作流**
@@ -287,6 +306,9 @@ maestro/
 
 **知识系统**
 - **[知识管理指南](guide/knowledge-management-guide.md)** — KG、spec、knowhow、wiki
+- **[搜索系统指南](guide/search-system-guide.md)** — 统一 BM25F 搜索、MaestroGraph 集成、类型过滤
+- **[MaestroGraph 设计文档](guide/plan-maestrograph.md)** — 统一 KG 引擎设计、CodeGraph 替代、tree-sitter 集成
+- **[领域知识设计文档](guide/plan-domain-knowledge.md)** — 语义词汇表、术语关系、概念层
 - **[Spec 系统指南](guide/spec-system-guide.md)** — spec 条目、关键词加载、验证 Hook
 - **[Hook 系统指南](guide/hooks-guide.md)** — 17 个 Hook、Spec 注入、上下文预算
 - **[学习工具指南](guide/learn-tools-guide.md)** — 复盘、跟读、拆解、探究
@@ -295,6 +317,7 @@ maestro/
 - **[Delegate 异步执行指南](guide/delegate-async-guide.md)** — 多 CLI 委派、消息注入、链式调用
 - **[Overlay 系统指南](guide/overlay-guide.md)** — 非侵入式命令扩展
 - **[Worktree 并行开发指南](guide/worktree-guide.md)** — 里程碑级并行开发
+- **[跨工作空间指南](guide/workspace-guide.md)** — 跨项目知识共享、link/unlink
 - **[MCP 工具参考](guide/mcp-tools-guide.md)** — 全部 9 个 MCP 端点工具
 - **[Collab 协作指南](guide/team-lite-guide.md)** — 2-8 人团队协作
 

@@ -454,41 +454,43 @@ export type WikiNodeType =
   | 'domain';    // ← NEW
 ```
 
-### WikiIndexer 扫描 domain
+### WikiIndexer 读取 domain
+
+> **实现变更（D3.1）**: 确立"单一索引权威源"原则 — MaestroGraph 是 domain 的唯一索引。WikiIndexer 从 maestro.db 读取 `domain_term` 节点，不直接扫描 glossary.json，避免双重索引导致的搜索结果重复。
 
 ```typescript
-// dashboard/src/server/wiki/wiki-indexer.ts — 新增方法
+// dashboard/src/server/wiki/virtual-wiki-adapters.ts — 主路径
 
-async scanDomain(): Promise<WikiEntry[]> {
-  const glossaryPath = join(this.workflowRoot, 'domain', 'glossary.json');
-  if (!existsSync(glossaryPath)) return [];
-
-  const raw = await readFile(glossaryPath, 'utf-8');
-  const glossary = JSON.parse(raw);
-
-  return glossary.terms.map(term => ({
-    id: `domain-${term.id}`,
-    type: 'domain' as WikiNodeType,
-    title: term.canonical,
-    summary: term.definition,
-    tags: [...term.aliases, ...term.keywords],
-    body: buildDomainEntryBody(term),
-    status: 'active',
-    category: 'domain',
-    scope: 'project',
-    source: { kind: 'file', path: 'domain/glossary.json' },
-    // ...
-  }));
-}
-
-function buildDomainEntryBody(term: DomainTerm): string {
-  const lines = [`# ${term.canonical}`, '', term.definition, ''];
-  if (term.aliases.length) lines.push(`别名: ${term.aliases.join(', ')}`);
-  if (term.relationships.length) lines.push(`关联: ${term.relationships.join(', ')}`);
-  if (term.keywords.length) lines.push(`关键词: ${term.keywords.join(', ')}`);
-  return lines.join('\n');
+export function adaptDomainEntries(workflowRoot: string): WikiEntry[] {
+  const dbPath = join(workflowRoot, 'kg', 'maestro.db');
+  if (existsSync(dbPath)) {
+    // 主路径: 从 MaestroGraph 读取（单一索引源）
+    const db = new Database(dbPath, { readonly: true });
+    try {
+      const rows = db.prepare(`
+        SELECT id, name, definition, aliases, keywords
+        FROM nodes WHERE source_type = 'domain' AND status = 'active'
+      `).all();
+      return rows.map(row => ({
+        id: row.id, type: 'domain' as WikiNodeType, title: row.name,
+        summary: row.definition, body: row.definition, category: 'domain',
+        tags: [...safeJsonParse(row.aliases, []), ...safeJsonParse(row.keywords, [])],
+      }));
+    } finally { db.close(); }
+  }
+  // 降级: MaestroGraph 未初始化时直接读 glossary.json
+  return adaptGlossaryDirect(workflowRoot);
 }
 ```
+
+### 搜索集成说明
+
+Domain 条目通过两条路径参与搜索：
+
+1. **MaestroGraph 路径（主）**: `domain-extractor.ts` 将 glossary.json 提取为 `domain_term` 节点存入 maestro.db，`knowledge_fts` (trigram tokenizer) 提供 FTS5 搜索。`maestro kg search` 和 MCP 工具直接查询此路径。
+2. **WikiIndexer 路径（统一搜索）**: `adaptDomainEntries()` 从 maestro.db 读取 domain 节点，转换为 `WikiEntry[]` 供 `maestro search` 使用。BM25 评分基于 `canonical` + `definition` + `aliases`(tags) + `keywords`(tags)。
+
+两条路径共享同一数据源（maestro.db），不会产生重复结果。
 
 ### 统一搜索入口
 
@@ -597,6 +599,26 @@ maestro domain import [options]
   --session <path>         # 指定 session 目录
   --merge                  # 合并到已有 glossary（默认行为）
   --replace                # 替换整个 glossary（危险，需双重确认）
+```
+
+### 维护命令
+
+```bash
+# 校验 glossary.json schema 完整性
+maestro domain validate
+  # 检查: id 格式、必填字段、relationship 引用有效性、alias 唯一性
+  # 输出: 校验报告 + 错误码 (E004 等)
+
+# 从备份恢复
+maestro domain restore [--backup <file>]
+  # 无参数: 列出 .workflow/domain/.backups/ 中可用备份
+  # --backup: 指定备份文件恢复
+
+# 标记术语弃用
+maestro domain deprecate <id> [--reason <text>] [--successor <term-id>]
+  # 将术语 status 设为 deprecated
+  # --successor: 指定替代术语，注入时自动提示迁移
+  # deprecated 术语不参与 always-inject，仅在显式匹配时注入降级提示
 ```
 
 ---
@@ -844,7 +866,7 @@ Domain → MaestroGraph 的集成路径：
 `finish-work`、`domain discover`、`domain add` 命令以及 hook 都直接对 glossary.json 做 read-modify-write 操作。没有文件锁机制，多个 CLI 实例并行执行时，后写入者静默覆盖先写入者的数据。
 
 **[修复]**
-引入跨进程文件锁，参考 CodeGraph 的 `FileLock` 实现。在 `domain-loader.ts` 中封装所有 glossary 写操作，统一通过锁保护。
+引入跨进程文件锁，参考 MaestroGraph 的 `FileLock` 实现（源自 CodeGraph，已内化）。在 `domain-loader.ts` 中封装所有 glossary 写操作，统一通过锁保护。
 
 **[实现位置]**
 - 新增: `src/tools/domain-lock.ts`

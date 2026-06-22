@@ -2,11 +2,11 @@
 title: "Maestro Commands Quick Reference"
 ---
 
-> Auto-generated cross-checked card layout — 51 commands, 6 categories
+> Auto-generated cross-checked card layout — 66 commands + 16 CLI subcommands, 7 categories
 
 ---
 
-## Maestro (21 commands)
+## Maestro (31 commands)
 *Intelligent coordinator and core workflow commands — init, plan, execute, verify, and lifecycle management*
 
 ### `maestro` — 指挥家
@@ -102,11 +102,11 @@ title: "Maestro Commands Quick Reference"
 
 ### `maestro-impeccable` — UI 生产管线
 
-**Usage:** `/maestro-impeccable <intent|target> [--chain build|improve|enhance|harden|live] [--enhance <cmd>] [--threshold <score>] [--max-loops <n>] [-y]`
+**Usage:** `/maestro-impeccable <command|intent> [target] [--chain build|redesign|improve|enhance|launch|harden|foundation|live] [--enhance <cmd>] [--threshold <N>] [--max-loops <n>] [--skip-design] [--styles <N>] [-y]`
 
-通过 ui-ux-pro-max 生成多种风格的 UI 设计原型，用户选择最佳方案，固化为代码参考文档
+UI 设计命令：直接单命令、链式多步骤（带质量门禁）、或搜索设计知识。支持 20+ 子命令（craft/shape/critique/audit/polish/animate/colorize 等）
 
-**Flags:** <phase|topic> (阶段或主题) · --styles N (生成风格数量) · --stack <stack> (技术栈) · --targets <pages> (目标页面) · --layouts N (布局数量) · --refine (精化模式) · --persist (持久化结果) · --full (完整模式) · -y (自动模式)
+**Flags:** <command|intent> (命令或意图) · --chain <name> (链式模式: build|redesign|improve|enhance|launch|harden|foundation|live) · --enhance <cmd> (增强命令) · --threshold <N> (质量门禁分数，默认 26/40) · --max-loops <n> (最大迭代次数，默认 3) · --skip-design (跳过设计阶段) · --styles <N> (生成风格数量) · -y (自动模式)
 
 ---
 
@@ -148,6 +148,96 @@ title: "Maestro Commands Quick Reference"
 从工作流产物、会话和用户报告中收集缺陷信号，生成叠加层修补工作流命令。支持从验证结果、审查报告、会话和问题中提取改进信号
 
 **Flags:** [description] (缺陷描述) · --from-verify <dir> (从验证结果提取) · --from-review <dir> (从审查结果提取) · --from-session <id> (从会话提取) · --from-issues ISS-xxx,... (从问题提取) · --scan (扫描所有来源) · --dry-run (演练)
+
+---
+
+### `maestro-companion` — 知识伴侣
+
+**Usage:** `/maestro-companion [before|note|after|route] [--task <description>] [--type <task_type>] [--category <cat>]`
+
+任务伴侣工具：加载知识上下文（before）、记录结构化条目（note）、提升洞察到 spec/knowhow（after）、或路由到下一命令（route）
+
+**Flags:** [before|note|after|route] (模式) · --task <description> (当前任务描述) · --type <task_type> (任务类型: implement|debug|analyze|design) · --category <cat> (规格类别: coding|arch|test|review|debug|learning|ui)
+
+---
+
+### `maestro-grill` — 压力测试
+
+**Usage:** `/maestro-grill <topic|plan> [-y] [-c] [--from <source>] [--depth shallow|standard|deep]`
+
+苏格拉底式压力测试：将计划/想法与代码库现实进行交叉验证。产出 grill-report.md + terminology.md + context-package.json，供下游 brainstorm/analyze/roadmap 使用
+
+**Flags:** <topic|plan> (主题或计划) · -y (自动模式) · -c (恢复会话) · --from <source> (上游输入源) · --depth shallow|standard|deep (分析深度)
+
+---
+
+### `maestro-guard` — 编辑边界管理
+
+**Usage:** `/maestro-guard <on|off|status|allow <path>|deny <path>>`
+
+配置目录级写入边界，由 workflow-guard PreToolUse hook 强制执行。控制哪些目录允许或禁止编辑
+
+**Flags:** <on|off|status|allow|deny> (子命令) · <path> (目标路径，allow/deny 时必填)
+
+---
+
+### `maestro-next` — 单命令推荐
+
+**Usage:** `/maestro-next <intent> [-y] [--dry-run] [--top N] [--list]`
+
+单命令推荐引擎：解析 intent + project state → 路由表评分 → 推荐单个原子命令 → 确认后执行。不创建 session、不构建 chain
+
+**Flags:** <intent> (意图文本) · -y (跳过确认直接执行) · --dry-run (仅显示推荐) · --top N (显示前 N 个候选，默认 3) · --list (列出可推荐命令池)
+
+---
+
+### `maestro-ralph` — 自适应生命周期引擎
+
+**Usage:** `/maestro-ralph <intent> [-y] | status | continue`
+
+闭环决策引擎：读取项目状态 → 推断位置 → 构建自适应链 → 委派执行。Ralph 构建/评估；ralph-execute 执行步骤
+
+**Flags:** <intent> (意图文本) · -y (自动确认) · status (查看会话状态) · continue (恢复会话)
+
+---
+
+### `maestro-ralph-execute` — Ralph 步骤执行器
+
+**Usage:** `/maestro-ralph-execute [-y] [session-id]`
+
+Ralph 和 maestro 会话的单步执行器。每次调用：定位会话 → 找到下一步 → 解析参数 → 执行 → 更新 → 自我调用下一步
+
+**Flags:** -y (自动模式) · [session-id] (会话 ID，可选)
+
+---
+
+### `maestro-swarm-workflow` — 并行工作流加速器
+
+**Usage:** `/maestro-swarm-workflow <intent> [--script <name>] [--dims <d1,d2>] [--roles <r1,r2>] [--count N] [--tier quick|standard] [--resume <runId>]`
+
+并行加速器：将意图路由到预构建的 Workflow 脚本（wf-*.js），支持多智能体并发执行和对抗性决策模式。补充 ralph 的顺序链
+
+**Flags:** <intent> (意图文本) · --script <name> (指定脚本: wf-analyze|wf-brainstorm|wf-review|wf-verify) · --dims <d1,d2> (限定分析维度) · --roles <r1,r2> (限定角色) · --count N (角色数量) · --tier quick|standard (审查层级) · --resume <runId> (恢复之前的运行)
+
+---
+
+### `maestro-ui-codify` — 设计系统提取
+
+**Usage:** `/maestro-ui-codify <source-path> [--package-name <name>] [--output-dir <path>] [--overwrite]`
+
+从源代码提取设计系统为 tokens、参考包和知识资产。4 阶段流水线：validate → extract → package → knowhow
+
+**Flags:** <source-path> (源代码路径，必填) · --package-name <name> (包名称) · --output-dir <path> (输出目录) · --overwrite (覆盖已有输出)
+
+---
+
+### `maestro-universal-workflow` — 动态工作流生成器
+
+**Usage:** `/maestro-universal-workflow <intent> [--name <slug>] [--depth shallow|standard|deep] [--dry-run] [--from <script>] [--resume <runId>]`
+
+动态工作流生成器：扫描库匹配或按需生成任务特定的 Workflow 脚本（含对抗性模式）。脚本持久化到 `~/.maestro/workflows/dynamic/uwf-*.js`
+
+**Flags:** <intent> (意图文本) · --name <slug> (指定脚本名) · --depth shallow|standard|deep (深度，默认 standard) · --dry-run (仅生成脚本不执行) · --from <script> (基于已有脚本修改) · --resume <runId> (恢复之前的运行)
 
 ---
 
@@ -223,7 +313,7 @@ title: "Maestro Commands Quick Reference"
 
 ---
 
-## Specification (4 commands)
+## Specification (6 commands)
 *Project specifications, conventions, and codebase knowledge management*
 
 ### `spec-setup` — 规格设置
@@ -284,7 +374,7 @@ Load registered tool specs and execute step-by-step. Supports direct invocation 
 
 ---
 
-## Quality (7 commands)
+## Quality (8 commands)
 *Testing, debugging, code review, refactoring, and quality assurance*
 
 ### `quality-review` — 代码审查
@@ -369,7 +459,17 @@ Load registered tool specs and execute step-by-step. Supports direct invocation 
 
 ---
 
-## Management (8 commands)
+### `security-audit` — 安全审计
+
+**Usage:** `/security-audit [quick|standard|deep] [--scope <path>]`
+
+系统性安全审计：覆盖 OWASP Top 10、依赖供应链、密钥检测、CI/CD 流水线审查，以及可选的 STRIDE 威胁建模。三级深度控制速度与覆盖范围
+
+**Flags:** [quick|standard|deep] (审计深度，默认 quick) · --scope <path> (限定扫描目录，默认项目根)
+
+---
+
+## Management (10 commands)
 *Project status, memory management, codebase documentation, and issue tracking*
 
 ### `manage-status` — 项目状态
@@ -449,6 +549,26 @@ Load registered tool specs and execute step-by-step. Supports direct invocation 
 知识图谱管理工具：健康仪表板（连通性、孤立条目检测）、条目搜索、孤立清理和图谱统计
 
 **Flags:** [health] (健康仪表板) · [search] (条目搜索) · [cleanup] (孤立清理) · [stats] (图谱统计) · [options] (子命令选项)
+
+---
+
+### `manage-kg-extractors` — 知识图谱提取器
+
+**Usage:** `/manage-kg-extractors [--scan-only] [--append] [--language <lang>]`
+
+分析代码库模式，自动生成 `.workflow/kg/extractors.yaml` — 声明式配置，教 MaestroGraph 的代码图提取器识别项目特定符号
+
+**Flags:** --scan-only (仅报告检测到的模式，不写入) · --append (追加到已有 extractors.yaml) · --language <lang> (限定语言: python|typescript|java 等)
+
+---
+
+### `manage-knowledge-audit` — 知识审计
+
+**Usage:** `/manage-knowledge-audit --scope <spec|knowhow|artifact|all> [--level P0|P1|P2] [--since YYYY-MM-DD] [--milestone <name>] [--interactive] [--mark|--delete|--purge] [--dry-run] [--report]`
+
+审查 spec/knowhow/artifact 存储，识别矛盾/失效/孤儿条目，通过 keep/deprecate/delete 三态清理。对称于 `manage-harvest`（写入入口）
+
+**Flags:** --scope <spec|knowhow|artifact|all> (审查范围，必填) · --level P0|P1|P2 (优先级过滤) · --since YYYY-MM-DD (起始日期) · --milestone <name> (里程碑过滤) · --interactive (交互模式) · --mark (标记废弃) · --delete (删除条目) · --purge (彻底清除) · --dry-run (演练) · --report (生成报告)
 
 ---
 
@@ -546,6 +666,56 @@ Load registered tool specs and execute step-by-step. Supports direct invocation 
 UI 深度打磨循环：视觉普查 → 6 维审计 → 发散探索（创意改进）→ 修复 → 浏览器验证 → 泛化到兄弟组件 → 沉淀设计知识。按 impact×severity 递降穷尽修复每个像素
 
 **Flags:** "<target>" (目标组件/页面) · --dimensions <list> (审计维度) · --skip-fix (仅审计) · --skip-generalize (跳过泛化) · --auto (自动模式) · -y (跳过确认) · -c (恢复会话)
+
+---
+
+## CLI Commands (16 subcommands)
+*Terminal commands via `maestro <command>` — workspace sharing, domain knowledge, and component toggling*
+
+### `maestro workspace` — 跨工作区知识共享
+
+**Usage:** `maestro workspace <link|unlink|list|status> [options]`
+
+管理跨工作区知识共享链接，支持 spec/knowhow/domain/codebase 四类共享
+
+**子命令:**
+
+- `maestro workspace link <path> [--name <n>] [--share spec,knowhow,domain]` — 链接外部工作区
+- `maestro workspace unlink <name>` — 取消链接
+- `maestro workspace list [--json]` — 列出所有链接
+- `maestro workspace status [--json]` — 查看共享状态
+
+---
+
+### `maestro domain` — 领域知识管理
+
+**Usage:** `maestro domain <subcommand> [options]`
+
+项目领域术语表管理（glossary.json）。支持术语的发现、注册、搜索、导入和生命周期管理
+
+**子命令 (11 个):**
+
+- `maestro domain init [--project <name>]` — 初始化领域术语表
+- `maestro domain add <canonical> <definition> [--aliases <csv>] [--keywords <csv>] [--tier core|extended|peripheral]` — 添加术语
+- `maestro domain list [--json] [--status active|deprecated]` — 列出所有术语
+- `maestro domain show <id> [--json] [--full]` — 查看术语详情
+- `maestro domain update <id> [--definition <text>] [--add-alias <csv>] [--remove-alias <csv>] [--tier <tier>]` — 更新术语
+- `maestro domain remove <id>` — 删除术语
+- `maestro domain search <query> [--json]` — 搜索术语（名称+别名+定义+关键词）
+- `maestro domain discover [--scope <dir>] [--recent <days>] [--min-freq <n>] [--limit <n>]` — 扫描代码库发现候选术语
+- `maestro domain import --from context-package|@<file> [--session <path>]` — 从外部源导入术语
+- `maestro domain deprecate <id> [--reason <text>] [--successor <id>]` — 废弃术语（软删除）
+- `maestro domain validate` — 验证 glossary.json schema 和关系完整性
+
+---
+
+### `maestro install toggle` — 组件开关管理
+
+**Usage:** `maestro install toggle [--global] [--path <dir>] [--type <type>] [--enable <names>] [--disable <names>] [--list]`
+
+启用/禁用单个命令、skill 和 agent。支持交互式 TUI 和非交互式批量操作
+
+**Flags:** --global (全局安装，默认) · --path <dir> (项目级安装) · --type <type> (按类型过滤: command|skill|agent) · --enable <names> (启用指定项，逗号分隔) · --disable <names> (禁用指定项，逗号分隔) · --list (列出所有项状态)
 
 ---
 
