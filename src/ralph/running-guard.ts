@@ -58,12 +58,12 @@ function printRunningWarning(
   } else {
     console.error(`[${command}] refusing implicit session selection. Pass --session <id> for the intended session.`);
   }
-  console.error(`[${command}] Pause or complete stale sessions before continuing, or use --allow-concurrent only when concurrent execution is intentional.`);
+  console.error(`[${command}] Pause or finish stale sessions before continuing, or use --allow-concurrent only when concurrent execution is intentional.`);
 }
 
 function printCreateBlocked(command: string, running: ResolvedSession[]): void {
   const ids = running.map(s => s.sessionId).join(', ');
   console.error(`[${command}] W003: running maestro/ralph session already exists: ${ids}`);
   console.error(`[${command}] New sessions are blocked by default to avoid multiple running chains.`);
-  console.error(`[${command}] Pause or complete the existing session first, or pass --allow-concurrent if this is intentional.`);
+  console.error(`[${command}] Pause or finish the existing session first, or pass --allow-concurrent if this is intentional.`);
 }

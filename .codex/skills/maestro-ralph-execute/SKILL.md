@@ -304,8 +304,8 @@ Write enriched args + source_artifact_ref back to status.json.
 
 ### A_PAUSE_SESSION
 
-通常由 `ralph complete N --status BLOCKED --reason "..."` 触发，CLI 已写 `session.status = "paused"`。手动 pause 场景下直接编辑 status.json。
-Display: `[{index}/{total}] ✗ {step.skill} 失败，会话已暂停。Skill(maestro-ralph, continue) 恢复。`
+通常由 `ralph complete N --status BLOCKED --reason "..."` 触发，CLI 已写 `session.status = "paused"`。需要挂起整条 stale session 时使用 `maestro ralph pause --session <id> --reason "..."`。
+Display: `[{index}/{total}] ✗ {step.skill} 失败，会话已暂停。Skill(maestro-ralph, "continue") 恢复。`
 
 ### A_COMPLETE_SESSION
 

@@ -292,7 +292,7 @@ status.json already created in Step 3g, TodoWrite initialized in Step 3h.
 Skill({ skill: "maestro-ralph-execute" })
 ```
 
-The unified executor discovers the latest running session from `.workflow/.maestro/*/status.json` and executes steps in order. maestro sessions (source: "maestro") are `ralph_protocol_version: "2"`: execution steps load via `maestro ralph next`; any `step.decision` node hands off to `Skill("maestro-ralph")` for evaluation (same mechanism as ralph sessions). Decision nodes ARE supported in maestro sessions.
+The unified executor discovers the latest running session from `.workflow/.maestro/*/status.json` and delegates step loading/completion to `maestro ralph next/complete`. If multiple running maestro/ralph sessions exist, the CLI refuses implicit session selection; pass an explicit session id or run `maestro ralph pause --session <id>` / `maestro ralph finish --session <id> --force` for stale sessions first. maestro sessions (source: "maestro") are `ralph_protocol_version: "2"`: execution steps load via `maestro ralph next`; any `step.decision` node hands off to `Skill("maestro-ralph")` for evaluation (same mechanism as ralph sessions). Decision nodes ARE supported in maestro sessions.
 
 ---
 

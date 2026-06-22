@@ -10,6 +10,8 @@
 //   next       Load next pending step + required_reading, write status.json
 //   complete   Mark current step done / concerns / retry / blocked
 //   retry      Sugar for `complete <idx> --status NEEDS_RETRY`
+//   pause      Pause a running session
+//   finish     Mark a session completed
 //
 // Data contract: drives `.workflow/.maestro/ralph-*/status.json`.
 // NOT to be confused with `maestro coordinate` (graph chain walker).
@@ -38,6 +40,12 @@ async function loadNextCmd() {
 }
 async function loadCompleteCmd() {
   return (await import('../ralph/cmd-complete.js')).runComplete;
+}
+async function loadPauseCmd() {
+  return (await import('../ralph/cmd-state.js')).runPause;
+}
+async function loadFinishCmd() {
+  return (await import('../ralph/cmd-state.js')).runFinish;
 }
 
 const VALID_STATUSES = ['DONE', 'DONE_WITH_CONCERNS', 'NEEDS_RETRY', 'BLOCKED'] as const;
@@ -239,6 +247,40 @@ export function registerRalphCommand(program: Command): void {
         index,
         status: 'NEEDS_RETRY',
         evidence: [],
+        allowConcurrent: !!opts.allowConcurrent,
+      });
+      process.exit(code);
+    });
+
+  // ── pause ───────────────────────────────────────────────────────────────
+  ralph
+    .command('pause')
+    .description('Pause a running ralph / maestro session')
+    .option('--session <id>', 'Session id (default: latest running ralph-*)')
+    .option('--reason <text>', 'Reason recorded on the session')
+    .option('--allow-concurrent', 'Allow implicit selection even when multiple sessions are running')
+    .action(async (opts: { session?: string; reason?: string; allowConcurrent?: boolean }) => {
+      const run = await loadPauseCmd();
+      const code = await run({
+        sessionId: opts.session,
+        reason: opts.reason,
+        allowConcurrent: !!opts.allowConcurrent,
+      });
+      process.exit(code);
+    });
+
+  // ── finish ──────────────────────────────────────────────────────────────
+  ralph
+    .command('finish')
+    .description('Mark a ralph / maestro session completed')
+    .option('--session <id>', 'Session id (default: latest running ralph-*)')
+    .option('--force', 'Complete even when unfinished steps remain')
+    .option('--allow-concurrent', 'Allow implicit selection even when multiple sessions are running')
+    .action(async (opts: { session?: string; force?: boolean; allowConcurrent?: boolean }) => {
+      const run = await loadFinishCmd();
+      const code = await run({
+        sessionId: opts.session,
+        force: !!opts.force,
         allowConcurrent: !!opts.allowConcurrent,
       });
       process.exit(code);

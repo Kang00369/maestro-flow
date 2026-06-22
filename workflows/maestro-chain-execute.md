@@ -7,7 +7,7 @@
 ## Migration
 
 - Caller dispatching from `maestro.md` → use `Skill({ skill: "maestro-ralph-execute" })`
-- Resume from session → `Skill({ skill: "maestro-ralph-execute" })` (auto-discovers latest running session via `.workflow/.maestro/*/status.json`)
+- Resume from session → `Skill({ skill: "maestro-ralph-execute" })` (uses `maestro ralph next/complete`; multiple running sessions require an explicit session id)
 
 ## References
 
