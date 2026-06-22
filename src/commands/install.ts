@@ -357,4 +357,24 @@ async function forceInstall(
 
   console.error('');
   console.error(t.install.forceDone);
+
+  // Warm up embedding model + build index (best-effort, non-blocking report)
+  await warmupEmbedding();
+}
+
+async function warmupEmbedding(): Promise<void> {
+  try {
+    process.stderr.write('  Embedding: warming up model...\r');
+    const { isAvailable, getUnavailableReason, embedTexts, getDeviceSummary } = await import('#maestro-dashboard/wiki/embedding.js');
+    if (!await isAvailable()) {
+      const reason = getUnavailableReason?.() ?? 'unknown';
+      console.error(`  Embedding: unavailable (${reason})`);
+      return;
+    }
+    const t0 = Date.now();
+    await embedTexts(['warmup']);
+    console.error(`  ✓ Embedding: model ready (${getDeviceSummary()}, ${Date.now() - t0}ms)`);
+  } catch (e: unknown) {
+    console.error(`  Embedding: warmup failed (${e instanceof Error ? e.message : e})`);
+  }
 }

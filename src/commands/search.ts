@@ -69,12 +69,21 @@ function getIndexer(): WikiIndexer {
  * Unified knowledge search — BM25F ranking via WikiIndexer, with type/category
  * filtering and per-source deduplication.
  */
+export interface SearchMeta {
+  embeddingUsed: boolean;
+  embeddingDocs: number;
+}
+
+let _lastSearchMeta: SearchMeta = { embeddingUsed: false, embeddingDocs: 0 };
+export function getLastSearchMeta(): SearchMeta { return _lastSearchMeta; }
+
 export async function runUnifiedSearch(q: string, opts: UnifiedSearchOptions): Promise<SearchResult[]> {
   const limit = opts.limit > 0 ? opts.limit : 20;
   const indexer = getIndexer();
 
   const candidateLimit = Math.max(limit * 3, 60);
-  const scored = await indexer.searchWithScores(q, candidateLimit);
+  const { results: scored, embeddingUsed, embeddingDocs } = await indexer.searchWithMeta(q, candidateLimit);
+  _lastSearchMeta = { embeddingUsed, embeddingDocs };
 
   let filtered = scored;
   if (opts.type) {
@@ -96,13 +105,14 @@ export async function runUnifiedSearch(q: string, opts: UnifiedSearchOptions): P
     if (deduped.length >= limit) break;
   }
 
+  const maxScore = deduped.length > 0 ? deduped[0].score : 1;
   const results = deduped.map(({ entry, score }) => ({
     id: entry.id,
     type: entry.type,
     title: entry.title,
     category: entry.category,
     summary: entry.summary,
-    score,
+    score: maxScore > 0 ? score / maxScore : score,
     snippet: extractSnippet(entry.body, q),
     source: entry.source,
     workspace: entry.source.workspace,
@@ -204,7 +214,7 @@ export function registerSearchCommand(program: Command): void {
         const qTerms = q.toLowerCase().split(/\s+/).filter(Boolean);
         for (const r of merged) {
           const name = isTTY ? highlightTerms(r.name, qTerms) : r.name;
-          const scoreTag = `  (${r.normalizedScore.toFixed(2)})`;
+          const scoreTag = `  (${r.normalizedScore.toFixed(4)})`;
           console.log(`  [${r.source}] [${r.kind}]  ${name}  ${r.detail}${scoreTag}`);
         }
         return;
@@ -228,10 +238,12 @@ export function registerSearchCommand(program: Command): void {
       const isTTY = process.stdout.isTTY === true;
       const qTerms = q.toLowerCase().split(/\s+/).filter(Boolean);
 
+      const meta = getLastSearchMeta();
+      const embTag = meta.embeddingUsed ? `+emb(${meta.embeddingDocs})` : 'bm25-only';
       if (includeCode && codeResults.length > 0) {
-        console.log(`Search: "${q}" (${wikiResults.length} wiki + ${codeResults.length} code results)`);
+        console.log(`Search: "${q}" (${wikiResults.length} wiki + ${codeResults.length} code results, ${embTag})`);
       } else {
-        console.log(`Search: "${q}" (${wikiResults.length} results)`);
+        console.log(`Search: "${q}" (${wikiResults.length} results, ${embTag})`);
       }
 
       if (qTerms.length > 4) {
@@ -250,7 +262,7 @@ export function registerSearchCommand(program: Command): void {
           const typeTag = `[${r.type}]`;
           const catTag = r.category ? ` ${r.category}` : '';
           const wsTag = r.workspace ? ` [ws:${r.workspace}]` : '';
-          const scoreTag = r.score !== null ? `  (${r.score.toFixed(2)})` : '';
+          const scoreTag = r.score !== null ? `  (${r.score.toFixed(4)})` : '';
           const title = isTTY ? highlightTerms(r.title, qTerms) : r.title;
           console.log(`${indent}${typeTag}${catTag}${wsTag}  ${r.id}  ${title}${scoreTag}`);
           if (r.snippet) {
@@ -266,11 +278,78 @@ export function registerSearchCommand(program: Command): void {
       if (codeResults.length > 0) {
         console.log('  [Code Results]');
         for (const r of codeResults) {
-          const scoreTag = r.score !== null ? `  (${r.score.toFixed(2)})` : '';
+          const scoreTag = r.score !== null ? `  (${r.score.toFixed(4)})` : '';
           const name = isTTY ? highlightTerms(r.name, qTerms) : r.name;
           console.log(`    [${r.kind}] ${name}  ${r.filePath}${scoreTag}`);
         }
       }
+    });
+
+  program
+    .command('embedding')
+    .description('Embedding model status, warmup, and rebuild')
+    .argument('[action]', 'status (default), warmup, rebuild', 'status')
+    .action(async (action: string) => {
+      const workflowRoot = resolve('.workflow');
+      const { isAvailable, getUnavailableReason, loadEmbeddingIndex, embedTexts, getDeviceSummary, detectDevice } = await import('#maestro-dashboard/wiki/embedding.js');
+
+      if (action === 'status') {
+        const avail = await isAvailable();
+        console.log(`Transformers: ${avail ? 'available' : 'NOT available (' + (getUnavailableReason?.() ?? 'unknown') + ')'}`);
+        if (avail) {
+          await detectDevice();
+          console.log(`Device: ${getDeviceSummary()}`);
+        }
+        const idx = loadEmbeddingIndex(workflowRoot);
+        if (idx) {
+          console.log(`Index: ${idx.docIds.length} docs, dim=${idx.dimension}, model=${idx.modelId}`);
+          console.log(`Built: ${new Date(idx.builtAt).toISOString()}, device=${idx.deviceUsed}`);
+          if (idx.buildTimeMs) console.log(`Build time: ${idx.buildTimeMs}ms`);
+        } else {
+          console.log('Index: not built (will build on first search)');
+        }
+        return;
+      }
+
+      if (action === 'warmup') {
+        const avail = await isAvailable();
+        if (!avail) {
+          console.error(`Embedding unavailable: ${getUnavailableReason?.() ?? 'unknown'}`);
+          process.exit(1);
+        }
+        console.log('Warming up model...');
+        const t0 = Date.now();
+        await embedTexts(['warmup']);
+        console.log(`Model ready (${getDeviceSummary()}, ${Date.now() - t0}ms)`);
+        return;
+      }
+
+      if (action === 'rebuild') {
+        const avail = await isAvailable();
+        if (!avail) {
+          console.error(`Embedding unavailable: ${getUnavailableReason?.() ?? 'unknown'}`);
+          process.exit(1);
+        }
+        console.log('Rebuilding embedding index...');
+        const { WikiIndexer } = await import('#maestro-dashboard/wiki/wiki-indexer.js');
+        const { loadWorkspaceConfig, resolveWorkspaceLinks } = await import('../config/index.js');
+        const projectPath = process.cwd();
+        const wsConfig = loadWorkspaceConfig(projectPath);
+        const resolved = resolveWorkspaceLinks(projectPath, wsConfig);
+        const linkedWorkspaces = resolved.filter(lw => lw.valid).map(lw => ({ name: lw.name, workflowRoot: lw.workflowRoot, shareTypes: lw.share }));
+        const indexer = new WikiIndexer({ workflowRoot, linkedWorkspaces });
+        const t0 = Date.now();
+        const { results, embeddingUsed, embeddingDocs } = await indexer.searchWithMeta('warmup', 1);
+        if (embeddingUsed) {
+          console.log(`Index rebuilt: ${embeddingDocs} docs (${Date.now() - t0}ms)`);
+        } else {
+          console.log(`Rebuild failed — check with: maestro embedding status`);
+        }
+        return;
+      }
+
+      console.error(`Unknown action: ${action}. Use: status, warmup, rebuild`);
+      process.exit(1);
     });
 }
 

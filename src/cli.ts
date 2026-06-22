@@ -63,6 +63,7 @@ const commandLoaders: Record<string, () => Promise<(p: Command) => void>> = {
   ch: async () => (await import('./commands/command-help.js')).registerCommandHelpCommand,
   kg:         async () => (await import('./graph/kg/surface/cli.js')).registerKgCommands,
   search:     async () => (await import('./commands/search.js')).registerSearchCommand,
+  embedding:  async () => (await import('./commands/search.js')).registerSearchCommand,
   domain:     async () => (await import('./commands/domain.js')).registerDomainCommand,
   workspace:  async () => (await import('./commands/workspace.js')).registerWorkspaceCommand,
   ws:         async () => (await import('./commands/workspace.js')).registerWorkspaceCommand,

@@ -26,7 +26,7 @@ import type {
   PersistedEntry,
 } from './wiki-types.js';
 import { buildGraph, type WikiGraph } from './graph-analysis.js';
-import { buildInvertedIndex, searchBM25, type InvertedIndex } from './search.js';
+import { buildInvertedIndex, searchBM25, searchBM25Planned, rerankByPhraseProximity, type InvertedIndex } from './search.js';
 import type { EmbeddingIndex } from './embedding.js';
 
 export interface LinkedWorkspaceConfig {
@@ -277,34 +277,46 @@ export class WikiIndexer {
   }
 
   async searchWithScores(query: string, limit = 50): Promise<Array<{ entry: WikiEntry; score: number }>> {
+    return (await this.searchWithMeta(query, limit)).results;
+  }
+
+  async searchWithMeta(query: string, limit = 50): Promise<{
+    results: Array<{ entry: WikiEntry; score: number }>;
+    embeddingUsed: boolean;
+    embeddingDocs: number;
+  }> {
     const index = await this.get();
     const bm25 = await this.getSearchIndex();
-    const bm25Results = searchBM25(bm25, query, limit * 2);
+    const bm25Results = searchBM25Planned(bm25, query, limit * 2);
 
     const embIdx = await this.getEmbeddingIndex();
     if (embIdx && embIdx.docIds.length > 0) {
       try {
-        const { embedQuery, vectorSearch, mergeRRF } = await import('./embedding.js');
+        const { embedQuery, vectorSearch, mergeHybrid } = await import('./embedding.js');
         const qVec = await embedQuery(query);
         const vecResults = vectorSearch(qVec, embIdx, limit * 2);
-        const merged = mergeRRF(bm25Results, vecResults, limit);
-        const out: Array<{ entry: WikiEntry; score: number }> = [];
+        const merged = mergeHybrid(bm25Results, vecResults, limit * 3);
+        let out: Array<{ entry: WikiEntry; score: number }> = [];
         for (const r of merged) {
           const entry = index.byId[r.docId];
           if (entry) out.push({ entry, score: r.score });
         }
-        return out;
-      } catch {
-        // Embedding search failed — fall back to BM25 only
+        out = rerankByPhraseProximity(out, query);
+        return { results: out.slice(0, limit), embeddingUsed: true, embeddingDocs: embIdx.docIds.length };
+      } catch (e: unknown) {
+        if (process.env.DEBUG || process.env.MAESTRO_DEBUG) {
+          console.error(`[embedding] query failed: ${e instanceof Error ? e.message : e}`);
+        }
       }
     }
 
-    const out: Array<{ entry: WikiEntry; score: number }> = [];
-    for (const r of bm25Results.slice(0, limit)) {
+    let out: Array<{ entry: WikiEntry; score: number }> = [];
+    for (const r of bm25Results.slice(0, limit * 3)) {
       const entry = index.byId[r.docId];
       if (entry) out.push({ entry, score: r.score });
     }
-    return out;
+    out = rerankByPhraseProximity(out, query);
+    return { results: out.slice(0, limit), embeddingUsed: false, embeddingDocs: 0 };
   }
 
   async getEmbeddingIndex(): Promise<EmbeddingIndex | null> {
@@ -320,30 +332,52 @@ export class WikiIndexer {
 
   private async loadOrBuildEmbeddings(): Promise<EmbeddingIndex | null> {
     try {
-      const { isAvailable, loadEmbeddingIndex, buildEmbeddingIndex, saveEmbeddingIndex } = await import('./embedding.js');
-      if (!await isAvailable()) return null;
+      const { isAvailable, getUnavailableReason, loadEmbeddingIndex, buildEmbeddingIndex, saveEmbeddingIndex } = await import('./embedding.js');
+      if (!await isAvailable()) {
+        const reason = getUnavailableReason?.() ?? 'unknown';
+        if (process.env.DEBUG || process.env.MAESTRO_DEBUG) {
+          console.error(`[embedding] unavailable: ${reason}`);
+        }
+        return null;
+      }
 
       const cached = loadEmbeddingIndex(this.workflowRoot);
       const index = await this.get();
-      const docs = index.entries.map(e => ({
-        id: e.id,
-        title: e.title,
-        summary: e.summary,
-        tags: e.tags,
-      }));
+      // Only embed knowledge docs — KG code nodes are noise for semantic search
+      const KG_VIRTUAL_KINDS = new Set(['kg-node', 'kg-layer', 'kg-tour-step']);
+      const docs = index.entries
+        .filter(e => !KG_VIRTUAL_KINDS.has(e.ext?.virtualKind as string))
+        .map(e => ({
+          id: e.id,
+          title: e.title,
+          summary: e.summary,
+          tags: e.tags,
+          body: e.body,
+        }));
 
-      const currentIds = new Set(docs.map(d => d.id));
-      const cachedIds = cached ? new Set(cached.docIds) : new Set<string>();
-      const unchanged = cached
-        && currentIds.size === cachedIds.size
-        && [...currentIds].every(id => cachedIds.has(id));
+      const { DEFAULT_MODEL_ID, hashDocContent } = await import('./embedding.js');
+      const modelMatch = cached && cached.modelId === DEFAULT_MODEL_ID;
+      const currentHashes = docs.map(hashDocContent);
+      const cachedHashMap = new Map<string, string>();
+      if (cached?.contentHashes) {
+        for (let i = 0; i < cached.docIds.length; i++) {
+          cachedHashMap.set(cached.docIds[i], cached.contentHashes[i] ?? '');
+        }
+      }
+      const unchanged = modelMatch
+        && cached!.docIds.length === docs.length
+        && cachedHashMap.size > 0
+        && docs.every((d, i) => cachedHashMap.get(d.id) === currentHashes[i]);
 
       if (cached && unchanged) return cached;
 
       const embIdx = await buildEmbeddingIndex(docs, cached);
       saveEmbeddingIndex(embIdx, this.workflowRoot);
       return embIdx;
-    } catch {
+    } catch (e: unknown) {
+      if (process.env.DEBUG || process.env.MAESTRO_DEBUG) {
+        console.error(`[embedding] build failed: ${e instanceof Error ? e.message : e}`);
+      }
       return null;
     }
   }

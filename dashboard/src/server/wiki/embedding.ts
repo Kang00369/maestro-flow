@@ -9,7 +9,8 @@
  */
 
 import { join } from 'node:path';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,6 +21,7 @@ export interface EmbeddingIndex {
   dimension: number;
   docIds: string[];
   vectors: Float32Array[];
+  contentHashes?: string[];
   builtAt: number;
   deviceUsed?: string;
   buildTimeMs?: number;
@@ -63,6 +65,30 @@ export interface RankedResult {
   score: number;
 }
 
+export interface RRFSignal {
+  name: string;
+  weight: number;
+  results: RankedResult[];
+}
+
+export function mergeRRFSignals(
+  signals: RRFSignal[],
+  limit: number,
+  k = 60,
+): RankedResult[] {
+  const scores = new Map<string, number>();
+  for (const { weight, results } of signals) {
+    for (let i = 0; i < results.length; i++) {
+      const rrf = weight / (k + i + 1);
+      scores.set(results[i].docId, (scores.get(results[i].docId) ?? 0) + rrf);
+    }
+  }
+  const merged: RankedResult[] = [];
+  for (const [docId, score] of scores) merged.push({ docId, score });
+  merged.sort((a, b) => b.score - a.score);
+  return merged.slice(0, limit);
+}
+
 export function mergeRRF(
   bm25Results: RankedResult[],
   vectorResults: RankedResult[],
@@ -71,20 +97,48 @@ export function mergeRRF(
   bm25Weight = 0.6,
   vectorWeight = 0.4,
 ): RankedResult[] {
-  const scores = new Map<string, number>();
+  return mergeRRFSignals([
+    { name: 'bm25', weight: bm25Weight, results: bm25Results },
+    { name: 'vector', weight: vectorWeight, results: vectorResults },
+  ], limit, k);
+}
 
-  for (let i = 0; i < bm25Results.length; i++) {
-    const rrf = bm25Weight / (k + i + 1);
-    scores.set(bm25Results[i].docId, (scores.get(bm25Results[i].docId) ?? 0) + rrf);
-  }
+/**
+ * Hybrid fusion: RRF for ordering stability + BM25 magnitude for score discrimination.
+ * finalScore = alpha * rrfNorm + (1-alpha) * bm25Norm
+ */
+export function mergeHybrid(
+  bm25Results: RankedResult[],
+  vectorResults: RankedResult[],
+  limit: number,
+  options?: { k?: number; alpha?: number; bm25Weight?: number; vectorWeight?: number },
+): RankedResult[] {
+  const k = options?.k ?? 10;
+  const alpha = options?.alpha ?? 0.4;
+  const bm25W = options?.bm25Weight ?? 0.6;
+  const vectorW = options?.vectorWeight ?? 0.4;
 
-  for (let i = 0; i < vectorResults.length; i++) {
-    const rrf = vectorWeight / (k + i + 1);
-    scores.set(vectorResults[i].docId, (scores.get(vectorResults[i].docId) ?? 0) + rrf);
-  }
+  const rrfResults = mergeRRFSignals([
+    { name: 'bm25', weight: bm25W, results: bm25Results },
+    { name: 'vector', weight: vectorW, results: vectorResults },
+  ], limit * 3, k);
+
+  const maxRrf = rrfResults.length > 0 ? rrfResults[0].score : 1;
+  const rrfNorm = new Map(rrfResults.map(r => [r.docId, maxRrf > 0 ? r.score / maxRrf : 0]));
+
+  const maxBm25 = bm25Results.length > 0 ? bm25Results[0].score : 1;
+  const bm25Norm = new Map(bm25Results.map(r => [r.docId, maxBm25 > 0 ? r.score / maxBm25 : 0]));
 
   const merged: RankedResult[] = [];
-  for (const [docId, score] of scores) merged.push({ docId, score });
+  const seen = new Set<string>();
+  for (const r of rrfResults) {
+    if (seen.has(r.docId)) continue;
+    seen.add(r.docId);
+    const rn = rrfNorm.get(r.docId) ?? 0;
+    const bn = bm25Norm.get(r.docId) ?? 0;
+    merged.push({ docId: r.docId, score: alpha * rn + (1 - alpha) * bn });
+  }
+
   merged.sort((a, b) => b.score - a.score);
   return merged.slice(0, limit);
 }
@@ -168,7 +222,8 @@ export async function getHardwareInfo(): Promise<HardwareInfo> {
 // Pipeline management — lazy-loads model with detected device
 // ---------------------------------------------------------------------------
 
-const DEFAULT_MODEL = 'Xenova/all-MiniLM-L6-v2';
+const DEFAULT_MODEL = 'Xenova/multilingual-e5-small';
+export const DEFAULT_MODEL_ID = DEFAULT_MODEL;
 const CACHE_FILE = 'embedding-index.json';
 
 let _pipeline: any = null;
@@ -200,15 +255,22 @@ async function getPipeline(): Promise<any> {
   return _pipeline;
 }
 
+let _unavailableReason: string | null = null;
+
 export async function isAvailable(): Promise<boolean> {
   if (_available !== null) return _available;
   try {
     await loadTransformers();
     _available = true;
-  } catch {
+  } catch (e: unknown) {
     _available = false;
+    _unavailableReason = e instanceof Error ? e.message : String(e);
   }
   return _available;
+}
+
+export function getUnavailableReason(): string | null {
+  return _unavailableReason;
 }
 
 // ---------------------------------------------------------------------------
@@ -245,7 +307,8 @@ export async function embedTexts(texts: string[]): Promise<Float32Array[]> {
 
 export async function embedQuery(query: string): Promise<Float32Array> {
   const pipe = await getPipeline();
-  const output = await pipe(query.slice(0, 512), { pooling: 'mean', normalize: true });
+  // E5 models require "query: " prefix for search queries
+  const output = await pipe(('query: ' + query).slice(0, 512), { pooling: 'mean', normalize: true });
   return new Float32Array(output.data);
 }
 
@@ -268,47 +331,164 @@ export function vectorSearch(
 }
 
 // ---------------------------------------------------------------------------
-// Persistence — JSON-based cache with base64 vectors
+// Persistence — SQLite binary BLOB (primary) with JSON fallback for migration
 // ---------------------------------------------------------------------------
+
+const SQLITE_FILE = 'embedding-index.db';
+
+import { createRequire } from 'node:module';
+const _require = createRequire(import.meta.url);
+
+const BINARY_FILE = 'embedding-index.bin';
 
 export function saveEmbeddingIndex(index: EmbeddingIndex, dir: string): void {
   mkdirSync(dir, { recursive: true });
-  const filePath = join(dir, CACHE_FILE);
 
-  const serialized = {
+  const dim = index.dimension;
+  const n = index.docIds.length;
+  const docIdsJson = JSON.stringify(index.docIds);
+  const docIdsBytes = Buffer.from(docIdsJson, 'utf-8');
+  const metaJson = JSON.stringify({
     modelId: index.modelId,
-    dimension: index.dimension,
-    docIds: index.docIds,
-    vectors: index.vectors.map(v => Buffer.from(v.buffer).toString('base64')),
+    dimension: dim,
+    count: n,
     builtAt: index.builtAt,
     deviceUsed: index.deviceUsed,
     buildTimeMs: index.buildTimeMs,
-  };
+    contentHashes: index.contentHashes,
+  });
+  const metaBytes = Buffer.from(metaJson, 'utf-8');
 
-  writeFileSync(filePath, JSON.stringify(serialized));
+  // Format: [metaLen:4][meta][docIdsLen:4][docIds][packedVectors:n*dim*4]
+  const vectorBytes = n * dim * 4;
+  const totalSize = 4 + metaBytes.length + 4 + docIdsBytes.length + vectorBytes;
+  const buf = Buffer.alloc(totalSize);
+  let offset = 0;
+
+  buf.writeUInt32LE(metaBytes.length, offset); offset += 4;
+  metaBytes.copy(buf, offset); offset += metaBytes.length;
+  buf.writeUInt32LE(docIdsBytes.length, offset); offset += 4;
+  docIdsBytes.copy(buf, offset); offset += docIdsBytes.length;
+
+  for (let i = 0; i < n; i++) {
+    const v = index.vectors[i];
+    const vBuf = Buffer.from(v.buffer, v.byteOffset, v.byteLength);
+    vBuf.copy(buf, offset);
+    offset += dim * 4;
+  }
+
+  writeFileSync(join(dir, BINARY_FILE), buf);
+
+  // Remove legacy files
+  for (const f of [CACHE_FILE, SQLITE_FILE, SQLITE_FILE + '-shm', SQLITE_FILE + '-wal', SQLITE_FILE + '-journal']) {
+    try { if (existsSync(join(dir, f))) unlinkSync(join(dir, f)); } catch { /* ignore */ }
+  }
 }
 
 export function loadEmbeddingIndex(dir: string): EmbeddingIndex | null {
-  const filePath = join(dir, CACHE_FILE);
-  if (!existsSync(filePath)) return null;
-
-  try {
-    const raw = JSON.parse(readFileSync(filePath, 'utf-8'));
-    return {
-      modelId: raw.modelId,
-      dimension: raw.dimension,
-      docIds: raw.docIds,
-      vectors: raw.vectors.map((b64: string) => {
-        const buf = Buffer.from(b64, 'base64');
-        return new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
-      }),
-      builtAt: raw.builtAt,
-      deviceUsed: raw.deviceUsed,
-      buildTimeMs: raw.buildTimeMs,
-    };
-  } catch {
-    return null;
+  // Primary: packed binary
+  const binPath = join(dir, BINARY_FILE);
+  if (existsSync(binPath)) {
+    try { return loadFromBinary(binPath); } catch { return null; }
   }
+
+  // Legacy: SQLite → migrate to binary
+  const dbPath = join(dir, SQLITE_FILE);
+  if (existsSync(dbPath)) {
+    try {
+      const idx = loadFromSqlite(dir);
+      saveEmbeddingIndex(idx, dir);
+      return idx;
+    } catch { /* fall through */ }
+  }
+
+  // Legacy: JSON → migrate to binary
+  const jsonPath = join(dir, CACHE_FILE);
+  if (existsSync(jsonPath)) {
+    try {
+      const idx = loadFromLegacyJson(jsonPath);
+      saveEmbeddingIndex(idx, dir);
+      return idx;
+    } catch { return null; }
+  }
+
+  return null;
+}
+
+function loadFromBinary(filePath: string): EmbeddingIndex {
+  const raw = readFileSync(filePath);
+  let offset = 0;
+
+  const metaLen = raw.readUInt32LE(offset); offset += 4;
+  const meta = JSON.parse(raw.subarray(offset, offset + metaLen).toString('utf-8'));
+  offset += metaLen;
+
+  const docIdsLen = raw.readUInt32LE(offset); offset += 4;
+  const docIds: string[] = JSON.parse(raw.subarray(offset, offset + docIdsLen).toString('utf-8'));
+  offset += docIdsLen;
+
+  const dim = meta.dimension;
+  const n = meta.count;
+  const vectors: Float32Array[] = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const ab = raw.buffer.slice(raw.byteOffset + offset, raw.byteOffset + offset + dim * 4);
+    vectors[i] = new Float32Array(ab);
+    offset += dim * 4;
+  }
+
+  return {
+    modelId: meta.modelId,
+    dimension: dim,
+    docIds,
+    vectors,
+    contentHashes: meta.contentHashes,
+    builtAt: meta.builtAt,
+    deviceUsed: meta.deviceUsed,
+    buildTimeMs: meta.buildTimeMs,
+  };
+}
+
+function loadFromSqlite(dir: string): EmbeddingIndex {
+  const Database = _require('better-sqlite3');
+  const dbPath = join(dir, SQLITE_FILE);
+  const db = new Database(dbPath, { readonly: true });
+  try {
+    const getMeta = db.prepare('SELECT value FROM meta WHERE key = ?');
+    const modelId = getMeta.get('modelId')?.value ?? 'unknown';
+    const dimension = parseInt(getMeta.get('dimension')?.value ?? '384', 10);
+    const builtAt = parseInt(getMeta.get('builtAt')?.value ?? '0', 10);
+    const deviceUsed = getMeta.get('deviceUsed')?.value;
+    const buildTimeMs = parseInt(getMeta.get('buildTimeMs')?.value ?? '0', 10) || undefined;
+
+    const rows = db.prepare('SELECT doc_id, vector FROM vectors ORDER BY rowid').all() as Array<{ doc_id: string; vector: Buffer }>;
+    const docIds: string[] = [];
+    const vectors: Float32Array[] = [];
+    for (const row of rows) {
+      docIds.push(row.doc_id);
+      const ab = row.vector.buffer.slice(row.vector.byteOffset, row.vector.byteOffset + row.vector.byteLength);
+      vectors.push(new Float32Array(ab));
+    }
+    return { modelId, dimension, docIds, vectors, builtAt, deviceUsed, buildTimeMs };
+  } finally {
+    db.close();
+  }
+}
+
+function loadFromLegacyJson(filePath: string): EmbeddingIndex {
+  const raw = JSON.parse(readFileSync(filePath, 'utf-8'));
+  return {
+    modelId: raw.modelId,
+    dimension: raw.dimension,
+    docIds: raw.docIds,
+    vectors: raw.vectors.map((b64: string) => {
+      const buf = Buffer.from(b64, 'base64');
+      const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+      return new Float32Array(ab);
+    }),
+    builtAt: raw.builtAt,
+    deviceUsed: raw.deviceUsed,
+    buildTimeMs: raw.buildTimeMs,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -320,13 +500,21 @@ export interface DocForEmbedding {
   title: string;
   summary: string;
   tags: string[];
+  body?: string;
+}
+
+export function hashDocContent(d: DocForEmbedding): string {
+  const text = [d.title, d.summary, d.tags.join(','), d.body?.slice(0, 500) ?? ''].join('|');
+  return createHash('md5').update(text).digest('hex');
 }
 
 function docToText(d: DocForEmbedding): string {
   const parts = [d.title];
   if (d.summary) parts.push(d.summary);
   if (d.tags.length > 0) parts.push(d.tags.join(' '));
-  return parts.join('. ');
+  if (d.body) parts.push(d.body.slice(0, 500));
+  // E5 models require "passage: " prefix for documents
+  return 'passage: ' + parts.join('. ');
 }
 
 export async function buildEmbeddingIndex(
@@ -336,32 +524,38 @@ export async function buildEmbeddingIndex(
   const config = await detectDevice();
   const t0 = Date.now();
 
+  const currentHashes = docs.map(hashDocContent);
   let vectors: Float32Array[];
 
-  if (existingIndex && existingIndex.docIds.length > 0) {
-    // Incremental: reuse existing embeddings for unchanged docs
-    const existingMap = new Map<string, Float32Array>();
-    for (let i = 0; i < existingIndex.docIds.length; i++) {
-      existingMap.set(existingIndex.docIds[i], existingIndex.vectors[i]);
+  // Model changed → discard all cached vectors, force full rebuild
+  const modelMatch = existingIndex && existingIndex.modelId === DEFAULT_MODEL;
+  if (modelMatch && existingIndex!.docIds.length > 0) {
+    // Incremental: reuse vectors only for docs with matching content hash
+    const existingMap = new Map<string, { vector: Float32Array; hash: string }>();
+    for (let i = 0; i < existingIndex!.docIds.length; i++) {
+      existingMap.set(existingIndex!.docIds[i], {
+        vector: existingIndex!.vectors[i],
+        hash: existingIndex!.contentHashes?.[i] ?? '',
+      });
     }
 
-    const newDocs: { index: number; doc: DocForEmbedding }[] = [];
+    const changedDocs: { index: number; doc: DocForEmbedding }[] = [];
     vectors = new Array(docs.length);
 
     for (let i = 0; i < docs.length; i++) {
-      const existing = existingMap.get(docs[i].id);
-      if (existing) {
-        vectors[i] = existing;
+      const cached = existingMap.get(docs[i].id);
+      if (cached && cached.hash && cached.hash === currentHashes[i]) {
+        vectors[i] = cached.vector;
       } else {
-        newDocs.push({ index: i, doc: docs[i] });
+        changedDocs.push({ index: i, doc: docs[i] });
       }
     }
 
-    if (newDocs.length > 0) {
-      const newTexts = newDocs.map(nd => docToText(nd.doc));
-      const newVectors = await embedTexts(newTexts);
-      for (let j = 0; j < newDocs.length; j++) {
-        vectors[newDocs[j].index] = newVectors[j];
+    if (changedDocs.length > 0) {
+      const texts = changedDocs.map(nd => docToText(nd.doc));
+      const newVectors = await embedTexts(texts);
+      for (let j = 0; j < changedDocs.length; j++) {
+        vectors[changedDocs[j].index] = newVectors[j];
       }
     }
   } else {
@@ -375,6 +569,7 @@ export async function buildEmbeddingIndex(
     dimension: vectors[0]?.length ?? 384,
     docIds: docs.map(d => d.id),
     vectors,
+    contentHashes: currentHashes,
     builtAt: Date.now(),
     deviceUsed: `${config.device}/${config.dtype}`,
     buildTimeMs: Date.now() - t0,
