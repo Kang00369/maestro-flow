@@ -233,16 +233,6 @@
 
 ---
 
-### `maestro-ralph-beta` — 自运行循环
-
-**Usage:** `/maestro-ralph-beta <intent> [-y] | continue | status`
-
-自运行循环控制器：单一 skill 完成 build/tick/decide 一体化。每次调用按 session 状态路由，执行一个 tick，然后自调用直到全部 completion_confirmed 或暂停。双平台支持（Claude + Codex）
-
-**Flags:** <intent> (意图文本) · -y (自动模式) · continue (恢复) · status (显示进度)
-
----
-
 ### `maestro-ralph-execute` — 单步执行
 
 **Usage:** `/maestro-ralph-execute [-y] [session-id]`

@@ -526,7 +526,7 @@ The two styles are complementary: FSM orchestrators invoke pipeline commands; pi
 | Style | Commands |
 |-------|----------|
 | **Pipeline** | init, analyze, plan, execute, verify, brainstorm, grill, blueprint, roadmap, milestone-audit, milestone-complete, milestone-release |
-| **FSM** | ralph, ralph-execute, ralph-beta |
+| **FSM** | ralph, ralph-execute |
 | **Needs evaluation** | coordinate (multi-role handoff may need FSM) |
 
 ---

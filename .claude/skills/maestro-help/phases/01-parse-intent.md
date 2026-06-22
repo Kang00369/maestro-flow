@@ -61,7 +61,7 @@ const knownCommands = [
   "maestro", "analyze", "plan", "execute", "init", "roadmap",
   "brainstorm", "blueprint", "quick", "overlay", "amend", "fork", "merge", "collab",
   "milestone-audit", "milestone-complete", "milestone-release",
-  "composer", "guard", "player", "ralph", "ralph-execute", "ralph-beta",
+  "composer", "guard", "player", "ralph", "ralph-execute",
   "grill", "next", "swarm-workflow", "universal-workflow", "companion",
   "impeccable", "ui-codify", "update",
   "tools-register", "tools-execute",

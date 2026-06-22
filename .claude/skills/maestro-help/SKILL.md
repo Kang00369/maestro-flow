@@ -269,7 +269,7 @@ Odyssey 长周期循环（独立路径）
   odyssey-debug / odyssey-improve / odyssey-review-test-fix / odyssey-planex / odyssey-ui
 
 自适应引擎（高级）
-  ralph / ralph-beta → 自运行决策循环
+  ralph → 自运行决策循环
   swarm-workflow / universal-workflow → 多 agent 并行执行
 ```
 
