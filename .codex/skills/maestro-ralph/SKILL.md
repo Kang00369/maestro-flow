@@ -16,12 +16,12 @@ Reads project state → infers position → builds adaptive chain → delegates 
 
 ### Session
 
-`.workflow/.maestro/{session_id}/status.json` — 工作流唯一真源（schema 见 `<appendix>`）。session_id 格式：`ralph-{YYYYMMDD-HHmmss}`（本 skill 创建，自适应链）或 `maestro-{YYYYMMDD-HHmmss}`（`Skill(maestro)` coordinator 创建，静态链）。两类都由 `Skill(maestro-ralph-execute)` 推进。session-id 省略时：continue/execute 取最新 `status=="running"`；status 取最新 session（by created_at，不限 status）。
+`.workflow/.maestro/{session_id}/status.json` — 工作流唯一真源（schema 见 `<appendix>`）。session_id 格式：`ralph-{YYYYMMDD-HHmmss}`（由 `maestro ralph create` 创建，自适应链）或 `maestro-{YYYYMMDD-HHmmss}`（`Skill(maestro)` coordinator 创建，静态链）。两类都由 `Skill(maestro-ralph-execute)` 推进。新建 Ralph session 必须调用 CLI，不得手写 status.json。session-id 省略时：continue/execute 仅在单个 running session 时可用；status 取最新 session（by created_at，不限 status）。
 
 ### Entry points
 
-- **`Skill(maestro-ralph, "intent")`** — 新建 session：infer → decompose → build → create_goal（如有 decomposition）→ dispatch ralph-execute
-- **`Skill(maestro-ralph, "continue [session-id]")`** — 用户入口：恢复执行，路由到 S_DISPATCH → `Skill(maestro-ralph-execute)`。省略 session-id 时取最新 `status=="running"` session
+- **`Skill(maestro-ralph, "intent")`** — 新建 session：infer → decompose → build step specs → `maestro ralph create` → emit /goal prompt（如有 decomposition）→ dispatch ralph-execute
+- **`Skill(maestro-ralph, "continue [session-id]")`** — 用户入口：恢复执行，路由到 S_DISPATCH → `Skill(maestro-ralph-execute)`。省略 session-id 时仅允许单个 running session
 - **`Skill(maestro-ralph, "status [session-id]")`** — 显示进度。省略 session-id 时取最新 session（by created_at，不限 status）
 
 > **continue vs ralph-execute**：用户说"继续"时走 `Skill(maestro-ralph, "continue")`（用户入口，经 S_DISPATCH handoff）；内部 step 推进链和 decision 回调走 `Skill(maestro-ralph-execute)`（内部 handoff，跳过 ralph 路由层）。两者最终都由 ralph-execute 执行 step。
@@ -46,10 +46,10 @@ Mutual invocation with `Skill(maestro-ralph-execute)` forms a self-perpetuating 
 ### Execution Flow
 
 ```
- Skill(maestro-ralph, "intent") ─▶ ralph        infer → decompose → build chain
-                              │           resolves command_path per step
-                              │           writes status.json
-                              │           calls create_goal
+ Skill(maestro-ralph, "intent") ─▶ ralph        infer → decompose → build step specs
+                              │           calls `maestro ralph create`
+                              │           CLI writes status.json + command_path
+                              │           emits /goal prompt
                               ▼
                        ralph-execute  ◀─┐ 执行 step → `maestro ralph next` + inline + `ralph complete`
                               │         │ decision step → Skill(maestro-ralph)
@@ -81,13 +81,13 @@ Remaining                        → intent (amend_mode 时为 change_request)
 </context>
 
 <invariants>
-1. **Ralph never executes steps** — only creates sessions and evaluates decisions
+1. **Ralph never executes steps** — only builds session specs via `maestro ralph create` and evaluates decisions
 2. **Handoff via `Skill(maestro-ralph-execute)` 直调** — 创建 session 后始终自动 handoff；decision 评估后始终 handoff
 3. **Decision delegates read-only** — `maestro delegate --role analyze --mode analysis`
 4. **执行 step 通过 `maestro ralph next` CLI 加载并内联执行**（详见 invariant 8）
 5. **status.json 是唯一真源** — 不生成 markdown 清单或侧文件
 6. **每个 step 必须 `completion_confirmed: true`** — 由 `maestro ralph complete N --status DONE`（或 DONE_WITH_CONCERNS）写入；CLI 是唯一合法写入路径
-7. **command_path 在 A_BUILD_STEPS 解析** — 通过 `maestro ralph skills --platform codex --json --quiet` 预校验（project 覆盖 global，限定 `.codex/skills/`），命中即写绝对路径到 status.json；未命中标 `command_scope = "missing"`
+7. **command_path 由 CLI 落盘** — A_BUILD_STEPS 可用 `maestro ralph skills --platform codex --json --quiet` 预校验，但新建 session 时必须把 step specs 交给 `maestro ralph create`；CLI 负责解析 project/global skill、写 `command_path`，缺失即 E006
 8. **执行 step 加载契约** — 由 `maestro ralph next` CLI 在执行期完成：解析 frontmatter + `<required_reading>` + `<deferred_reading>`，自动读取 required 文件全文并拼入 prompt；缺失 required → 退出码 1（E007），pause session。ralph build 阶段只通过 `maestro ralph skills --platform codex` 校验路径存在性，不读 SKILL.md 内容
 9. **Decomposition is outcome-oriented** — sub-goals 为可观测交付，禁止 lifecycle 复刻；通过 `create_goal` 绑定目标，`update_goal` 在收敛时释放
 10. **planning_mode governs arg granularity** — `unified` → skill args 无 `{phase}`；`independent` → 含 `{phase}`
@@ -111,7 +111,7 @@ S_QUALITY_MODE    — 决定质量管线模式                     PERSIST: sess
 S_PLANNING_MODE   — 决定统一/独立规划模式               PERSIST: session.planning_mode
 S_DECOMPOSE       — 边界澄清、写执行准则+子目标清单       PERSIST: session.boundary_contract, .execution_criteria, .task_decomposition
 S_BUILD_CHAIN     — 构建步骤链                           PERSIST: session.steps[]
-S_CREATE_SESSION  — 写 status.json                      PERSIST: session (全量)
+S_CREATE_SESSION  — 调 `maestro ralph create` 创建 session PERSIST: session (CLI 写入)
 S_CONFIRM         — 用户确认                             PERSIST: —
 S_DISPATCH        — 移交 maestro-ralph-execute           PERSIST: —
 S_DECISION_EVAL   — 委托评估质量门                       PERSIST: —
@@ -136,7 +136,8 @@ S_STATUS:
 
 S_CONTINUE:
   → S_DISPATCH      WHEN: target_session_id provided AND session exists
-  → S_DISPATCH      WHEN: running session found (no target_session_id → latest running)
+  → S_DISPATCH      WHEN: exactly one running session found
+  → S_FALLBACK      WHEN: multiple running sessions and no target_session_id
   → S_FALLBACK      WHEN: no running session               DO: display "无运行中的 ralph 会话"
 
 S_RESOLVE_PHASE:
@@ -480,10 +481,31 @@ Generate steps from `session.lifecycle_position` to `milestone-complete`（`sess
 
 ### A_CREATE_SESSION
 
-1. Validate: 所有 step 的 `command_scope != "missing"`；否则 raise E006 + 列出缺失 skill
-2. Write `.workflow/.maestro/ralph-{YYYYMMDD-HHmmss}/status.json` (Appendix: Session Schema)；含 `platform: "codex"`, `cli_tool: "codex"`
-3. Display chain overview：每步显示 `{index}. {skill} [{type}] [{command_scope}]`
-4. If `task_decomposition` present: call `create_goal`（由 A_DECOMPOSE_TASKS 已注册）+ `update_plan`，继续 handoff
+1. Build ordered CLI step specs from `session.steps` candidates:
+   - execution step → `--step '<skill> <args>'`
+   - decision step → `--step 'decision:<gate>'`
+2. Call CLI; do not write status.json directly:
+   ```
+   maestro ralph create "{intent}" \
+     --platform codex \
+     --position "{lifecycle_position}" \
+     --quality "{quality_mode}" \
+     --planning "{planning_mode}" \
+     [--phase "{phase}"] [--phase-new] [--milestone "{milestone}"] [--auto] \
+     --step 'maestro-analyze {phase}' \
+     --step 'maestro-plan {phase}' \
+     --step 'maestro-execute {phase}' \
+     --step 'decision:post-execute' \
+     --step 'quality-review {phase}' \
+     --step 'decision:post-review' \
+     --step 'quality-test {phase}' \
+     --step 'decision:post-test' \
+     --step 'maestro-milestone-complete'
+   ```
+3. If CLI returns W003 / exit 2 because a running session already exists: stop and tell the user to pause or complete the existing session. Do not bypass by hand-writing status.json. Use `--allow-concurrent` only when the user explicitly wants concurrent Ralph chains.
+4. If CLI returns E006: list missing skill(s), stop.
+5. Display chain overview from CLI output.
+6. If `task_decomposition` present: display **Goal Prompt block** (Appendix)，不阻塞流程，继续 handoff
 
 ### A_DELEGATE_EVALUATE
 

@@ -18,6 +18,7 @@
 
 import type { RalphSession, RalphStep } from './status-schema.js';
 import { resolveSession, writeStatus, workflowRoot } from './status-store.js';
+import { checkRunningSessionGuard } from './running-guard.js';
 
 export interface CompleteCmdOptions {
   sessionId?: string;
@@ -30,10 +31,19 @@ export interface CompleteCmdOptions {
   decisions?: string[];
   caveats?: string;
   deferred?: string[];
+  allowConcurrent?: boolean;
 }
 
 export async function runComplete(opts: CompleteCmdOptions): Promise<number> {
-  const resolved = resolveSession(workflowRoot(), opts.sessionId);
+  const root = workflowRoot();
+  const guard = checkRunningSessionGuard(root, {
+    command: 'ralph complete',
+    sessionId: opts.sessionId,
+    allowConcurrent: opts.allowConcurrent,
+  });
+  if (!guard.ok) return 2;
+
+  const resolved = resolveSession(root, opts.sessionId, { requireRunning: !opts.sessionId });
   if (!resolved) {
     console.error('[ralph complete] no maestro-* / ralph-* session found in .workflow/.maestro/');
     return 1;

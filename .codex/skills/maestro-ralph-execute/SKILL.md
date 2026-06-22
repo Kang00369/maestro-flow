@@ -16,7 +16,7 @@ Each invocation: locate session → find next step → resolve args → execute 
 
 Mutual invocation with `Skill(maestro-ralph)` forms a self-perpetuating work loop.
 
-**Session**: `.workflow/.maestro/{session_id}/status.json` — 工作流唯一真源。session_id 格式 `ralph-{YYYYMMDD-HHmmss}`（Skill(maestro-ralph) 创建，自适应链）或 `maestro-{YYYYMMDD-HHmmss}`（Skill(maestro) 创建，静态链）。两类都由本 skill 推进；省略 `[session-id]` 时取最新 `status=="running"`。Schema 详见 `Skill(maestro-ralph)` 的 Session Schema。
+**Session**: `.workflow/.maestro/{session_id}/status.json` — 工作流唯一真源。session_id 格式 `ralph-{YYYYMMDD-HHmmss}`（`maestro ralph create` 创建，自适应链）或 `maestro-{YYYYMMDD-HHmmss}`（Skill(maestro) 创建，静态链）。两类都由本 skill 推进；省略 `[session-id]` 只允许单个 running session，多 running 时 CLI 会 W003 拒绝隐式选择。Schema 详见 `Skill(maestro-ralph)` 的 Session Schema。
 </purpose>
 
 <context>
@@ -41,7 +41,7 @@ Also read `session.auto_mode` from status.json — if true, treat as `-y`.
 HARD RULES:
 - 执行 step：**统一通过 `maestro ralph next` CLI 加载**。CLI 负责读 command_path（codex SKILL.md）、解析 `<required_reading>` + `<deferred_reading>`、拼接 prompt、写 `step.load.*` + `active_step_index` + `step.status="running"`。不要再在会话里手动 Read + 解析 required_reading
 - decision step：A_EXEC_DECISION 通过 `Skill(maestro-ralph)` 直调 handoff 给 ralph 评估（不走 CLI）
-- `command_path` 由 ralph 在 A_BUILD_STEPS 写入 status.json（通过 `maestro ralph skills --platform codex` 预校验；缺失 → ralph next 返回 E006/E007 并拒绝执行）
+- `command_path` 由 `maestro ralph create` 写入 status.json（构建前可通过 `maestro ralph skills --platform codex` 预校验；缺失 → create/next 返回 E006/E007 并拒绝执行）
 - 每个 step 结束必须调用 `maestro ralph complete N --status <S>` 或 `maestro ralph retry N`。STATUS 仅 4 个合法值：`DONE | DONE_WITH_CONCERNS | NEEDS_RETRY | BLOCKED`
 - Platform：`session.platform == "codex"`；ralph next CLI 自动按 platform 解析 SKILL.md（无需额外参数）
 </context>
@@ -121,7 +121,7 @@ S_FALLBACK:
 ### A_LOCATE_SESSION
 
 1. If session_id provided → load `.workflow/.maestro/{session_id}/status.json`
-2. Else: scan `.workflow/.maestro/*/status.json`, filter `status == "running"`, sort DESC, take first
+2. Else: scan `.workflow/.maestro/*/status.json`, filter `status == "running"`；若数量 >1，停止并要求显式 session id（`maestro ralph next/complete` 同样会 W003 拒绝隐式选择）；若数量 ==1，使用该 session
 3. Extract: session_id, source, steps[], phase, milestone, intent, auto_mode, context, cli_tool, platform, active_step_index
 4. Identify next pending step index: scan `steps[]` in order, find first entry with `status == "pending"` → store as `next_step_index`. This index is passed to A_RESOLVE_ARGS for placeholder enrichment and to A_EXEC_STEP/A_EXEC_DECISION for display. The actual step activation (writing `active_step_index`) is still done by `maestro ralph next` CLI — A_LOCATE_SESSION only reads the index without writing it.
 

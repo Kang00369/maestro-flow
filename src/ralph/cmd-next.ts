@@ -27,13 +27,23 @@ import { hasErrors } from './cmd-check.js';
 import { loadSkill, normalizeStoredPath } from './skill-resolver.js';
 import { loadSkillConfig } from '../config/skill-config.js';
 import { workflowRoot as wfRoot } from './status-store.js';
+import { checkRunningSessionGuard } from './running-guard.js';
 
 export interface NextCmdOptions {
   sessionId?: string;
+  allowConcurrent?: boolean;
 }
 
 export async function runNext(opts: NextCmdOptions): Promise<number> {
-  const resolved = resolveSession(workflowRoot(), opts.sessionId);
+  const root = workflowRoot();
+  const guard = checkRunningSessionGuard(root, {
+    command: 'ralph next',
+    sessionId: opts.sessionId,
+    allowConcurrent: opts.allowConcurrent,
+  });
+  if (!guard.ok) return 2;
+
+  const resolved = resolveSession(root, opts.sessionId, { requireRunning: !opts.sessionId });
   if (!resolved) {
     console.error('[ralph next] no maestro-* / ralph-* session found in .workflow/.maestro/');
     return 1;
