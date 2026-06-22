@@ -236,7 +236,7 @@ export function registerSearchCommand(program: Command): void {
       }
 
       // Default / --all / --wiki-only: mixed interleaved results
-      const merged = mergeAndNormalize(wikiResults, codeResults, limit);
+      const merged = mergeAndNormalize(wikiResults, codeResults, limit, q);
       const wikiCount = merged.filter(r => r.source === 'wiki').length;
       const codeCount = merged.filter(r => r.source === 'code').length;
 
@@ -372,8 +372,11 @@ function printCodeResult(r: CodeSearchResult, indent: string, isTTY: boolean, qT
 }
 
 // ── Multi-signal score normalization ────────────────────────────────
-// Inspired by codebase-memory-mcp: type/kind boost + percentile-aware
-// normalization + weighted source fusion.
+// Three-layer scoring:
+//   1. Source-level boost (wiki type / code kind)
+//   2. Name-match bonus for code results (exact > prefix > contains)
+//   3. Dynamic source weight based on query type (identifier → boost code)
+//   4. Rank-based normalization (position-aware, handles ties)
 
 export interface MergedResult {
   source: 'wiki' | 'code';
@@ -387,77 +390,135 @@ export interface MergedResult {
 
 const WIKI_TYPE_BOOST: Record<string, number> = {
   spec: 1.15,
-  knowhow: 1.10,
-  domain: 1.05,
-  issue: 1.00,
+  domain: 1.10,
+  knowhow: 1.05,
   project: 0.95,
   roadmap: 0.95,
-  note: 0.90,
+  issue: 0.85,
+  note: 0.80,
 };
 
 const CODE_KIND_BOOST: Record<string, number> = {
+  class: 1.20,
+  interface: 1.15,
   function: 1.10,
   method: 1.10,
-  class: 1.08,
-  interface: 1.08,
-  component: 1.05,
+  component: 1.08,
   route: 1.12,
-  type_alias: 1.00,
-  enum: 1.00,
-  variable: 0.95,
-  constant: 0.95,
-  field: 0.90,
-  property: 0.90,
+  type_alias: 1.05,
+  enum: 1.05,
+  constant: 1.00,
+  variable: 0.90,
+  field: 0.85,
+  property: 0.80,
 };
 
-function percentileNormalize(scores: number[]): Map<number, number> {
-  if (scores.length === 0) return new Map();
-  const sorted = [...scores].sort((a, b) => a - b);
-  const result = new Map<number, number>();
-  for (let i = 0; i < sorted.length; i++) {
-    result.set(sorted[i], (i + 1) / sorted.length);
+function isCodeIdentifier(query: string): boolean {
+  const trimmed = query.trim();
+  if (/^[a-z]+[A-Z]/.test(trimmed)) return true;
+  if (/^[A-Z][a-z]+[A-Z]/.test(trimmed)) return true;
+  if (/^[A-Z]{2,}[a-z]/.test(trimmed)) return true;
+  if (/^[a-z]+_[a-z]+/.test(trimmed)) return true;
+  if (/^[A-Z][a-zA-Z]+$/.test(trimmed) && !trimmed.includes(' ')) return true;
+  return false;
+}
+
+function splitCamelSnake(s: string): string[] {
+  return s
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(/[\s_\-.]+/)
+    .map(t => t.toLowerCase())
+    .filter(t => t.length > 0);
+}
+
+function codeNameMatchBonus(codeName: string, query: string): number {
+  const nameLower = codeName.toLowerCase();
+  const queryLower = query.toLowerCase().trim();
+  if (!queryLower) return 0;
+  if (nameLower === queryLower) return 50;
+  if (nameLower.startsWith(queryLower)) return 30;
+  if (queryLower.startsWith(nameLower)) return 20;
+  if (nameLower.includes(queryLower) || queryLower.includes(nameLower)) return 10;
+  const queryTokens = splitCamelSnake(query);
+  const nameTokens = splitCamelSnake(codeName);
+  if (queryTokens.length === 0) return 0;
+  const matched = queryTokens.filter(qt => nameTokens.some(nt => nt.includes(qt) || qt.includes(nt)));
+  if (matched.length === queryTokens.length) return 15 + 5 * matched.length;
+  if (matched.length > 0) return 5 * matched.length;
+  return 0;
+}
+
+function rankNormalize(items: Array<{ index: number; score: number }>): number[] {
+  if (items.length === 0) return [];
+  const n = items.length;
+  const sorted = [...items].sort((a, b) => b.score - a.score);
+  const result = new Array<number>(n);
+
+  let i = 0;
+  while (i < n) {
+    let j = i;
+    while (j < n - 1 && sorted[j + 1].score === sorted[j].score) j++;
+    const avgRank = (i + j) / 2;
+    const normalizedRank = 1 - avgRank / n;
+    for (let k = i; k <= j; k++) {
+      result[sorted[k].index] = normalizedRank;
+    }
+    i = j + 1;
   }
   return result;
 }
 
-function mergeAndNormalize(wiki: SearchResult[], code: CodeSearchResult[], limit: number): MergedResult[] {
-  const WIKI_WEIGHT = 0.6;
-  const CODE_WEIGHT = 0.4;
+function mergeAndNormalize(wiki: SearchResult[], code: CodeSearchResult[], limit: number, query?: string): MergedResult[] {
+  const q = query ?? '';
+  const isIdQuery = isCodeIdentifier(q);
+  const hasStrongCodeMatch = code.length > 0 && code.some(r =>
+    codeNameMatchBonus(r.name, q) >= 15,
+  );
+  const WIKI_WEIGHT = isIdQuery ? 0.4 : hasStrongCodeMatch ? 0.5 : 0.6;
+  const CODE_WEIGHT = isIdQuery ? 0.6 : hasStrongCodeMatch ? 0.5 : 0.4;
 
-  const wikiBoosted = wiki.map(r => {
+  const codeNames = new Set(code.map(r => r.name.toLowerCase()));
+
+  const wikiScored = wiki.map((r, i) => {
     const raw = r.score ?? 0;
-    const typeBoost = WIKI_TYPE_BOOST[r.type] ?? 1.0;
-    return { ...r, boostedScore: raw * typeBoost };
+    let typeBoost = WIKI_TYPE_BOOST[r.type] ?? 1.0;
+    if (r.id.startsWith('kg-') && codeNames.has(r.title.toLowerCase())) {
+      typeBoost *= 0.7;
+    }
+    return { ...r, finalScore: raw * typeBoost, index: i };
   });
-  const codeBoosted = code.map(r => {
+
+  const codeScored = code.map((r, i) => {
     const raw = r.score ?? 0;
     const kindBoost = CODE_KIND_BOOST[r.kind] ?? 1.0;
-    return { ...r, boostedScore: raw * kindBoost };
+    const nameBonus = codeNameMatchBonus(r.name, q);
+    return { ...r, finalScore: raw * kindBoost + nameBonus, index: i };
   });
 
-  const wikiPctMap = percentileNormalize(wikiBoosted.map(r => r.boostedScore));
-  const codePctMap = percentileNormalize(codeBoosted.map(r => r.boostedScore));
+  const wikiRanks = rankNormalize(wikiScored.map(r => ({ index: r.index, score: r.finalScore })));
+  const codeRanks = rankNormalize(codeScored.map(r => ({ index: r.index, score: r.finalScore })));
 
   const merged: MergedResult[] = [];
-  for (const r of wikiBoosted) {
-    const pct = wikiPctMap.get(r.boostedScore) ?? 0;
+  for (let i = 0; i < wikiScored.length; i++) {
+    const r = wikiScored[i];
     merged.push({
       source: 'wiki',
       kind: r.type,
       name: r.title,
       detail: r.category ? `${r.category}  ${r.id}` : r.id,
-      normalizedScore: pct * WIKI_WEIGHT,
+      normalizedScore: wikiRanks[i] * WIKI_WEIGHT,
       snippet: r.snippet ?? undefined,
     });
   }
-  for (const r of codeBoosted) {
-    const pct = codePctMap.get(r.boostedScore) ?? 0;
+  for (let i = 0; i < codeScored.length; i++) {
+    const r = codeScored[i];
     merged.push({
       source: 'code',
       kind: r.kind,
       name: r.name,
       detail: r.filePath,
-      normalizedScore: pct * CODE_WEIGHT,
+      normalizedScore: codeRanks[i] * CODE_WEIGHT,
       signature: r.signature,
     });
   }
