@@ -427,7 +427,10 @@ export class WikiIndexer {
           const related: string[] = [];
           if (se.ref) {
             const refStem = se.ref.replace(/^knowhow\//, '').replace(/\.md$/, '');
-            const refSlug = refStem.replace(/^(KNW|TIP|TPL|RCP|REF|DCS|AST|BLP|DOC)-/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            // Derive ref target the same way as the knowhow container id (parseFileEntry
+            // uses `knowhow-${slugify(stem)}`, which keeps the type prefix). Stripping the
+            // prefix here produced target ≠ id → broken links for RCP/REF/DCS/etc.
+            const refSlug = slugify(refStem);
             related.push(`knowhow-${refSlug}`);
           }
           out.push({
@@ -482,7 +485,10 @@ export class WikiIndexer {
           const related: string[] = [];
           if (se.ref) {
             const refStem = se.ref.replace(/^knowhow\//, '').replace(/\.md$/, '');
-            const refSlug = refStem.replace(/^(KNW|TIP|TPL|RCP|REF|DCS|AST|BLP|DOC)-/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            // Derive ref target the same way as the knowhow container id (parseFileEntry
+            // uses `knowhow-${slugify(stem)}`, which keeps the type prefix). Stripping the
+            // prefix here produced target ≠ id → broken links for RCP/REF/DCS/etc.
+            const refSlug = slugify(refStem);
             related.push(`knowhow-${refSlug}`);
           }
           out.push({

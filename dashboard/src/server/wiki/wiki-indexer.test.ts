@@ -61,6 +61,72 @@ describe('WikiIndexer', () => {
   });
 });
 
+describe('WikiIndexer ref links keep knowhow type prefix', () => {
+  it('spec-entry ref resolves to the prefixed container id (no broken link)', async () => {
+    // Container id keeps the prefix: knowhow-rcp-... — the ref target must match.
+    await write(
+      'knowhow/RCP-stripe-min-amount-stripe-minimum-guard.md',
+      `---\ntitle: Stripe minimum guard\n---\n# Stripe minimum guard\nBody`,
+    );
+    // QRF is not in the old strip-list — used to coincidentally work; must stay correct.
+    await write(
+      'knowhow/QRF-linked-listings-fast-path.md',
+      `---\ntitle: Linked listings fast path\n---\n# Linked listings\nBody`,
+    );
+    await write(
+      'specs/payments.md',
+      `---\ntitle: Payments\n---\n# Payments\n\n` +
+        `<spec-entry title="Stripe min amount guard" type="coding" ` +
+        `ref="knowhow/RCP-stripe-min-amount-stripe-minimum-guard.md">\n` +
+        `### Stripe min amount guard\nEnforce Stripe minimum charge amount.\n</spec-entry>\n\n` +
+        `<spec-entry title="Linked listings fast path" type="coding" ` +
+        `ref="knowhow/QRF-linked-listings-fast-path.md">\n` +
+        `### Linked listings fast path\nFast path for linked listings.\n</spec-entry>\n`,
+    );
+
+    const indexer = new WikiIndexer({ workflowRoot: tmpRoot });
+    const index = await indexer.get();
+
+    const rcpSub = index.entries.find((e) => e.title === 'Stripe min amount guard');
+    expect(rcpSub?.related).toContain('knowhow-rcp-stripe-min-amount-stripe-minimum-guard');
+    expect(index.byId['knowhow-rcp-stripe-min-amount-stripe-minimum-guard']).toBeDefined();
+
+    const qrfSub = index.entries.find((e) => e.title === 'Linked listings fast path');
+    expect(qrfSub?.related).toContain('knowhow-qrf-linked-listings-fast-path');
+    expect(index.byId['knowhow-qrf-linked-listings-fast-path']).toBeDefined();
+
+    const broken = buildGraph(index).brokenLinks.map((b) => b.target);
+    expect(broken).not.toContain('knowhow-stripe-min-amount-stripe-minimum-guard');
+    expect(broken).not.toContain('knowhow-rcp-stripe-min-amount-stripe-minimum-guard');
+    expect(broken).not.toContain('knowhow-qrf-linked-listings-fast-path');
+  });
+
+  it('knowhow-entry ref resolves to the prefixed container id (no broken link)', async () => {
+    await write(
+      'knowhow/REF-payment-architecture.md',
+      `---\ntitle: Payment architecture\n---\n# Payment architecture\nBody`,
+    );
+    await write(
+      'knowhow/KNW-session-notes.md',
+      `---\ntitle: Session notes\n---\n# Session notes\n\n` +
+        `<knowhow-entry title="See payment arch" type="reference" ` +
+        `ref="knowhow/REF-payment-architecture.md">\n` +
+        `### See payment arch\nRelated reference.\n</knowhow-entry>\n`,
+    );
+
+    const indexer = new WikiIndexer({ workflowRoot: tmpRoot });
+    const index = await indexer.get();
+
+    const sub = index.entries.find((e) => e.title === 'See payment arch');
+    expect(sub?.related).toContain('knowhow-ref-payment-architecture');
+    expect(index.byId['knowhow-ref-payment-architecture']).toBeDefined();
+
+    const broken = buildGraph(index).brokenLinks.map((b) => b.target);
+    expect(broken).not.toContain('knowhow-payment-architecture');
+    expect(broken).not.toContain('knowhow-ref-payment-architecture');
+  });
+});
+
 describe('graph-analysis', () => {
   it('detects orphans as entries with no in and no out edges', async () => {
     await write('specs/a.md', `---\ntitle: A\n---\n# A\nLinks [[B]]`);
