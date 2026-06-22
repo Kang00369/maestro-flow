@@ -6,7 +6,7 @@
 //   create     Create a ralph session via CLI-owned status.json writer
 //   list       List all ralph / maestro sessions and warn on multiple running
 //   check      Run health check against current ralph status.json
-//   session    Show current ralph session summary
+//   session    Show current ralph session summary (`status` alias)
 //   next       Load next pending step + required_reading, write status.json
 //   complete   Mark current step done / concerns / retry / blocked
 //   retry      Sugar for `complete <idx> --status NEEDS_RETRY`
@@ -147,6 +147,7 @@ export function registerRalphCommand(program: Command): void {
   // ── session ─────────────────────────────────────────────────────────────
   ralph
     .command('session')
+    .alias('status')
     .description('Show current ralph session summary')
     .option('--session <id>', 'Session id (default: latest running ralph-*)')
     .action(async (opts: { session?: string }) => {
