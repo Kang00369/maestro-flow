@@ -199,9 +199,9 @@ S_FALLBACK:
 
 ### A_SHOW_STATUS
 
-1. 若 `target_session_id` 提供 → 直接加载 `.workflow/.maestro/{target_session_id}/status.json`；否则取最新 ralph session（by created_at）
-2. Display: Session, Status, Position, Progress, Current step
-3. List steps: [✓] completion_confirmed, [▸] current, [ ] pending, [◆] decision（`step.decision` 非空）；执行 step 附 `command_scope`(global/project) + `command_path`
+1. Call `maestro ralph status [--session <target_session_id>]`; do not manually scan status files.
+2. CLI displays: Session, Status, Position, Progress, Current step.
+3. CLI lists steps: [✓] completion_confirmed, [▸] current, [ ] pending, [◆] decision（`step.decision` 非空）；执行 step 附 `command_scope`(global/project) + `command_path`
 4. If `task_decomposition` present (absent → skip):
    ```
    Sub-goals  ({done}/{total})    source: {session_dir}/status.json#/task_decomposition
@@ -413,11 +413,12 @@ Generate steps from `session.lifecycle_position` to `milestone-complete`（`sess
 6. **终点硬约束**：`session.milestone` 存在时 chain 以 `milestone-complete` 结尾；`session.milestone=null`（standalone）时跳过 `milestone-audit` + `milestone-complete` stage，chain 以最后一个质量门 stage 结尾
 7. **goal_ref 传播**：`task_decomposition` 存在时，每个 step 按 `step.stage ∈ g.lifecycle` 匹配 `step.goal_ref = g.id`（多匹配取字典序最小）；decision 节点不打 goal_ref
 8. **占位符**：independent 保留 `{phase}` `{intent}`；unified 不带 `{phase}`
-9. **command_path 解析**（每个执行 step，decision 节点跳过）：
+9. **command_path 预校验**（每个执行 step，decision 节点跳过）：
    - 取 skill 名（args 前的第一个 token）
    - **预校验通过 `Bash("maestro ralph skills --platform codex --json --quiet")`** 一次性拉取所有可用 codex skills（global `~/.codex/skills/` + project `.codex/skills/`，project 覆盖 global），匹配 skill 名得到：
-     - 命中 → `command_scope = "global" | "project"`，`command_path = <绝对 SKILL.md 路径>`
-     - 未命中 → `command_scope = "missing"`, `command_path = null`，A_CREATE_SESSION 报错 E006
+     - 命中 → 允许把该执行 step 转成 CLI `--step '<skill> <args>'`
+     - 未命中 → A_CREATE_SESSION 停止并报告 E006
+   - `command_scope` / `command_path` 的最终落盘由 `maestro ralph create` 完成；不要在 skill 内手写这些字段
    - **不在 build 阶段读取 SKILL.md 内容**；`<required_reading>` / `<deferred_reading>` 解析与加载由 `maestro ralph next` CLI 在执行期完成
 10. **每个 step 初始化** `completion_confirmed: false`, `completion_status: null`, `completion_evidence: null`, `deferred_reads: []`, `load: null`（由 `ralph next` 写入）
 11. **scope_verdict gating**（仅当 chain 起点 = `analyze-macro`）：
@@ -458,7 +459,7 @@ Generate steps from `session.lifecycle_position` to `milestone-complete`（`sess
      --step 'decision:post-test' \
      --step 'maestro-milestone-complete'
    ```
-3. If CLI returns W003 / exit 2 because a running session already exists: stop and tell the user to pause or complete the existing session. Do not bypass by hand-writing status.json. Use `--allow-concurrent` only when the user explicitly wants concurrent Ralph chains.
+3. If CLI returns W003 / exit 2 because a running session already exists: stop and tell the user to run `maestro ralph pause --session <id>` or `maestro ralph finish --session <id> --force` for stale sessions. Do not bypass by hand-writing status.json. Use `--allow-concurrent` only when the user explicitly wants concurrent Ralph chains.
 4. If CLI returns E006: list missing skill(s), stop.
 5. Display chain overview from CLI output.
 6. If `task_decomposition` present: display **Goal Prompt block** (Appendix)，不阻塞流程，继续 handoff
@@ -648,7 +649,7 @@ Runs only when `task_decomposition` present.
     "retry_count": 0,             // decision 节点专用
     "max_retries": 2,             // decision 节点专用
     "command_scope": "global|project|missing|null",  // 执行 step；decision 节点固定 null
-    "command_path": "<absolute SKILL.md path resolved by `maestro ralph skills --platform codex --json --quiet`> | null",
+    "command_path": "<absolute SKILL.md path resolved by `maestro ralph create`> | null",
     "milestone_id": null,         // D-007 反查注入；仅含 {phase} 占位符的 step 有
     "source_artifact_ref": null,  // "analyze:ANL-xxx" | "blueprint:BLP-xxx" | null
     "status": "pending|running|completed|skipped|failed",
@@ -776,7 +777,7 @@ decision:post-goal-audit {retry+1}
 - [ ] quality_mode 由 A_DETERMINE_QUALITY_MODE 决定，过滤 build steps
 - [ ] Decomposition: broad intent ≤3 question clarify；narrow auto-derive
 - [ ] status.json 唯一真源：boundary_contract + execution_criteria + task_decomposition；无外部清单
-- [ ] 执行 step 含 `command_scope` + `command_path`（通过 `maestro ralph skills --platform codex --json --quiet` 预校验，project 覆盖 global）；decision step 通过 `step.decision` 字段标识
+- [ ] 执行 step 含 `command_scope` + `command_path`（由 `maestro ralph create` 落盘；build 阶段只用 `maestro ralph skills --platform codex --json --quiet` 预校验）；decision step 通过 `step.decision` 字段标识
 - [ ] Ralph build 阶段只通过 `ralph skills --platform codex` 校验路径存在性，不读 SKILL.md 内容；`<required_reading>` 加载由 `maestro ralph next` CLI 完成
 - [ ] 每个 step 含 `completion_confirmed` + `completion_status` + `completion_evidence` + `deferred_reads`（初始 false/null/[]）
 - [ ] 每个 sub-goal 含 `completion_confirmed`（初始 false）

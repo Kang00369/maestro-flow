@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runCreate } from './cmd-create.js';
 import { runNext } from './cmd-next.js';
+import { runFinish, runPause } from './cmd-state.js';
 
 const originalCwd = process.cwd();
 let workDir = '';
@@ -83,6 +84,42 @@ describe('ralph execution guard', () => {
   });
 });
 
+describe('ralph session state commands', () => {
+  it('pauses a running session by explicit id', async () => {
+    writeRunningSession('ralph-a');
+
+    const code = await runPause({ sessionId: 'ralph-a', reason: 'stale' });
+
+    expect(code).toBe(0);
+    const status = readSession('ralph-a');
+    expect(status.status).toBe('paused');
+    expect(status.pause_reason).toBe('stale');
+  });
+
+  it('requires --force before finishing a session with unfinished steps', async () => {
+    writeRunningSession('ralph-a', [{
+      index: 0,
+      skill: 'test-step',
+      args: '',
+      stage: 'test',
+      decision: null,
+      command_scope: 'project',
+      command_path: '/tmp/test-step/SKILL.md',
+      status: 'pending',
+      completion_confirmed: false,
+      completion_status: null,
+      completion_evidence: null,
+      completed_at: null,
+    }]);
+
+    expect(await runFinish({ sessionId: 'ralph-a' })).toBe(2);
+    expect(readSession('ralph-a').status).toBe('running');
+
+    expect(await runFinish({ sessionId: 'ralph-a', force: true })).toBe(0);
+    expect(readSession('ralph-a').status).toBe('completed');
+  });
+});
+
 function createCodexSkill(name: string): void {
   const dir = join(workDir, '.codex', 'skills', name);
   mkdirSync(dir, { recursive: true });
@@ -96,7 +133,7 @@ function createCodexSkill(name: string): void {
   ].join('\n'));
 }
 
-function writeRunningSession(sessionId: string): void {
+function writeRunningSession(sessionId: string, steps: any[] = []): void {
   const dir = join(workDir, '.workflow', '.maestro', sessionId);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'status.json'), JSON.stringify({
@@ -107,7 +144,7 @@ function writeRunningSession(sessionId: string): void {
     lifecycle_position: 'test',
     phase: null,
     milestone: '',
-    steps: [],
+    steps,
   }));
 }
 
@@ -116,4 +153,8 @@ function readOnlySession(): any {
   const sessions = readdirSync(root);
   expect(sessions).toHaveLength(1);
   return JSON.parse(readFileSync(join(root, sessions[0], 'status.json'), 'utf8'));
+}
+
+function readSession(sessionId: string): any {
+  return JSON.parse(readFileSync(join(workDir, '.workflow', '.maestro', sessionId, 'status.json'), 'utf8'));
 }

@@ -71,6 +71,9 @@ export interface RalphSession {
   session_id: string;
   source: 'ralph' | 'maestro' | string;
   status: SessionStatus;
+  pause_reason?: string | null;
+  paused_at?: string | null;
+  completed_at?: string | null;
   intent: string;
   lifecycle_position: string;
   phase: number | null;

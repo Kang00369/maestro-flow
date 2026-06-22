@@ -89,7 +89,7 @@ export async function runList(opts: ListCmdOptions): Promise<number> {
 
   if (warning) {
     console.error(`[ralph list] WARNING: ${warning}`);
-    console.error('[ralph list] Use explicit --session for ralph next/check/session/complete.');
+    console.error('[ralph list] Use explicit --session for ralph next/check/session/status/complete.');
     console.error('');
   }
 
