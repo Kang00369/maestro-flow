@@ -90,27 +90,27 @@ export async function runNext(opts: NextCmdOptions): Promise<number> {
     }
   }
 
-  // Pick next pending execution step. Decision nodes (step.decision != null)
-  // are intentionally skipped — this CLI only loads executable skill steps.
+  // Pick the next pending step in strict chain order. Decision nodes
+  // (step.decision != null) are not loadable by this CLI, but they must still
+  // block later execution steps until the calling skill evaluates them.
   // Decision evaluation belongs to the calling skill, which may either:
   //   - split: /maestro-ralph-execute handoff → /maestro-ralph (S_DECISION_EVAL)
   //   - codex: $maestro-ralph-execute handoff → $maestro-ralph
   // The CLI must NOT prescribe a specific skill name — that's the caller's
   // routing concern.
-  const next = data.steps.find(s => s.status === 'pending' && !s.decision);
-  if (!next) {
-    // All execution steps done. Surface decision nodes as a hint.
-    const pendingDecision = data.steps.find(s => s.status === 'pending' && s.decision);
-    if (pendingDecision) {
-      console.error(`[ralph next] no pending execution step; next is a decision node: ${pendingDecision.decision}`);
-      console.error('  → decision nodes are not loadable via this CLI — the calling skill must evaluate them');
-      console.error('    inline (e.g. S_DECISION_EVAL / S_TICK_DECISION via `maestro delegate --role analyze`)');
-      console.error('  → do NOT re-invoke `maestro ralph next` for the same step; route by step.decision instead');
-      return 2;
-    }
+  const nextPending = data.steps.find(s => s.status === 'pending');
+  if (!nextPending) {
     console.error('[ralph next] no pending steps — all complete');
     return 2;
   }
+  if (nextPending.decision) {
+    console.error(`[ralph next] next pending step is a decision node: ${nextPending.decision}`);
+    console.error('  → decision nodes are not loadable via this CLI — the calling skill must evaluate them');
+    console.error('    inline (e.g. S_DECISION_EVAL / S_TICK_DECISION via `maestro delegate --role analyze`)');
+    console.error('  → do NOT skip to later execution steps; route by step.decision instead');
+    return 2;
+  }
+  const next = nextPending;
 
   // Validate command_path one more time at load time.
   if (!next.command_path) {

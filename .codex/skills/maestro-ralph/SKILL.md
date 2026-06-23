@@ -26,6 +26,8 @@ Reads project state → infers position → builds adaptive chain → delegates 
 
 > **continue vs ralph-execute**：用户说"继续"时走 `Skill(maestro-ralph, "continue")`（用户入口，经 S_DISPATCH handoff）；内部 step 推进链和 decision 回调走 `Skill(maestro-ralph-execute)`（内部 handoff，跳过 ralph 路由层）。两者最终都由 ralph-execute 执行 step。
 
+CLI note: `maestro ralph continue` is only an alias for `maestro ralph next`; it cannot evaluate decision nodes. If it reports `next pending step is a decision node`, route to `Skill(maestro-ralph)` / S_DECISION_EVAL instead of rerunning CLI or editing status.json.
+
 > 推进规则：**step 推进由 `Skill(maestro-ralph-execute)` 负责**；ralph 仅在 build / decision 评估时介入。decision 节点由 ralph-execute 自动 `Skill(maestro-ralph)` 直调 handoff，无需用户手动切换。
 
 > **CLI vs Skill 边界**：`maestro` 作为 CLI 二进制只有结构化子命令（`ralph`、`delegate`、`explore` 等），不接受裸 intent。`Bash("maestro \"some intent\"")` 会报错退出。创建 session 和路由 intent 必须通过 `Skill(maestro-ralph)` 或 `Skill(maestro)` skill 调用。CLI 层仅用于 step 加载（`ralph next`）和完成标记（`ralph complete`）。

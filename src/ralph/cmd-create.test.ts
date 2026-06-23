@@ -82,6 +82,50 @@ describe('ralph execution guard', () => {
     expect(err.mock.calls.flat().join('\n')).toContain('W003: multiple running maestro/ralph sessions detected');
     expect(err.mock.calls.flat().join('\n')).toContain('Pass --session <id>');
   });
+
+  it('does not skip a pending decision node to load a later execution step', async () => {
+    createCodexSkill('test-step');
+    writeRunningSession('ralph-a', [
+      {
+        index: 0,
+        skill: '',
+        args: '',
+        stage: 'decision',
+        decision: 'post-execute',
+        command_scope: null,
+        command_path: null,
+        status: 'pending',
+        completion_confirmed: false,
+        completion_status: null,
+        completion_evidence: null,
+        completed_at: null,
+      },
+      {
+        index: 1,
+        skill: 'test-step',
+        args: '',
+        stage: 'review',
+        decision: null,
+        command_scope: 'project',
+        command_path: join(workDir, '.codex', 'skills', 'test-step', 'SKILL.md'),
+        status: 'pending',
+        completion_confirmed: false,
+        completion_status: null,
+        completion_evidence: null,
+        completed_at: null,
+      },
+    ]);
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const code = await runNext({ sessionId: 'ralph-a' });
+
+    expect(code).toBe(2);
+    expect(err.mock.calls.flat().join('\n')).toContain('next pending step is a decision node: post-execute');
+    const status = readSession('ralph-a');
+    expect(status.active_step_index ?? null).toBeNull();
+    expect(status.steps[0].status).toBe('pending');
+    expect(status.steps[1].status).toBe('pending');
+  });
 });
 
 describe('ralph session state commands', () => {

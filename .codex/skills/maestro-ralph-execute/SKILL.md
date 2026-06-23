@@ -219,7 +219,8 @@ Write enriched args + source_artifact_ref back to status.json.
 
 1. **Load** — `Bash("maestro ralph next --session {session_id}")`
    - 退出码 0 → 按 stdout 内联执行
-   - 退出码 2 → 所有 step 已完成，转 S_COMPLETE
+   - 退出码 2 + `next pending step is a decision node` → 回到 S_EXECUTE decision path / `Skill(maestro-ralph)`，不得跳过到后续 execution step
+   - 退出码 2 + no pending steps → 交给 S_COMPLETE
    - 退出码 3 → active_step_index 已被占用
    - 退出码 1 → pause session
 2. **Goal context pre-injection**:
@@ -305,7 +306,7 @@ Write enriched args + source_artifact_ref back to status.json.
 ### A_PAUSE_SESSION
 
 通常由 `ralph complete N --status BLOCKED --reason "..."` 触发，CLI 已写 `session.status = "paused"`。需要挂起整条 stale session 时使用 `maestro ralph pause --session <id> --reason "..."`。
-Display: `[{index}/{total}] ✗ {step.skill} 失败，会话已暂停。Skill(maestro-ralph, "continue") 恢复。`
+Display: `[{index}/{total}] ✗ {step.skill} 失败，会话已暂停。使用 Skill(maestro-ralph, "continue") 恢复；CLI maestro ralph continue 只是 next alias，不能评估 decision。`
 
 ### A_COMPLETE_SESSION
 
