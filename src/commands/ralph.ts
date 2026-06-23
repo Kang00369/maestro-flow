@@ -8,6 +8,7 @@
 //   check      Run health check against current ralph status.json
 //   session    Show current ralph session summary (`status` alias)
 //   next       Load next pending step + required_reading, write status.json
+//   continue   Alias for next; useful when skill docs say "$maestro-ralph continue"
 //   complete   Mark current step done / concerns / retry / blocked
 //   retry      Sugar for `complete <idx> --status NEEDS_RETRY`
 //   pause      Pause a running session
@@ -168,6 +169,18 @@ export function registerRalphCommand(program: Command): void {
   ralph
     .command('next')
     .description('Load next pending step + required_reading, write status.json, print prompt')
+    .option('--session <id>', 'Session id (default: latest running ralph-*)')
+    .option('--allow-concurrent', 'Allow implicit selection even when multiple sessions are running')
+    .action(async (opts: { session?: string; allowConcurrent?: boolean }) => {
+      const run = await loadNextCmd();
+      const code = await run({ sessionId: opts.session, allowConcurrent: !!opts.allowConcurrent });
+      process.exit(code);
+    });
+
+  // ── continue ────────────────────────────────────────────────────────────
+  ralph
+    .command('continue')
+    .description('Alias for next; decision nodes still require skill handoff')
     .option('--session <id>', 'Session id (default: latest running ralph-*)')
     .option('--allow-concurrent', 'Allow implicit selection even when multiple sessions are running')
     .action(async (opts: { session?: string; allowConcurrent?: boolean }) => {

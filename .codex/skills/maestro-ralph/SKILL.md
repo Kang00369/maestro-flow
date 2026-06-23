@@ -18,6 +18,8 @@ Reads project state → infers position → builds adaptive chain → delegates 
 - **`$maestro-ralph continue [session-id]`** — 恢复执行；省略仅在单个 running session 时可用（首选直接 `$maestro-ralph-execute [session-id]`）
 - **`$maestro-ralph status [session-id]`** — 显示进度；省略=最新 ralph session
 
+CLI note: `maestro ralph continue` is only an alias for `maestro ralph next`; it cannot evaluate decision nodes. If it reports `next pending step is a decision node`, route to `$maestro-ralph` / S_DECISION_EVAL instead of rerunning CLI or editing status.json.
+
 > 推进规则：**step 推进由 `$maestro-ralph-execute` 负责**；ralph 仅在 build / decision 评估时介入。decision 节点由 ralph-execute 自动 `$maestro-ralph` 直调 handoff，无需用户手动切换。
 
 Initial decomposition (S_DECOMPOSE): boundary-clarified via ≤3 questions for broad intents (重构/全面/迁移/重写). 写入 status.json 的 `boundary_contract` / `execution_criteria` / `task_decomposition`，附 `/goal` prompt。
