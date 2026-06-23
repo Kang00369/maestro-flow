@@ -1,16 +1,34 @@
-import { readdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { resolve, join } from 'node:path';
+import { homedir } from 'node:os';
 import { createClient } from './llm.js';
 import { TOOL_SCHEMAS } from './tools.js';
 import { buildSystemPrompt } from './system-prompt.js';
 import { agentLoop } from './agent-loop.js';
+
+interface ApiExploreConfig {
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+  maxTurns?: number;
+}
+
+function loadConfigFile(): ApiExploreConfig {
+  const configPath = join(homedir(), '.maestro', 'api-explore.json');
+  if (!existsSync(configPath)) return {};
+  try {
+    return JSON.parse(readFileSync(configPath, 'utf-8')) as ApiExploreConfig;
+  } catch {
+    return {};
+  }
+}
 
 function parseArgs(argv: string[]): { model: string; baseUrl: string; apiKey: string; cwd: string; maxTurns: number } {
   let model = '';
   let baseUrl = '';
   let apiKey = '';
   let cwd = process.cwd();
-  let maxTurns = 6;
+  let maxTurns = 0;
 
   for (let i = 2; i < argv.length; i++) {
     switch (argv[i]) {
@@ -27,25 +45,27 @@ function parseArgs(argv: string[]): { model: string; baseUrl: string; apiKey: st
         cwd = argv[++i] ?? process.cwd();
         break;
       case '--max-turns':
-        maxTurns = parseInt(argv[++i] ?? '6', 10);
+        maxTurns = parseInt(argv[++i] ?? '0', 10);
         break;
     }
   }
 
-  model = model || process.env.API_EXPLORE_MODEL || '';
-  baseUrl = baseUrl || process.env.API_EXPLORE_BASE_URL || '';
-  apiKey = apiKey || process.env.API_EXPLORE_API_KEY || process.env.OPENAI_API_KEY || '';
+  // Priority: CLI args > config file > env vars
+  const fileConfig = loadConfigFile();
 
-  if (!model) {
-    process.stderr.write('Error: --model or API_EXPLORE_MODEL is required\n');
-    process.exit(1);
-  }
-  if (!baseUrl) {
-    process.stderr.write('Error: --base-url or API_EXPLORE_BASE_URL is required\n');
-    process.exit(1);
-  }
-  if (!apiKey) {
-    process.stderr.write('Error: --api-key or API_EXPLORE_API_KEY/OPENAI_API_KEY is required\n');
+  model = model || fileConfig.model || process.env.API_EXPLORE_MODEL || '';
+  baseUrl = baseUrl || fileConfig.baseUrl || process.env.API_EXPLORE_BASE_URL || '';
+  apiKey = apiKey || fileConfig.apiKey || process.env.API_EXPLORE_API_KEY || process.env.OPENAI_API_KEY || '';
+  maxTurns = maxTurns || fileConfig.maxTurns || 6;
+
+  if (!model || !baseUrl || !apiKey) {
+    process.stderr.write(
+      'Error: model, baseUrl, and apiKey are required.\n' +
+      'Configure via ~/.maestro/api-explore.json:\n' +
+      '  { "baseUrl": "https://...", "apiKey": "sk-...", "model": "..." }\n' +
+      'Or via CLI args: --model --base-url --api-key\n' +
+      'Or via env: API_EXPLORE_MODEL, API_EXPLORE_BASE_URL, API_EXPLORE_API_KEY\n',
+    );
     process.exit(1);
   }
 
