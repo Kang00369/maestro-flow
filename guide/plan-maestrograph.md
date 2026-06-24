@@ -10,7 +10,7 @@
 > - 统一 Schema v2: `nodes` + `edges` + `files` + 双 FTS5 虚拟表 (`code_fts` unicode61 / `knowledge_fts` trigram)
 > - 6 种知识来源: codegraph / domain / spec / knowhow / codebase / issue
 > - 24 项查询能力完整覆盖 (搜索 + 遍历 + 分析)，其中 7 项为 MaestroGraph 独有
-> - 937 测试通过，176 项搜索/遍历基准测试全部通过
+> - 937 测试通过，162 项搜索/遍历基准测试全部通过
 
 ---
 
@@ -1251,10 +1251,12 @@ END;
 
 CREATE TRIGGER IF NOT EXISTS nodes_ad AFTER DELETE ON nodes BEGIN
     INSERT INTO code_fts(code_fts, rowid, id, name, qualified_name, docstring, signature)
-    VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.qualified_name, OLD.docstring, OLD.signature);
+    VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.qualified_name, OLD.docstring, OLD.signature)
+    WHERE OLD.source_type = 'codegraph' OR OLD.source_type IS NULL;
 
     INSERT INTO knowledge_fts(knowledge_fts, rowid, id, name, definition, body, aliases, keywords)
-    VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.definition, OLD.body, OLD.aliases, OLD.keywords);
+    VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.definition, OLD.body, OLD.aliases, OLD.keywords)
+    WHERE OLD.source_type IS NOT NULL AND OLD.source_type != 'codegraph';
 END;
 
 CREATE TRIGGER IF NOT EXISTS nodes_au AFTER UPDATE ON nodes BEGIN
@@ -2260,9 +2262,17 @@ export function openKgDatabase(projectPath: string): Database.Database {
   db.pragma('busy_timeout = 5000');
   db.pragma('synchronous = NORMAL');
   db.pragma('foreign_keys = ON');
+  db.pragma('cache_size = -64000');
+  db.pragma('temp_store = MEMORY');
+  // Windows 上 mmap 会锁定文件阻止 WAL 扩容，导致 checkpoint 失败 → DB 损坏
+  if (process.platform !== 'win32') {
+    db.pragma('mmap_size = 268435456');
+  }
   return db;
 }
 ```
+
+> **Windows 安全说明**: SQLite 的 mmap I/O 在 Windows 上会锁定数据库文件，阻止 WAL 文件扩容，导致 checkpoint 失败和潜在的数据库损坏。实现中通过 `process.platform` 检查，在 Windows 上跳过 mmap 设置，改用标准文件 I/O。关闭连接时先 `pragma('mmap_size = 0')` 释放映射再 checkpoint。
 
 ```typescript
 // src/graph/kg/sync/incremental-sync.ts — 全量同步用 FileLock

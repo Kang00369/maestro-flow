@@ -29,6 +29,11 @@ $ARGUMENTS -- requirement/idea text or @file reference, plus optional flags.
 
 **Session**: `.workflow/.csv-wave/{YYYYMMDD}-roadmap-{slug}/`
 **Output**: tasks.csv, results.csv, discoveries.ndjson, context.md, `.workflow/roadmap.md`
+
+### Pre-load (runs unconditionally, including -y auto mode)
+1. **Architecture specs**: `maestro spec load --category arch` — load architecture constraints for phase decomposition
+2. **Wiki search**: `maestro search "{requirement keywords}" --json` → prior knowledge for dependency and scope analysis
+3. All optional — proceed without if unavailable (log warning)
 </context>
 
 <interview_protocol>
@@ -176,7 +181,22 @@ Assembly agent produces roadmap.md with Milestone > Phase hierarchy (goal, depen
 3. Generate context.md (summary + analysis findings + roadmap stats)
 4. Write .workflow/roadmap.md with Milestone > Phase hierarchy
 5. Update state.json milestones + current_milestone
-6. Next-step routing: need analysis -> maestro-analyze; ready to plan -> maestro-plan; UI first -> maestro-impeccable build; need formal specs -> maestro-blueprint
+6. **Generate context-package.json** (schema `context-package/1.0`):
+   ```jsonc
+   {
+     "$schema": "context-package/1.0",
+     "source": { "type": "roadmap", "artifact_id": "RDM-{id}", "session_path": "...", "generated_at": "..." },
+     "requirements": [],       // from milestone phase goals → { id, title, acceptance }
+     "constraints": [],         // from scope decisions → locked items
+     "domain": {},              // inherit from upstream --from context-package if loaded
+     "non_goals": [],           // deferred scope items
+     "insights": [],            // from risk analysis and dependency findings
+     "open_questions": [],      // unresolved scope areas
+     "references": [{ "type": "roadmap", "path": "roadmap.md" }]
+   }
+   ```
+   Register `context_package` path in RDM artifact entry so downstream `--from roadmap:ID` can resolve.
+7. Next-step routing: need analysis -> maestro-analyze; ready to plan -> maestro-plan; UI first -> maestro-impeccable build; need formal specs -> maestro-blueprint
 
 </actions>
 
@@ -215,5 +235,14 @@ Protocol: read before analysis, append-only, dedup by type+key.
 - [ ] context.md generated
 - [ ] Uncertainty assessed, strategy selected, milestones with phases + success criteria
 - [ ] Artifact registered in state.json with milestone entries
+- [ ] Ralph-invoked: `maestro ralph complete <idx> --status {STATUS}` called with correct verdict
 </success_criteria>
+
+<ralph_completion>
+When invoked as a ralph session step, end by calling the CLI (no standalone report):
+```
+maestro ralph complete <idx> --status {STATUS} [--evidence {path}]
+```
+Status verdicts: **DONE** (normal), **DONE_WITH_CONCERNS** (caveats; pass `--concerns`), **NEEDS_RETRY** (transient error), **BLOCKED** (hard blocker; pass `--reason`).
+</ralph_completion>
 </output>

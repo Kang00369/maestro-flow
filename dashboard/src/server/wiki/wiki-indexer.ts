@@ -26,7 +26,8 @@ import type {
   PersistedEntry,
 } from './wiki-types.js';
 import { buildGraph, type WikiGraph } from './graph-analysis.js';
-import { buildInvertedIndex, searchBM25, type InvertedIndex } from './search.js';
+import { buildInvertedIndex, searchBM25, searchBM25Planned, rerankByPhraseProximity, type InvertedIndex } from './search.js';
+import type { EmbeddingIndex } from './embedding.js';
 
 export interface LinkedWorkspaceConfig {
   name: string;
@@ -60,6 +61,8 @@ export class WikiIndexer {
   private cache: WikiIndex | null = null;
   private graphCache: WikiGraph | null = null;
   private searchCache: InvertedIndex | null = null;
+  private embeddingCache: EmbeddingIndex | null = null;
+  private embeddingInflight: Promise<EmbeddingIndex | null> | null = null;
   private inflight: Promise<WikiIndex> | null = null;
   private mtimeSnapshot: Map<string, number> = new Map();
 
@@ -82,16 +85,12 @@ export class WikiIndexer {
       this.cache = null;
       this.graphCache = null;
       this.searchCache = null;
+      this.embeddingCache = null;
     }
     return this.rebuild();
   }
 
-  /**
-   * Quick mtime scan of known source directories. If any file's mtime
-   * changed since the last rebuild, the cache is stale.
-   */
-  private async hasSourceChanges(): Promise<boolean> {
-    if (this.mtimeSnapshot.size === 0) return true;
+  private getSourcePaths(): { singletons: string[]; dirs: string[] } {
     const dirs = [
       join(this.workflowRoot, 'specs'),
       join(this.workflowRoot, 'knowhow'),
@@ -99,16 +98,23 @@ export class WikiIndexer {
       join(this.workflowRoot, 'domain'),
       join(this.workflowRoot, 'scratch'),
     ];
-    // Include linked workspace directories in staleness check
     for (const lw of this.linkedWorkspaces) {
       if (lw.shareTypes.has('spec')) dirs.push(join(lw.workflowRoot, 'specs'));
       if (lw.shareTypes.has('knowhow')) dirs.push(join(lw.workflowRoot, 'knowhow'));
       if (lw.shareTypes.has('domain')) dirs.push(join(lw.workflowRoot, 'domain'));
       if (lw.shareTypes.has('codebase')) dirs.push(join(lw.workflowRoot, 'codebase'));
     }
-    const singletons = ['project.md', 'roadmap.md'];
-    for (const s of singletons) {
-      const p = join(this.workflowRoot, s);
+    const singletons = [
+      join(this.workflowRoot, 'project.md'),
+      join(this.workflowRoot, 'roadmap.md'),
+    ];
+    return { singletons, dirs };
+  }
+
+  private async hasSourceChanges(): Promise<boolean> {
+    if (this.mtimeSnapshot.size === 0) return true;
+    const { singletons, dirs } = this.getSourcePaths();
+    for (const p of singletons) {
       try {
         const st = await stat(p);
         const prev = this.mtimeSnapshot.get(p);
@@ -131,22 +137,8 @@ export class WikiIndexer {
 
   private async captureMtimeSnapshot(): Promise<Map<string, number>> {
     const snap = new Map<string, number>();
-    const dirs = [
-      join(this.workflowRoot, 'specs'),
-      join(this.workflowRoot, 'knowhow'),
-      join(this.workflowRoot, 'issues'),
-      join(this.workflowRoot, 'domain'),
-      join(this.workflowRoot, 'scratch'),
-    ];
-    for (const lw of this.linkedWorkspaces) {
-      if (lw.shareTypes.has('spec')) dirs.push(join(lw.workflowRoot, 'specs'));
-      if (lw.shareTypes.has('knowhow')) dirs.push(join(lw.workflowRoot, 'knowhow'));
-      if (lw.shareTypes.has('domain')) dirs.push(join(lw.workflowRoot, 'domain'));
-      if (lw.shareTypes.has('codebase')) dirs.push(join(lw.workflowRoot, 'codebase'));
-    }
-    const singletons = ['project.md', 'roadmap.md'];
-    for (const s of singletons) {
-      const p = join(this.workflowRoot, s);
+    const { singletons, dirs } = this.getSourcePaths();
+    for (const p of singletons) {
       try { snap.set(p, (await stat(p)).mtimeMs); } catch { /* missing is fine */ }
     }
     for (const dir of dirs) {
@@ -285,15 +277,109 @@ export class WikiIndexer {
   }
 
   async searchWithScores(query: string, limit = 50): Promise<Array<{ entry: WikiEntry; score: number }>> {
+    return (await this.searchWithMeta(query, limit)).results;
+  }
+
+  async searchWithMeta(query: string, limit = 50): Promise<{
+    results: Array<{ entry: WikiEntry; score: number }>;
+    embeddingUsed: boolean;
+    embeddingDocs: number;
+  }> {
     const index = await this.get();
     const bm25 = await this.getSearchIndex();
-    const ranked = searchBM25(bm25, query, limit);
-    const out: Array<{ entry: WikiEntry; score: number }> = [];
-    for (const r of ranked) {
+    const bm25Results = searchBM25Planned(bm25, query, limit * 2);
+
+    const embIdx = await this.getEmbeddingIndex();
+    if (embIdx && embIdx.docIds.length > 0) {
+      try {
+        const { embedQuery, vectorSearch, mergeHybrid } = await import('./embedding.js');
+        const qVec = await embedQuery(query);
+        const vecResults = vectorSearch(qVec, embIdx, limit * 2);
+        const merged = mergeHybrid(bm25Results, vecResults, limit * 3);
+        let out: Array<{ entry: WikiEntry; score: number }> = [];
+        for (const r of merged) {
+          const entry = index.byId[r.docId];
+          if (entry) out.push({ entry, score: r.score });
+        }
+        out = rerankByPhraseProximity(out, query);
+        return { results: out.slice(0, limit), embeddingUsed: true, embeddingDocs: embIdx.docIds.length };
+      } catch (e: unknown) {
+        if (process.env.DEBUG || process.env.MAESTRO_DEBUG) {
+          console.error(`[embedding] query failed: ${e instanceof Error ? e.message : e}`);
+        }
+      }
+    }
+
+    let out: Array<{ entry: WikiEntry; score: number }> = [];
+    for (const r of bm25Results.slice(0, limit * 3)) {
       const entry = index.byId[r.docId];
       if (entry) out.push({ entry, score: r.score });
     }
-    return out;
+    out = rerankByPhraseProximity(out, query);
+    return { results: out.slice(0, limit), embeddingUsed: false, embeddingDocs: 0 };
+  }
+
+  async getEmbeddingIndex(): Promise<EmbeddingIndex | null> {
+    if (this.embeddingCache) return this.embeddingCache;
+    if (this.embeddingInflight) return this.embeddingInflight;
+
+    this.embeddingInflight = this.loadOrBuildEmbeddings();
+    const result = await this.embeddingInflight;
+    this.embeddingInflight = null;
+    this.embeddingCache = result;
+    return result;
+  }
+
+  private async loadOrBuildEmbeddings(): Promise<EmbeddingIndex | null> {
+    try {
+      const { isAvailable, getUnavailableReason, loadEmbeddingIndex, buildEmbeddingIndex, saveEmbeddingIndex } = await import('./embedding.js');
+      if (!await isAvailable()) {
+        const reason = getUnavailableReason?.() ?? 'unknown';
+        if (process.env.DEBUG || process.env.MAESTRO_DEBUG) {
+          console.error(`[embedding] unavailable: ${reason}`);
+        }
+        return null;
+      }
+
+      const cached = loadEmbeddingIndex(this.workflowRoot);
+      const index = await this.get();
+      // Only embed knowledge docs — KG code nodes are noise for semantic search
+      const KG_VIRTUAL_KINDS = new Set(['kg-node', 'kg-layer', 'kg-tour-step']);
+      const docs = index.entries
+        .filter(e => !KG_VIRTUAL_KINDS.has(e.ext?.virtualKind as string))
+        .map(e => ({
+          id: e.id,
+          title: e.title,
+          summary: e.summary,
+          tags: e.tags,
+          body: e.body,
+        }));
+
+      const { DEFAULT_MODEL_ID, hashDocContent } = await import('./embedding.js');
+      const modelMatch = cached && cached.modelId === DEFAULT_MODEL_ID;
+      const currentHashes = docs.map(hashDocContent);
+      const cachedHashMap = new Map<string, string>();
+      if (cached?.contentHashes) {
+        for (let i = 0; i < cached.docIds.length; i++) {
+          cachedHashMap.set(cached.docIds[i], cached.contentHashes[i] ?? '');
+        }
+      }
+      const unchanged = modelMatch
+        && cached!.docIds.length === docs.length
+        && cachedHashMap.size > 0
+        && docs.every((d, i) => cachedHashMap.get(d.id) === currentHashes[i]);
+
+      if (cached && unchanged) return cached;
+
+      const embIdx = await buildEmbeddingIndex(docs, cached);
+      saveEmbeddingIndex(embIdx, this.workflowRoot);
+      return embIdx;
+    } catch (e: unknown) {
+      if (process.env.DEBUG || process.env.MAESTRO_DEBUG) {
+        console.error(`[embedding] build failed: ${e instanceof Error ? e.message : e}`);
+      }
+      return null;
+    }
   }
 
   async search(query: string, limit = 50): Promise<WikiEntry[]> {
@@ -341,7 +427,10 @@ export class WikiIndexer {
           const related: string[] = [];
           if (se.ref) {
             const refStem = se.ref.replace(/^knowhow\//, '').replace(/\.md$/, '');
-            const refSlug = refStem.replace(/^(KNW|TIP|TPL|RCP|REF|DCS|AST|BLP|DOC)-/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            // Derive ref target the same way as the knowhow container id (parseFileEntry
+            // uses `knowhow-${slugify(stem)}`, which keeps the type prefix). Stripping the
+            // prefix here produced target ≠ id → broken links for RCP/REF/DCS/etc.
+            const refSlug = slugify(refStem);
             related.push(`knowhow-${refSlug}`);
           }
           out.push({
@@ -396,7 +485,10 @@ export class WikiIndexer {
           const related: string[] = [];
           if (se.ref) {
             const refStem = se.ref.replace(/^knowhow\//, '').replace(/\.md$/, '');
-            const refSlug = refStem.replace(/^(KNW|TIP|TPL|RCP|REF|DCS|AST|BLP|DOC)-/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            // Derive ref target the same way as the knowhow container id (parseFileEntry
+            // uses `knowhow-${slugify(stem)}`, which keeps the type prefix). Stripping the
+            // prefix here produced target ≠ id → broken links for RCP/REF/DCS/etc.
+            const refSlug = slugify(refStem);
             related.push(`knowhow-${refSlug}`);
           }
           out.push({
@@ -974,22 +1066,21 @@ export class WikiIndexer {
     type: WikiNodeType,
   ): Promise<WikiEntry | null> {
     if (!this.isInsideRoot(absPath)) return null;
+    let ls;
     try {
-      const ls = await lstat(absPath);
-      if (ls.isSymbolicLink()) return null;
-      if (!ls.isFile()) return null;
+      ls = await lstat(absPath);
+      if (ls.isSymbolicLink() || !ls.isFile()) return null;
     } catch {
       return null;
     }
 
     let raw: string;
-    let stats;
     try {
       raw = await readFile(absPath, 'utf-8');
-      stats = await stat(absPath);
     } catch {
       return null;
     }
+    const stats = ls;
 
     const { data, content } = parseFrontmatter(raw);
     const fileName = basename(absPath);
@@ -1042,15 +1133,16 @@ export class WikiIndexer {
     entries: WikiEntry[],
     byId: Record<string, WikiEntry>,
   ): Record<string, string[]> {
-    const bl: Record<string, string[]> = {};
+    const blSets = new Map<string, Set<string>>();
     const titleIndex = new Map<string, string>();
     for (const d of entries) titleIndex.set(d.title.toLowerCase(), d.id);
 
     const push = (target: string, source: string) => {
       const resolved = resolveLink(target, byId, titleIndex);
       if (!resolved) return;
-      if (!bl[resolved]) bl[resolved] = [];
-      if (!bl[resolved].includes(source)) bl[resolved].push(source);
+      let s = blSets.get(resolved);
+      if (!s) { s = new Set(); blSets.set(resolved, s); }
+      s.add(source);
     };
 
     for (const d of entries) {
@@ -1061,6 +1153,8 @@ export class WikiIndexer {
         while ((m = linkRe.exec(d.body))) push(m[1], d.id);
       }
     }
+    const bl: Record<string, string[]> = {};
+    for (const [k, v] of blSets) bl[k] = [...v];
     return bl;
   }
 

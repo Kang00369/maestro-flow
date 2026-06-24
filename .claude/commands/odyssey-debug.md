@@ -13,28 +13,15 @@ allowed-tools:
   - AskUserQuestion
 ---
 <purpose>
-Closed-loop deep debugging: archaeology (what changed) → explore (call chains, error gaps) → diagnose (hypothesis-driven) → fix & confirm → generalize (举一反三) → discover siblings → persist learnings.
-
-Unlike `quality-debug` (fast fix), this treats every bug as a learning signal — digs into git history before hypotheses, confirms fixes with CLI review, scans for siblings of the root cause.
-
-Core philosophy:
-- **Archaeology before hypothesis** — look at what changed before guessing why
-- **Fix one, find many** — a single bug reveals a class of bugs
-- **Decision journal** — human-judgment items recorded, not lost
-- **CLI-assisted review** — delegate for second-opinion analysis
-
-**三句哲学约束（穷尽迭代）:**
-1. **零遗留** — 根因必须确认到底，修复必须验证通过，泛化必须扫描穷尽
-2. **穷尽迭代** — 假设失败不放弃：扩范围 → 换视角 → 升级工具，直到根因确认或明确 INCONCLUSIVE
-3. **改进即标准** — 修复后重新确认同区域无新问题，泛化发现的同类 bug 全部处理
-
-Entry: `/odyssey-debug "issue"` (full cycle) | `-c` (resume) | `--skip-fix` (analysis-only)
+Closed-loop deep debugging: archaeology → explore → diagnose → fix & confirm → generalize → discover siblings → persist.
+Treats every bug as a learning signal with exhaustive iteration until root cause confirmed or INCONCLUSIVE.
 </purpose>
 
 <boundary>
 **范围内:** 单一 bug/issue 的完整闭环 — 考古 → 探索 → 诊断 → 修复 → 确认 → 泛化同类 → 沉淀
 **范围外:** 新功能开发 → `/odyssey-planex` | 代码质量审查 → `/odyssey-review-test-fix` | UI 视觉优化 → `/odyssey-ui` | 架构重设计 → `/maestro-plan`
 **探索自由度:** 边界内自由探索 — 可追踪任意调用链、分析任意历史、测试任意假设。泛化阶段可扫描全项目寻找同类问题。
+**Zero-residual principle:** Every finding MUST have a concrete action (fix / issue / decision). "Report and shelve" is not allowed. "Pre-existing issue" is not a valid skip reason — if discovered within scope, it must be addressed.
 **模板支持:** `--template <name>` 从预定义调查策略启动，跳过假设生成直接进入针对性诊断：
 
 | Template | 调查策略 | 适用场景 |
@@ -54,15 +41,22 @@ Entry: `/odyssey-debug "issue"` (full cycle) | `-c` (resume) | `--skip-fix` (ana
    - session.json / evidence.ndjson 为运行时状态，不纳入 commit
    - 确保每个阶段的进展可回溯、可恢复
 
-2. **有把握才改** — 仅修改自己有把握的内容；不确定的记录决策等人判断
-   - 有把握 → 直接修改代码，commit
-   - 需要决策 → 记录 `evidence.ndjson {"phase":"decision","status":"pending"}` 不改代码
-   - 禁止猜测性修改，宁可多记录一条 decision 也不冒险改错
+2. **Confident edits only, but must attempt** — only modify what you're confident about; record decisions only when genuinely requiring human judgment
+   - Confident → edit code directly, commit
+   - Needs decision → record `evidence.ndjson {"phase":"decision","status":"pending"}`, don't touch code
+   - No speculative changes
+   - ⚠️ **Decision gate** — ONLY these qualify as decisions (not fixes):
+     - Cross-module architectural tradeoffs requiring human direction
+     - Ambiguous business semantics where the fix could alter intended behavior
+     - Requires new dependency or breaking API change
+   - ❌ "Unsure how to fix", "Large scope", "Pre-existing issue" are NOT valid decision reasons — either fix it, or explain specifically why it's unfixable
 
 3. **多 CLI 辅助** — 利用 `maestro delegate` 调用多个 CLI 工具交叉验证
    - 关键判断用不同 `--role`（analyze / review / explore）获取多视角
    - 修复前后各做一次 CLI review 确认
    - 不同阶段可调用不同工具，综合多方意见再行动
+
+4. **禁止以上下文消耗为由中断** — harness 自动处理 context compression，以"上下文不足"或"已执行 N 个阶段"为由中断属于纪律违反；必须完整走完状态机直到 S_RECORD → END
 </execution_discipline>
 
 <context>
@@ -90,7 +84,7 @@ SESSION_DIR/
   "root_cause": null, "patterns": [], "confirmation": null,
   "phase_goals": [], "phase_goals_all_done": false, "self_iteration_log": [],
   "generalization_stats": null,
-  "cross_phase_loops": 0, "max_loops": 3,
+  "cross_phase_loops": 0, "max_loops": 5,
   "created_at": "", "updated_at": ""
 }
 ```
@@ -169,11 +163,12 @@ S_RECORD 阶段将可沉淀知识 **写入 understanding.md §9 Learnings**，�
 | Depth | ≥80% 发现有 file:line 级证据 | 多数仅泛泛描述 |
 | Actionability | 每条结论有具体后续动作 | 仅"建议关注"类无操作性结论 |
 
-**规则:** 阶段完成 → 评估 3 维度 → 任一 insufficient → 重入（每阶段最多 2 轮）。
-- Round 1: 扩范围 — 增加目录、git log depth ×2、增加 delegate 角度
-- Round 2: 换视角 — 不同 CLI tool、反向追踪、手动 code reading
+**Rules:** phase complete → evaluate 3 dimensions → any insufficient → re-enter (max **3 rounds** per stage).
+- Round 1: widen scope — more dirs, git log depth ×2, extra delegate angles
+- Round 2: shift perspective — different CLI tool, reverse trace, manual code reading
+- Round 3: combine both + targeted deep-dive on remaining gaps
 
-**退出:** 全 sufficient → 推进 | 2 轮上限 → 记录 gap 继续。记录至 `evidence.ndjson` + `session.json.self_iteration_log[]`.
+**Exit:** all sufficient → advance | 3-round cap → log remaining gaps and continue. Record to `evidence.ndjson` + `session.json.self_iteration_log[]`.
 </self_iteration>
 
 <state_machine>
@@ -212,9 +207,10 @@ S_CONFIRM → S_FIX           : needs_rework
 S_GENERALIZE → S_DISCOVER   : similar code found
 S_GENERALIZE → S_RECORD     : no similar code
 
-S_DISCOVER → S_DIAGNOSE     : discovery finds new bug worth investigating, loops < max_loops → cross_phase_loops++
-S_DISCOVER → S_FIX          : discovery finds same-pattern bug, fix template applies, loops < max_loops → cross_phase_loops++
-S_DISCOVER → S_RECORD       : triage complete OR loops >= max_loops (剩余项 → issue/decision)
+S_DISCOVER → S_DIAGNOSE     : discovery finds new bug worth investigating → cross_phase_loops++
+S_DISCOVER → S_FIX          : discovery finds same-pattern bug, fix template applies, !skip_fix → cross_phase_loops++
+S_DISCOVER → S_RECORD       : triage complete AND remaining_actionable == 0
+S_DISCOVER → S_RECORD       : loops >= max_loops → MUST log each unfixed item with specific reason (blanket "pre-existing" is forbidden)
 
 S_RECORD   → END            : A_RECORD complete
 </transitions>
@@ -254,7 +250,7 @@ EXPECTED: JSON [{commit_sha, risk_level, analysis, could_cause_issue, explanatio
 CONSTRAINTS: Focus on behavioral changes, not formatting
 " --role analyze --mode analysis
 ```
-Run_in_background, STOP, wait for callback. Append results to evidence.
+Execute with `run_in_background: true`, then wait for callback (do NOT halt the Odyssey flow). Append results to evidence.
 
 Update `understanding.md` §2.
 
@@ -273,7 +269,7 @@ CONSTRAINTS: Max 20 entries/category | Symptom-related code paths
 Symptoms: {issue}  Archaeology hints: {suspicious_commits}
 " --role explore --mode analysis
 ```
-Run_in_background, STOP, wait for callback.
+Execute with `run_in_background: true`, then wait for callback (do NOT halt the Odyssey flow).
 
 Parse → write `explore.json` + append `evidence.ndjson` (phase: "explore"). Update §3. Mark G2 done.
 
@@ -309,7 +305,7 @@ EXPECTED: JSON {verdict, findings [{severity, description, suggestion}], regress
 CONSTRAINTS: Focus on correctness, not style
 " --role review --mode analysis
 ```
-Run_in_background, STOP, wait for callback.
+Execute with `run_in_background: true`, then wait for callback (do NOT halt the Odyssey flow).
 
 3. Write `session.json.confirmation`: `{test_result, cli_review, overall: "confirmed|needs_rework", timestamp}`
 4. Update §6. `needs_rework` → S_FIX. `confirmed` → mark G3 done, advance.
@@ -352,7 +348,12 @@ Write §7 + `session.json.generalization_stats`: `{patterns_extracted, total_hit
 
 ### A_DISCOVER
 1. **Triage** each hit: read ±10 lines context → classify `safe`/`risk`/`bug`
-2. **Route**: see Appendix `-y` behavior table. Append evidence (phase: "discovery" + "decision")
+2. **Route**:
+   - `bug` + directly fixable → **fix immediately** (not just log an issue) → back to S_FIX
+   - `bug` + requires cross-module/architectural decision → create issue (with fix suggestion + impact analysis)
+   - `risk` → evaluate if guard/validation can mitigate directly; if yes, fix it
+   - `safe` → mark skip
+   See Appendix `-y` behavior table. Append evidence (phase: "discovery" + "decision")
 3. Update §8. Mark G5 done.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-debug({slug}): DISCOVER — 发现分类完成"`
@@ -391,7 +392,11 @@ Goals:      {done}/{total} confirmed ({skipped} skipped)
 ```
 📋 Debug Odyssey 会话已创建。可随时复制以下 /goal 设定终止条件：
 
-/goal 穷尽迭代：直到根因确认（或明确 INCONCLUSIVE）且修复验证通过
+/goal 完成以下目标：
+{for each G in phase_goals where status != "skipped":}
+- {G.id}: {G.goal} — 完成条件: {G.done_when}
+{end for}
+穷尽迭代：直到根因确认（或明确 INCONCLUSIVE）且修复验证通过
 且泛化扫描穷尽（所有 hits 已分类处理）且 phase_goals_all_done=true 才停。
 假设失败时扩范围→换视角→升级工具，不轻易放弃。
 泛化发现的同类 bug 全部修复或创建 issue，不允许遗留。
@@ -450,6 +455,7 @@ Odyssey 输出提示词后继续执行不阻塞。`/goal` 由用户任意时刻�
 - [ ] Multi-layer patterns (syntax/semantic/structural) extracted (unless --skip-generalize)
 - [ ] 4-agent scan + cross-layer dedup + iterative deepening for ≥3 hits/module
 - [ ] Discoveries classified and routed (fix/issue/decision/skip)
+- [ ] **Every unfixed finding has individual classification and reason** — blanket "pre-existing" labels are forbidden
 - [ ] Decision journal: all human-judgment items in evidence.ndjson phase=decision
 - [ ] phase_goals derived from flags, skip_when applied, each phase marks its goal
 - [ ] Goal audit in A_RECORD — unmet goals surfaced, phase_goals_all_done set correctly

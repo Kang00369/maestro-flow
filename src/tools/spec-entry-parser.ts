@@ -9,6 +9,10 @@
 // Types
 // ============================================================================
 
+export type ConfidenceLevel = 'high' | 'medium' | 'low' | 'contested';
+
+export const VALID_CONFIDENCE_LEVELS: readonly ConfidenceLevel[] = ['high', 'medium', 'low', 'contested'] as const;
+
 export interface SpecEntryParsed {
   category: string;
   keywords: string[];
@@ -17,6 +21,9 @@ export interface SpecEntryParsed {
   ref?: string;
   description?: string;
   domain?: string;
+  confidence?: ConfidenceLevel;
+  conflictMarker?: string;
+  conflictNote?: string;
   title: string;
   content: string;
   lineStart: number;
@@ -106,6 +113,10 @@ export function parseSpecEntries(content: string): ParseResult {
     // Validate and build entry
     const ref = attrs.ref || undefined;
 
+    const confidence = attrs.confidence as ConfidenceLevel | undefined;
+    const conflictMarker = attrs['conflict-marker'] || undefined;
+    const conflictNote = attrs['conflict-note'] || undefined;
+
     const entry: SpecEntryParsed = {
       category: attrs.category ?? '',
       keywords: attrs.keywords ? attrs.keywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean) : [],
@@ -114,6 +125,9 @@ export function parseSpecEntries(content: string): ParseResult {
       ref,
       description: attrs.description || undefined,
       domain: attrs.domain || undefined,
+      confidence: confidence && VALID_CONFIDENCE_LEVELS.includes(confidence) ? confidence : undefined,
+      conflictMarker,
+      conflictNote,
       title,
       content: body.trim(),
       lineStart,
@@ -190,7 +204,19 @@ export function formatSpecEntries(entries: SpecEntryParsed[], keyword?: string):
 
   if (filtered.length === 0) return '';
 
-  return filtered.map(formatEntryClean).join('\n\n---\n\n');
+  const normal = filtered.filter(e => e.confidence !== 'contested');
+  const contested = filtered.filter(e => e.confidence === 'contested');
+
+  const parts: string[] = [];
+  if (normal.length > 0) {
+    parts.push(normal.map(formatEntryClean).join('\n\n---\n\n'));
+  }
+  if (contested.length > 0) {
+    parts.push(`> **${contested.length} contested entries** (pending audit review)\n\n` +
+      contested.map(formatEntryClean).join('\n\n---\n\n'));
+  }
+
+  return parts.join('\n\n---\n\n');
 }
 
 /**
@@ -199,18 +225,32 @@ export function formatSpecEntries(entries: SpecEntryParsed[], keyword?: string):
  * Input content:  `### Title\n\nBody`
  * Output:         `### Title\n> category · kw1, kw2 · date · source\n\nBody`
  */
+const CONFIDENCE_BADGES: Record<string, string> = {
+  contested: '[CONTESTED]',
+  low: '[LOW CONFIDENCE]',
+};
+
 function formatEntryClean(e: SpecEntryParsed): string {
   const meta: string[] = [];
+
+  const badge = e.confidence ? CONFIDENCE_BADGES[e.confidence] : undefined;
+  if (badge) meta.push(badge);
+
   if (e.category) meta.push(e.category);
   if (e.keywords.length > 0) meta.push(e.keywords.join(', '));
   if (e.date) meta.push(e.date);
   if (e.source) meta.push(e.source);
 
-  if (meta.length === 0 && !e.ref) return e.content;
+  if (meta.length === 0 && !e.ref && !e.conflictNote) return e.content;
 
   const metaLine = meta.length > 0 ? `> ${meta.join(' \u00b7 ')}` : '';
 
-  // Build ref detail line: knowhow/AST-oauth-flow.md → knowhow-oauth-flow
+  let conflictLine = '';
+  if (e.conflictNote) {
+    conflictLine = `\n> Conflict: ${e.conflictNote}`;
+    if (e.conflictMarker) conflictLine += ` (${e.conflictMarker})`;
+  }
+
   let refLine = '';
   if (e.ref) {
     const refStem = e.ref.replace(/^knowhow\//, '').replace(/\.md$/, '');
@@ -219,13 +259,12 @@ function formatEntryClean(e: SpecEntryParsed): string {
     refLine = `\n\u2192 Detail: maestro wiki load ${refId}`;
   }
 
-  // Inject after first ### heading line
   const idx = e.content.indexOf('\n');
   if (idx !== -1 && e.content.trimStart().startsWith('###')) {
-    return e.content.slice(0, idx) + (metaLine ? '\n' + metaLine : '') + refLine + e.content.slice(idx);
+    return e.content.slice(0, idx) + (metaLine ? '\n' + metaLine : '') + conflictLine + refLine + e.content.slice(idx);
   }
 
-  return (metaLine ? metaLine + '\n\n' : '') + e.content + refLine;
+  return (metaLine ? metaLine + '\n\n' : '') + e.content + conflictLine + refLine;
 }
 
 /**
@@ -241,14 +280,21 @@ export function formatNewEntry(
   source?: string,
   ref?: string,
   description?: string,
+  confidence?: ConfidenceLevel,
+  conflictMarker?: string,
+  conflictNote?: string,
 ): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const kwStr = keywords.map(k => k.toLowerCase().trim()).filter(Boolean).join(',');
-  const sourceAttr = source ? ` source="${source}"` : '';
-  const refAttr = ref ? ` ref="${ref}"` : '';
-  const descAttr = description ? ` description="${description}"` : '';
-  const titleAttr = ` title="${title}"`;
+  const sourceAttr = source ? ` source="${esc(source)}"` : '';
+  const refAttr = ref ? ` ref="${esc(ref)}"` : '';
+  const descAttr = description ? ` description="${esc(description)}"` : '';
+  const titleAttr = ` title="${esc(title)}"`;
+  const confidenceAttr = confidence ? ` confidence="${confidence}"` : '';
+  const conflictMarkerAttr = conflictMarker ? ` conflict-marker="${conflictMarker}"` : '';
+  const conflictNoteAttr = conflictNote ? ` conflict-note="${conflictNote}"` : '';
 
-  return `<spec-entry category="${category}" keywords="${kwStr}" date="${date}"${titleAttr}${descAttr}${sourceAttr}${refAttr}>\n\n### ${title}\n\n${content}\n\n</spec-entry>`;
+  return `<spec-entry category="${category}" keywords="${kwStr}" date="${date}"${titleAttr}${descAttr}${sourceAttr}${refAttr}${confidenceAttr}${conflictMarkerAttr}${conflictNoteAttr}>\n\n### ${title}\n\n${content}\n\n</spec-entry>`;
 }
 
 // ============================================================================
@@ -282,7 +328,6 @@ function parseLegacyEntries(
 ): LegacyEntry[] {
   const lines = content.split('\n');
   const legacy: LegacyEntry[] = [];
-  let currentOffset = 0;
 
   // Build a set of line numbers that are inside <spec-entry> blocks
   const consumedLines = new Set<number>();

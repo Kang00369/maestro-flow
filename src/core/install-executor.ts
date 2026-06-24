@@ -136,6 +136,11 @@ export async function executeInstallPipeline(opts: ExecutorOptions): Promise<Ins
       : {}),
     selectedComponentIds: config.installComponents ? config.selectedComponentIds : [],
   });
+  if (prior?.disabledItems?.length) {
+    manifest.disabledItems = prior.disabledItems;
+  }
+  // Save manifest early so interrupted installs leave a trackable manifest on disk
+  saveManifest(manifest);
 
   // --- Components ---
   if (config.installComponents) {
@@ -155,7 +160,7 @@ export async function executeInstallPipeline(opts: ExecutorOptions): Promise<Ins
         const result = injectDocFile(comp.sourceFull, comp.targetDir, stats, manifest, comp.def.section);
         if (result.warning) warnings.push(result.warning);
       } else {
-        copyRecursive(comp.sourceFull, comp.targetDir, stats, manifest);
+        copyRecursive(comp.sourceFull, comp.targetDir, stats, manifest, comp.def.fileFilter);
       }
     }
 
@@ -176,11 +181,12 @@ export async function executeInstallPipeline(opts: ExecutorOptions): Promise<Ins
   }
 
   // --- Hooks (Claude) ---
-  if (config.installHooks && config.hookLevel !== 'none') {
+  if (config.installHooks && (config.hookLevel !== 'none' || config.claudeHooksSelection?.selectedHooks?.length)) {
     if (cancelled()) throw new CancelledError();
     progress('hooks', 'active', `${config.hookLevel}...`);
     const result = installHooksByLevel(config.hookLevel, {
       project: config.mode === 'project',
+      selectedHooks: config.claudeHooksSelection?.isCustom ? config.claudeHooksSelection.selectedHooks : undefined,
     });
     hooksInstalled = result.installedHooks.length;
     recordClaudeHooks(manifest, {
@@ -217,11 +223,12 @@ export async function executeInstallPipeline(opts: ExecutorOptions): Promise<Ins
   }
 
   // --- Codex Hooks ---
-  if (config.installCodexHooks && config.codexHookLevel !== 'none') {
+  if (config.installCodexHooks && (config.codexHookLevel !== 'none' || config.codexHooksSelection?.selectedHooks?.length)) {
     if (cancelled()) throw new CancelledError();
     progress('codexHooks', 'active', `${config.codexHookLevel}...`);
     const result = installCodexHooksByLevel(config.codexHookLevel, {
       project: config.mode === 'project',
+      selectedHooks: config.codexHooksSelection?.isCustom ? config.codexHooksSelection.selectedHooks : undefined,
     });
     codexHooksInstalled = result.installedHooks.length;
     recordCodexHooks(manifest, {
@@ -245,12 +252,13 @@ export async function executeInstallPipeline(opts: ExecutorOptions): Promise<Ins
   }
 
   // --- Agy Hooks ---
-  if (config.installAgyHooks && config.agyHookLevel !== 'none') {
+  if (config.installAgyHooks && (config.agyHookLevel !== 'none' || config.agyHooksSelection?.selectedHooks?.length)) {
     if (cancelled()) throw new CancelledError();
     progress('agyHooks', 'active', `${config.agyHookLevel}...`);
     const result = installAgyHooksByLevel(config.agyHookLevel, {
       project: config.mode === 'project',
       projectPath: config.mode === 'project' ? config.projectPath : undefined,
+      selectedHooks: config.agyHooksSelection?.isCustom ? config.agyHooksSelection.selectedHooks : undefined,
     });
     agyHooksInstalled = result.installedHooks.length;
     recordAgyHooks(manifest, {

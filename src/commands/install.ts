@@ -23,6 +23,7 @@ import {
   getPackageRoot,
   scanComponents,
   MCP_TOOLS,
+  type ExtraMcpTargetId,
 } from './install-backend.js';
 import { t } from '../i18n/index.js';
 import { registerFontsSubcommand } from './font-guide.js';
@@ -104,6 +105,81 @@ function registerMcpSubcommand(install: Command): void {
 
 
 
+function registerToggleSubcommand(install: Command): void {
+  install
+    .command('toggle')
+    .description('Enable/disable individual commands, skills, and agents')
+    .option('--global', 'Toggle items in global installation (default)')
+    .option('--path <dir>', 'Toggle items in project installation')
+    .option('--type <type>', 'Filter by type: command, skill, agent')
+    .option('--enable <names>', 'Non-interactive: enable items (comma-separated)')
+    .option('--disable <names>', 'Non-interactive: disable items (comma-separated)')
+    .option('--list', 'List all items with their status (no TUI)')
+    .action(async (opts: { global?: boolean; path?: string; type?: string; enable?: string; disable?: string; list?: boolean }) => {
+      const { homedir } = await import('node:os');
+      const { scanToggleItems, applyToggle, updateManifestDisabledItems } = await import('./install-backend.js');
+
+      const pkgRoot = getPackageRoot();
+      const mode: 'global' | 'project' = opts.path ? 'project' : 'global';
+      const targetBase = opts.path ? resolve(opts.path) : homedir();
+      const targetPath = opts.path ? resolve(opts.path) : (await import('../config/paths.js')).paths.home;
+
+      // Non-interactive: --list
+      if (opts.list) {
+        const items = scanToggleItems(pkgRoot, targetBase);
+        const filtered = opts.type ? items.filter(i => i.type === opts.type) : items;
+        let currentType = '';
+        for (const item of filtered) {
+          if (item.type !== currentType) {
+            currentType = item.type;
+            console.error(`\n  ${currentType}s:`);
+          }
+          const sym = item.state === 'on' ? '✓' : item.state === 'off' ? '✗' : '·';
+          const label = item.state === 'available' ? ' (not installed)' : item.state === 'off' ? ' (disabled)' : '';
+          console.error(`    ${sym} ${item.name}${label}`);
+        }
+        const on = filtered.filter(i => i.state === 'on').length;
+        console.error(`\n  ${on}/${filtered.length} enabled\n`);
+        return;
+      }
+
+      // Non-interactive: --enable / --disable
+      if (opts.enable || opts.disable) {
+        const items = scanToggleItems(pkgRoot, targetBase);
+        let changed = 0;
+        if (opts.enable) {
+          for (const name of opts.enable.split(',')) {
+            const item = items.find(i => i.name === name.trim() && i.state !== 'on');
+            if (item && applyToggle(item, pkgRoot)) { item.state = 'on'; changed++; console.error(`  ✓ enabled: ${item.name}`); }
+          }
+        }
+        if (opts.disable) {
+          for (const name of opts.disable.split(',')) {
+            const item = items.find(i => i.name === name.trim() && i.state === 'on');
+            if (item && applyToggle(item, pkgRoot)) { item.state = 'off'; changed++; console.error(`  ✗ disabled: ${item.name}`); }
+          }
+        }
+        if (changed > 0) {
+          const disabled = items.filter(i => i.state === 'off').map(i => `${i.type}:${i.name}`);
+          updateManifestDisabledItems(mode, targetPath, disabled);
+          console.error(`\n  ${changed} items toggled, manifest updated.`);
+        }
+        return;
+      }
+
+      // Interactive TUI
+      const { renderTui } = await import('../tui/render.js');
+      const { ToggleView } = await import('../tui/install-ui/ToggleView.js');
+      await renderTui(ToggleView, {
+        pkgRoot,
+        targetBase,
+        scope: mode,
+        targetPath,
+        filter: opts.type,
+      });
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Command registration
 // ---------------------------------------------------------------------------
@@ -117,14 +193,16 @@ export function registerInstallCommand(program: Command): void {
     .option('--path <dir>', 'Install to project directory (with --force)')
     .option('--hooks <level>', 'Hook level for --force mode: none, minimal, standard, full')
     .option('--codex-hooks <level>', 'Codex hook level for --force mode: none, minimal, standard, full')
+    .option('--mcp', 'Register Claude MCP server in --force mode')
     .option('--codex-mcp', 'Register Codex MCP server in --force mode')
     .option('--agy-hooks <level>', 'Agy (Antigravity) hook level for --force mode: none, minimal, standard, full')
+    .option('--extra-mcp <targets>', 'Comma-separated extra MCP targets (cursor,qoder,trae,kiro,roo,vscode,gemini)')
     .option('--components <ids>', 'Comma-separated component IDs to install (with --force)')
     .option('--statusline [theme]', 'Install statusline with optional theme (with --force)')
     .option('--export [path]', 'Export current install config as profile JSON')
     .option('--import <path>', 'Import profile and install non-interactively')
     .option('--load <path>', 'Load profile into interactive TUI (pre-fill state)')
-    .action(async (opts: { force?: boolean; global?: boolean; path?: string; hooks?: string; codexHooks?: string; codexMcp?: boolean; agyHooks?: string; components?: string; statusline?: boolean | string; export?: boolean | string; import?: string; load?: string }) => {
+    .action(async (opts: { force?: boolean; global?: boolean; path?: string; hooks?: string; mcp?: boolean; codexHooks?: string; codexMcp?: boolean; agyHooks?: string; extraMcp?: string; components?: string; statusline?: boolean | string; export?: boolean | string; import?: string; load?: string }) => {
       const pkgRoot = getPackageRoot();
 
       // Validate package root
@@ -149,15 +227,22 @@ export function registerInstallCommand(program: Command): void {
       // Profile import — non-interactive install from profile
       if (opts.import) {
         const { importProfile } = await import('../core/install-profile.js');
+        const { migrateComponentIds: migrateIds } = await import('./install-backend.js');
         const profile = importProfile(opts.import);
         console.error(`Importing profile: ${profile.name} (${profile.scope})`);
         await forceInstall(pkgRoot, version, {
           global: profile.scope === 'global',
           hooks: profile.claude.hooks.basePreset,
+          mcp: profile.claude.mcp.enabled || undefined,
           codexHooks: profile.codex.hooks.basePreset,
+          codexMcp: profile.codex.mcp.enabled || undefined,
           agyHooks: profile.agy.hooks.basePreset,
-          components: profile.components.selectedIds.join(','),
+          extraMcp: profile.extraMcp.enabled ? profile.extraMcp.targetIds.join(',') : undefined,
+          components: migrateIds(profile.components.selectedIds).join(','),
           statusline: profile.claude.statusline.enabled ? profile.claude.statusline.theme : undefined,
+          claudeHooksSelection: profile.claude.hooks.isCustom ? profile.claude.hooks : undefined,
+          codexHooksSelection: profile.codex.hooks.isCustom ? profile.codex.hooks : undefined,
+          agyHooksSelection: profile.agy.hooks.isCustom ? profile.agy.hooks : undefined,
         });
         return;
       }
@@ -179,6 +264,7 @@ export function registerInstallCommand(program: Command): void {
   registerComponentsSubcommand(install);
   registerHooksSubcommand(install);
   registerMcpSubcommand(install);
+  registerToggleSubcommand(install);
   registerFontsSubcommand(install);
 
   // Legacy TUI wizard
@@ -196,12 +282,29 @@ export function registerInstallCommand(program: Command): void {
 // Non-interactive (force) install — uses shared executor with console progress
 // ---------------------------------------------------------------------------
 
+interface ForceInstallOpts {
+  global?: boolean;
+  path?: string;
+  hooks?: string;
+  mcp?: boolean;
+  codexHooks?: string;
+  codexMcp?: boolean;
+  agyHooks?: string;
+  extraMcp?: string;
+  components?: string;
+  statusline?: boolean | string;
+  claudeHooksSelection?: { basePreset: string; selectedHooks: string[]; isCustom: boolean };
+  codexHooksSelection?: { basePreset: string; selectedHooks: string[]; isCustom: boolean };
+  agyHooksSelection?: { basePreset: string; selectedHooks: string[]; isCustom: boolean };
+}
+
 async function forceInstall(
   pkgRoot: string,
   version: string,
-  opts: { global?: boolean; path?: string; hooks?: string; codexHooks?: string; codexMcp?: boolean; agyHooks?: string; components?: string; statusline?: boolean | string },
+  opts: ForceInstallOpts,
 ): Promise<void> {
   const { executeInstallPipeline } = await import('../core/install-executor.js');
+  const { migrateComponentIds } = await import('./install-backend.js');
 
   console.error(t.install.forceVersion.replace('{version}', version));
   console.error('');
@@ -216,7 +319,9 @@ async function forceInstall(
 
   const components = scanComponents(pkgRoot, mode, projectPath);
   const available = components.filter((c) => c.available);
-  const componentIds = opts.components?.split(',');
+  const componentIds = opts.components
+    ? migrateComponentIds(opts.components.split(','))
+    : undefined;
   const toInstall = componentIds
     ? available.filter(c => componentIds.includes(c.def.id))
     : available;
@@ -226,21 +331,28 @@ async function forceInstall(
   const agyHookLevel = (opts.agyHooks ?? 'none') as HookLevel;
   const statuslineTheme = typeof opts.statusline === 'string' ? opts.statusline : 'notion';
 
+  const hasCustomClaude = opts.claudeHooksSelection?.isCustom && opts.claudeHooksSelection.selectedHooks.length > 0;
+  const hasCustomCodex = opts.codexHooksSelection?.isCustom && opts.codexHooksSelection.selectedHooks.length > 0;
+  const hasCustomAgy = opts.agyHooksSelection?.isCustom && opts.agyHooksSelection.selectedHooks.length > 0;
+  const extraMcpTargetIds: ExtraMcpTargetId[] = opts.extraMcp
+    ? opts.extraMcp.split(',').map(s => s.trim()) as ExtraMcpTargetId[]
+    : [];
+
   const config: import('../tui/install-ui/types.js').InstallFlowConfig = {
     mode,
     projectPath,
     installComponents: true,
-    installHooks: hookLevel !== 'none' && HOOK_LEVELS.includes(hookLevel),
-    installMcp: false,
-    installCodexHooks: codexHookLevel !== 'none' && HOOK_LEVELS.includes(codexHookLevel),
+    installHooks: (hookLevel !== 'none' && HOOK_LEVELS.includes(hookLevel)) || !!hasCustomClaude,
+    installMcp: !!opts.mcp,
+    installCodexHooks: (codexHookLevel !== 'none' && HOOK_LEVELS.includes(codexHookLevel)) || !!hasCustomCodex,
     codexHookLevel,
     installCodexMcp: !!opts.codexMcp,
     codexMcpTools: [...MCP_TOOLS],
     codexMcpProjectRoot: '',
-    installAgyHooks: agyHookLevel !== 'none' && HOOK_LEVELS.includes(agyHookLevel),
+    installAgyHooks: (agyHookLevel !== 'none' && HOOK_LEVELS.includes(agyHookLevel)) || !!hasCustomAgy,
     agyHookLevel,
-    installExtraMcp: false,
-    extraMcpTargetIds: [],
+    installExtraMcp: extraMcpTargetIds.length > 0,
+    extraMcpTargetIds,
     installStatusline: !!opts.statusline,
     statuslineTheme,
     hookLevel,
@@ -252,6 +364,9 @@ async function forceInstall(
     mcpProjectRoot: '',
     backupClaudeMd: true,
     backupAll: false,
+    claudeHooksSelection: opts.claudeHooksSelection as import('../tui/install-ui/HooksConfig.js').HooksSelection,
+    codexHooksSelection: opts.codexHooksSelection as import('../tui/install-ui/HooksConfig.js').HooksSelection,
+    agyHooksSelection: opts.agyHooksSelection as import('../tui/install-ui/HooksConfig.js').HooksSelection,
   };
 
   const result = await executeInstallPipeline({
@@ -277,4 +392,24 @@ async function forceInstall(
 
   console.error('');
   console.error(t.install.forceDone);
+
+  // Warm up embedding model + build index (best-effort, non-blocking report)
+  await warmupEmbedding();
+}
+
+async function warmupEmbedding(): Promise<void> {
+  try {
+    process.stderr.write('  Embedding: warming up model...\r');
+    const { isAvailable, getUnavailableReason, embedTexts, getDeviceSummary } = await import('#maestro-dashboard/wiki/embedding.js');
+    if (!await isAvailable()) {
+      const reason = getUnavailableReason?.() ?? 'unknown';
+      console.error(`  Embedding: unavailable (${reason})`);
+      return;
+    }
+    const t0 = Date.now();
+    await embedTexts(['warmup']);
+    console.error(`  ✓ Embedding: model ready (${getDeviceSummary()}, ${Date.now() - t0}ms)`);
+  } catch (e: unknown) {
+    console.error(`  Embedding: warmup failed (${e instanceof Error ? e.message : e})`);
+  }
 }

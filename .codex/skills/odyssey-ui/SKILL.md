@@ -28,12 +28,22 @@ Core philosophy:
 **范围内:** 目标组件/页面的视觉体验优化 — 6 维度审查 → 发散探索 → 修复 → 泛化兄弟组件
 **范围外:** 后端逻辑 / 数据模型 / API → `$odyssey-planex` | 深度 bug → `$odyssey-debug` | 代码质量 → `$odyssey-review-test-fix`
 **探索自由度:** 边界内最大自由 — S_DIVERGE 鼓励发散思维，不设创意上限。在约束下尽可能完善每个像素。
+
+**Zero-residual principle:** Every finding/idea MUST have a concrete action (fix / issue / decision). "Report and shelve" is not allowed. "Pre-existing design debt" is not a valid skip reason — if discovered within scope, it must be addressed.
 </boundary>
 
 <execution_discipline>
 **三条铁律（所有阶段适用）:**
 1. **Phase auto-commit** — 阶段完成后**自动** `git commit`，无需用户确认（session.json/evidence.ndjson 不纳入）
-2. **有把握才改** — 确定性高（缺 hover state、对比度不足）→改；设计方向不确定（色彩/布局）→记录 decision
+2. **Confident edits only, but must attempt** — only modify what you're confident about; record decisions only when genuinely requiring human judgment
+   - High visual certainty (missing hover state, insufficient contrast, etc.) → fix directly
+   - Design direction uncertain (color choices, layout restructure, etc.) → record decision for user judgment
+   - No speculative changes, especially brand/style-level modifications
+   - ⚠️ **Decision gate** — ONLY these qualify as decisions (not fixes):
+     - Brand/style direction requiring human creative judgment
+     - Layout restructuring that changes user flow significantly
+     - Requires new design tokens or breaking component API
+   - ❌ "Unsure how to fix", "Large scope", "Pre-existing issue" are NOT valid decision reasons — either fix it, or explain specifically why it's unfixable
 3. **多 CLI 辅助** — survey 用 `--role explore`，audit/diverge 用 `--role analyze`，fix 前后用 `--role review`
 </execution_discipline>
 
@@ -79,7 +89,7 @@ SESSION_DIR/
   "diverge_result": { "improvements_proposed": 0, "creative_ideas": 0 },
   "patterns": [], "generalization_stats": null,
   "phase_goals": [], "phase_goals_all_done": false, "self_iteration_log": [],
-  "cross_phase_loops": 0, "max_loops": 3,
+  "cross_phase_loops": 0, "max_loops": 5,
   "created_at": "", "updated_at": "" }
 ```
 
@@ -125,7 +135,7 @@ Write to understanding.md SS8 during execution (temporary). Completion summary s
 </context>
 
 <self_iteration>
-**Quality Gate** — auto-evaluate after each analytical phase. Insufficient -> re-enter (max 2 rounds).
+**Quality Gate** — auto-evaluate after each analytical phase. Insufficient -> re-enter (max **3 rounds**).
 
 | Dimension | Sufficient | Insufficient |
 |-----------|-----------|-------------|
@@ -133,11 +143,11 @@ Write to understanding.md SS8 during execution (temporary). Completion summary s
 | Depth | >=80% findings have file:line evidence | Most findings lack specifics |
 | Actionability | Each conclusion has concrete next action | "Consider reviewing" without action |
 
-**Expansion:** Round 1 = widen scope (more directories, more components, deeper token scan). Round 2 = shift perspective (different audit angle, CLI delegate second opinion).
+**Expansion:** Round 1 = widen scope (more directories, more components, deeper token scan). Round 2 = shift perspective (different audit angle, CLI delegate second opinion). Round 3 = combine both + targeted deep-dive on remaining gaps.
 
 **Applicable stages:** S_SURVEY, S_AUDIT, S_DIVERGE, S_GENERALIZE
 
-**Exit:** All sufficient -> advance | 2-round cap -> record gap, continue. Logged to `evidence.ndjson` + `session.json.self_iteration_log[]`.
+**Exit:** All sufficient -> advance | 3-round cap -> record gap, continue. Logged to `evidence.ndjson` + `session.json.self_iteration_log[]`.
 </self_iteration>
 
 <csv_schema>
@@ -254,7 +264,7 @@ EXPECTED: JSON [{idea, category, impact, effort, description}]
 CONSTRAINTS: User-perceptible improvements only
 " --role analyze --mode analysis
 ```
-Run_in_background, STOP, wait for callback.
+Execute with `run_in_background: true`, then wait for callback (do NOT halt the Odyssey flow).
 
 Consolidate: audit findings + divergent ideas -> prioritized improvement list (impact/effort matrix). Write `diverge_result`. Update SS4. Mark G3 done.
 
@@ -271,7 +281,7 @@ Implement highest impact first. Record evidence (phase: "fix").
 Skip if `--skip-fix`.
 
 1. **Tests**: run covering tests on modified files
-2. **CLI visual review**: delegate `--role review --mode analysis` for visual correctness + regression check (run_in_background, STOP)
+2. **CLI visual review**: delegate `--role review --mode analysis` for visual correctness + regression check (execute with `run_in_background: true`, then wait for callback — do NOT halt the Odyssey flow)
 3. `needs_rework` -> S_FIX (loop). `confirmed` -> mark G4 done, advance
 4. Update SS5
 
@@ -314,9 +324,18 @@ Append Wave 4 rows to `tasks.csv`:
 ### S_DISCOVER
 Skip if no generalization hits.
 
-1. **Triage** each hit: read +-10 lines -> classify `safe` / `risk` / `bug`
-2. **Route**: see appendix `-y` behavior. Append evidence (phase: "discovery" + "decision")
-3. **Cross-phase loop**: new component to audit → S_AUDIT (loops < max_loops → cross_phase_loops++); fixable sibling → S_FIX (!skip_fix, loops < max_loops); triage complete OR budget exhausted → S_RECORD
+1. **Triage** each hit: read +-10 lines -> classify `needs_treatment` / `low_risk` / `already_handled`
+2. **Route**:
+   - `needs_treatment` + directly fixable → **fix immediately** → back to S_FIX
+   - `needs_treatment` + requires design direction decision → create issue (with fix suggestion)
+   - `low_risk` → evaluate if a quick guard/improvement is feasible; if yes, fix it
+   - `already_handled` → mark skip
+   See appendix `-y` behavior. Append evidence (phase: "discovery" + "decision")
+3. **Cross-phase loop**:
+   - `S_DISCOVER → S_RECORD` : triage complete AND remaining_actionable == 0
+   - `S_DISCOVER → S_RECORD` : loops >= max_loops → MUST log each unfixed item with specific reason (blanket "pre-existing" is forbidden)
+   - new component to audit → S_AUDIT (cross_phase_loops++)
+   - fixable sibling → S_FIX (!skip_fix, cross_phase_loops++)
 4. Update SS7. Mark G6 done.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-ui({slug}): S_DISCOVER — 发现"`
@@ -408,4 +427,5 @@ Odyssey outputs prompt then continues without blocking. `/goal` entered by user 
 - [ ] State saved at each transition (resumable via -c)
 - [ ] Quality Gate self-iteration logged in self_iteration_log
 - [ ] Completion summary with all stats
+- [ ] **Every unfixed finding has individual classification and reason** — blanket "pre-existing" labels are forbidden
 </success_criteria>

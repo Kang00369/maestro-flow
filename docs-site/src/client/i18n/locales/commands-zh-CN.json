@@ -661,17 +661,6 @@
       "next_commands": ["maestro-analyze", "maestro-roadmap"],
       "flags": ["<idea|@file> (想法或文件)", "-y (自动模式)", "-c (恢复会话)", "--from <source> (导入上游 context)", "--from-brainstorm SESSION-ID (从 brainstorm 导入)"]
     },
-    "maestro-ralph-beta": {
-      "name": "maestro-ralph-beta",
-      "name_zh": "Ralph Beta",
-      "description": "Beta version of Ralph lifecycle engine with loop-runner endpoint for testing new features",
-      "description_zh": "Ralph 生命周期引擎 Beta 版，包含 loop-runner 端点用于测试新功能",
-      "workflow": "测试环境使用，替代 maestro-ralph",
-      "workflow_zh": "Beta 测试通道，新功能在此验证后合入正式版",
-      "prev_commands": [],
-      "next_commands": [],
-      "flags": ["\"<intent>\" (意图描述)", "-y (自动模式)", "-c (恢复会话)"]
-    },
     "maestro-ralph": {
       "name": "maestro-ralph",
       "name_zh": "Ralph 决策引擎",

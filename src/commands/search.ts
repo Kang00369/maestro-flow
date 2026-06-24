@@ -1,8 +1,14 @@
 /**
- * Search Command — Unified knowledge search across specs, knowhow, issues, and more.
+ * Search Command — Unified knowledge search across wiki + code.
  *
- * Uses WikiIndexer BM25F search with deduplication and type filtering.
- * Optional --code flag adds CodeGraph AST results in a separate section.
+ * Default: mixed results (wiki + code interleaved by normalized score).
+ * --code: separate section display (backward compat).
+ * --wiki-only: wiki results only (no code search).
+ *
+ * Scoring: multi-signal normalization inspired by codebase-memory-mcp.
+ *   Wiki:  BM25F score + type boost (spec > knowhow > note)
+ *   Code:  BM25 score + kind boost + name-match bonus
+ *   Merge: percentile-aware normalization + source weight
  */
 
 import type { Command } from 'commander';
@@ -27,7 +33,6 @@ export interface SearchResult {
   snippet: string | null;
   source: WikiEntry['source'];
   workspace?: string;
-  credibilityFactor?: number;
 }
 
 /** A code search result from CodeGraph. */
@@ -44,6 +49,7 @@ export interface CodeSearchResult {
 export interface UnifiedSearchOptions {
   type?: string;
   category?: string;
+  workspace?: string;
   limit: number;
 }
 
@@ -69,12 +75,21 @@ function getIndexer(): WikiIndexer {
  * Unified knowledge search — BM25F ranking via WikiIndexer, with type/category
  * filtering and per-source deduplication.
  */
+export interface SearchMeta {
+  embeddingUsed: boolean;
+  embeddingDocs: number;
+}
+
+let _lastSearchMeta: SearchMeta = { embeddingUsed: false, embeddingDocs: 0 };
+export function getLastSearchMeta(): SearchMeta { return _lastSearchMeta; }
+
 export async function runUnifiedSearch(q: string, opts: UnifiedSearchOptions): Promise<SearchResult[]> {
   const limit = opts.limit > 0 ? opts.limit : 20;
   const indexer = getIndexer();
 
   const candidateLimit = Math.max(limit * 3, 60);
-  const scored = await indexer.searchWithScores(q, candidateLimit);
+  const { results: scored, embeddingUsed, embeddingDocs } = await indexer.searchWithMeta(q, candidateLimit);
+  _lastSearchMeta = { embeddingUsed, embeddingDocs };
 
   let filtered = scored;
   if (opts.type) {
@@ -83,23 +98,27 @@ export async function runUnifiedSearch(q: string, opts: UnifiedSearchOptions): P
   if (opts.category) {
     filtered = filtered.filter(r => r.entry.category === opts.category);
   }
-
-  const seen = new Map<string, typeof scored[number]>();
-  for (const r of filtered) {
-    const sourceKey = r.entry.source?.path || r.entry.id;
-    if (!seen.has(sourceKey)) {
-      seen.set(sourceKey, r);
-    }
+  if (opts.workspace) {
+    filtered = filtered.filter(r => r.entry.source.workspace === opts.workspace);
   }
-  const deduped = [...seen.values()].slice(0, limit);
 
+  const seen = new Set<string>();
+  const deduped: typeof filtered = [];
+  for (const r of filtered) {
+    if (seen.has(r.entry.id)) continue;
+    seen.add(r.entry.id);
+    deduped.push(r);
+    if (deduped.length >= limit) break;
+  }
+
+  const maxScore = deduped.length > 0 ? deduped[0].score : 1;
   const results = deduped.map(({ entry, score }) => ({
     id: entry.id,
     type: entry.type,
     title: entry.title,
     category: entry.category,
     summary: entry.summary,
-    score,
+    score: maxScore > 0 ? score / maxScore : score,
     snippet: extractSnippet(entry.body, q),
     source: entry.source,
     workspace: entry.source.workspace,
@@ -114,22 +133,22 @@ export async function runUnifiedSearch(q: string, opts: UnifiedSearchOptions): P
 }
 
 function incrementSearchHitsAsync(entryIds: string[]): void {
-  let mg: import('../graph/kg/engine.js').MaestroGraph | null = null;
-  try {
-    const { MaestroGraph } = require('../graph/kg/engine.js') as typeof import('../graph/kg/engine.js');
+  import('../graph/kg/engine.js').then(({ MaestroGraph }) => {
     const projectRoot = resolve('.');
     if (!MaestroGraph.isInitialized(projectRoot)) return;
-    mg = MaestroGraph.openSync(projectRoot);
+    const mg = MaestroGraph.openSync(projectRoot);
     if (!mg) return;
-    const { CredibilityStore, wikiIdToNodeId } = require('../graph/kg/credibility.js') as typeof import('../graph/kg/credibility.js');
-    const store = new CredibilityStore(mg.rawDb);
-    const nodeIds = entryIds.map(wikiIdToNodeId).filter(Boolean) as string[];
-    store.incrementSearchHits(nodeIds);
-  } catch {
-    // Best-effort — never fail the search flow
-  } finally {
-    mg?.close();
-  }
+    try {
+      import('../graph/kg/credibility.js').then(({ CredibilityStore, wikiIdToNodeId }) => {
+        const store = new CredibilityStore(mg.rawDb);
+        const nodeIds = entryIds.map(wikiIdToNodeId).filter(Boolean) as string[];
+        store.incrementSearchHits(nodeIds);
+        mg.close();
+      }).catch(() => { mg.close(); });
+    } catch {
+      mg.close();
+    }
+  }).catch(() => {});
 }
 
 /**
@@ -162,163 +181,345 @@ async function runCodeSearch(q: string, limit: number): Promise<CodeSearchResult
 export function registerSearchCommand(program: Command): void {
   program
     .command('search <query...>')
-    .description('Unified knowledge search across specs, knowhow, issues, and more')
+    .description('Unified knowledge search across wiki + code (mixed by default)')
     .option('--type <type>', `Filter by type: ${VALID_TYPES.join(', ')}`)
     .option('--category <cat>', 'Filter by category (e.g. coding, arch, debug, test, review, learning)')
-    .option('--code', 'Include CodeGraph code results')
-    .option('--all', 'Search all sources (wiki + code) with normalized ranking')
+    .option('--code', 'Show wiki and code in separate sections (legacy display)')
+    .option('--all', 'Alias for default mixed mode (backward compat)')
+    .option('--wiki-only', 'Search wiki only, skip code results')
     .option('--workspace <name>', 'Filter results to a specific linked workspace')
     .option('--limit <n>', 'Max results', '20')
     .option('--json', 'Output as JSON')
     .action(async (queryParts: string[], opts) => {
       const q = queryParts.join(' ');
       const limit = parseInt(opts.limit, 10) || 20;
-      const includeCode = opts.code || opts.all;
+      const wikiOnly = opts.wikiOnly === true;
+      const separateSections = opts.code === true && !opts.all;
 
       if (opts.type && !VALID_TYPES.includes(opts.type)) {
         console.error(`Error: --type must be one of ${VALID_TYPES.join(', ')} (got "${opts.type}")`);
         process.exit(1);
       }
 
-      let wikiResults = await runUnifiedSearch(q, { type: opts.type, category: opts.category, limit });
-      if (opts.workspace) {
-        wikiResults = wikiResults.filter(r => r.workspace === opts.workspace);
-      }
-      const codeResults = includeCode ? await runCodeSearch(q, limit) : [];
+      const wikiResults = await runUnifiedSearch(q, { type: opts.type, category: opts.category, workspace: opts.workspace, limit });
+      const codeResults = wikiOnly ? [] : await runCodeSearch(q, limit);
 
-      // --all: normalize and merge scores for unified ranking
-      if (opts.all) {
-        const merged = mergeAndNormalize(wikiResults, codeResults, limit);
-
-        if (opts.json) {
-          console.log(JSON.stringify({ query: q, count: merged.length, results: merged }, null, 2));
-          return;
-        }
-
-        console.log(`Search: "${q}" (${merged.length} results, all sources)`);
-        if (merged.length === 0) {
-          console.log('  No matches found.');
-          return;
-        }
-        const isTTY = process.stdout.isTTY === true;
-        const qTerms = q.toLowerCase().split(/\s+/).filter(Boolean);
-        for (const r of merged) {
-          const name = isTTY ? highlightTerms(r.name, qTerms) : r.name;
-          const scoreTag = `  (${r.normalizedScore.toFixed(2)})`;
-          console.log(`  [${r.source}] [${r.kind}]  ${name}  ${r.detail}${scoreTag}`);
-        }
-        return;
-      }
-
-      if (opts.json) {
-        const output: Record<string, unknown> = { query: q };
-        if (includeCode) {
-          output.wikiResults = wikiResults;
-          output.codeResults = codeResults;
-          output.wikiCount = wikiResults.length;
-          output.codeCount = codeResults.length;
-        } else {
-          output.count = wikiResults.length;
-          output.results = wikiResults;
-        }
-        console.log(JSON.stringify(output, null, 2));
-        return;
-      }
-
+      const meta = getLastSearchMeta();
+      const embTag = meta.embeddingUsed ? `+emb(${meta.embeddingDocs})` : 'bm25';
       const isTTY = process.stdout.isTTY === true;
       const qTerms = q.toLowerCase().split(/\s+/).filter(Boolean);
 
-      if (includeCode && codeResults.length > 0) {
-        console.log(`Search: "${q}" (${wikiResults.length} wiki + ${codeResults.length} code results)`);
-      } else {
-        console.log(`Search: "${q}" (${wikiResults.length} results)`);
+      // --code (without --all): legacy separate-section display
+      if (separateSections) {
+        if (opts.json) {
+          console.log(JSON.stringify({ query: q, wikiCount: wikiResults.length, codeCount: codeResults.length, wikiResults, codeResults }, null, 2));
+          return;
+        }
+        console.log(`Search: "${q}" (${wikiResults.length} wiki + ${codeResults.length} code, ${embTag})`);
+        if (wikiResults.length === 0 && codeResults.length === 0) {
+          console.log('  No matches found.');
+          return;
+        }
+        if (wikiResults.length > 0) {
+          console.log('  [Wiki Results]');
+          for (const r of wikiResults) {
+            printWikiResult(r, '    ', isTTY, qTerms);
+          }
+        }
+        if (codeResults.length > 0) {
+          console.log('  [Code Results]');
+          for (const r of codeResults) {
+            printCodeResult(r, '    ', isTTY, qTerms);
+          }
+        }
+        return;
       }
 
-      if (wikiResults.length === 0 && codeResults.length === 0) {
+      // Default / --all / --wiki-only: mixed interleaved results
+      const merged = mergeAndNormalize(wikiResults, codeResults, limit, q);
+      const wikiCount = merged.filter(r => r.source === 'wiki').length;
+      const codeCount = merged.filter(r => r.source === 'code').length;
+
+      if (opts.json) {
+        console.log(JSON.stringify({ query: q, wikiCount, codeCount, count: merged.length, results: merged }, null, 2));
+        return;
+      }
+
+      const countParts: string[] = [];
+      if (wikiCount > 0) countParts.push(`wiki ${wikiCount}个`);
+      if (codeCount > 0) countParts.push(`代码 ${codeCount}个`);
+      const countSummary = countParts.length > 0
+        ? `${countParts.join(' + ')} = ${merged.length} results`
+        : '0 results';
+      console.log(`Search: "${q}" (${countSummary}, ${embTag})`);
+
+      if (qTerms.length > 4) {
+        console.log(`  Hint: ${qTerms.length} terms — split into 1-3 keyword queries for better precision`);
+      }
+
+      if (merged.length === 0) {
         console.log('  No matches found.');
         return;
       }
 
-      if (wikiResults.length > 0) {
-        if (includeCode) console.log('  [Wiki Results]');
-        for (const r of wikiResults) {
-          const indent = includeCode ? '    ' : '  ';
-          const typeTag = `[${r.type}]`;
-          const catTag = r.category ? ` ${r.category}` : '';
-          const wsTag = r.workspace ? ` [ws:${r.workspace}]` : '';
-          const scoreTag = r.score !== null ? `  (${r.score.toFixed(2)})` : '';
-          const staleTag = (r.credibilityFactor !== undefined && r.credibilityFactor < 0.5) ? ' ⚠️' : '';
-          const title = isTTY ? highlightTerms(r.title, qTerms) : r.title;
-          console.log(`${indent}${typeTag}${catTag}${wsTag}  ${r.id}  ${title}${scoreTag}${staleTag}`);
+      for (const r of merged) {
+        const name = isTTY ? highlightTerms(r.name, qTerms) : r.name;
+        const scoreTag = `  (${r.normalizedScore.toFixed(4)})`;
+        if (r.source === 'wiki') {
+          console.log(`  [wiki:${r.kind}]  ${name}  ${r.detail}${scoreTag}`);
           if (r.snippet) {
             const snippet = isTTY ? highlightTerms(r.snippet, qTerms) : r.snippet;
-            console.log(`${indent}  ${snippet}`);
-          } else if (r.summary) {
-            const summary = isTTY ? highlightTerms(truncate(r.summary, 80), qTerms) : truncate(r.summary, 80);
-            console.log(`${indent}  ${summary}`);
+            console.log(`    ${snippet}`);
           }
-        }
-      }
-
-      if (codeResults.length > 0) {
-        console.log('  [Code Results]');
-        for (const r of codeResults) {
-          const scoreTag = r.score !== null ? `  (${r.score.toFixed(2)})` : '';
-          const name = isTTY ? highlightTerms(r.name, qTerms) : r.name;
-          console.log(`    [${r.kind}] ${name}  ${r.filePath}${scoreTag}`);
+        } else {
+          const sigTag = r.signature ? `  ${truncate(r.signature, 60)}` : '';
+          console.log(`  [code:${r.kind}]  ${name}  ${r.detail}${sigTag}${scoreTag}`);
         }
       }
     });
+
+  program
+    .command('embedding')
+    .description('Embedding model status, warmup, and rebuild')
+    .argument('[action]', 'status (default), warmup, rebuild', 'status')
+    .action(async (action: string) => {
+      const workflowRoot = resolve('.workflow');
+      const { isAvailable, getUnavailableReason, loadEmbeddingIndex, embedTexts, getDeviceSummary, detectDevice } = await import('#maestro-dashboard/wiki/embedding.js');
+
+      if (action === 'status') {
+        const avail = await isAvailable();
+        console.log(`Transformers: ${avail ? 'available' : 'NOT available (' + (getUnavailableReason?.() ?? 'unknown') + ')'}`);
+        if (avail) {
+          await detectDevice();
+          console.log(`Device: ${getDeviceSummary()}`);
+        }
+        const idx = loadEmbeddingIndex(workflowRoot);
+        if (idx) {
+          console.log(`Index: ${idx.docIds.length} docs, dim=${idx.dimension}, model=${idx.modelId}`);
+          console.log(`Built: ${new Date(idx.builtAt).toISOString()}, device=${idx.deviceUsed}`);
+          if (idx.buildTimeMs) console.log(`Build time: ${idx.buildTimeMs}ms`);
+        } else {
+          console.log('Index: not built (will build on first search)');
+        }
+        return;
+      }
+
+      if (action === 'warmup') {
+        const avail = await isAvailable();
+        if (!avail) {
+          console.error(`Embedding unavailable: ${getUnavailableReason?.() ?? 'unknown'}`);
+          process.exit(1);
+        }
+        console.log('Warming up model...');
+        const t0 = Date.now();
+        await embedTexts(['warmup']);
+        console.log(`Model ready (${getDeviceSummary()}, ${Date.now() - t0}ms)`);
+        return;
+      }
+
+      if (action === 'rebuild') {
+        const avail = await isAvailable();
+        if (!avail) {
+          console.error(`Embedding unavailable: ${getUnavailableReason?.() ?? 'unknown'}`);
+          process.exit(1);
+        }
+        console.log('Rebuilding embedding index...');
+        const { WikiIndexer } = await import('#maestro-dashboard/wiki/wiki-indexer.js');
+        const { loadWorkspaceConfig, resolveWorkspaceLinks } = await import('../config/index.js');
+        const projectPath = process.cwd();
+        const wsConfig = loadWorkspaceConfig(projectPath);
+        const resolved = resolveWorkspaceLinks(projectPath, wsConfig);
+        const linkedWorkspaces = resolved.filter(lw => lw.valid).map(lw => ({ name: lw.name, workflowRoot: lw.workflowRoot, shareTypes: lw.share }));
+        const indexer = new WikiIndexer({ workflowRoot, linkedWorkspaces });
+        const t0 = Date.now();
+        const { results, embeddingUsed, embeddingDocs } = await indexer.searchWithMeta('warmup', 1);
+        if (embeddingUsed) {
+          console.log(`Index rebuilt: ${embeddingDocs} docs (${Date.now() - t0}ms)`);
+        } else {
+          console.log(`Rebuild failed — check with: maestro embedding status`);
+        }
+        return;
+      }
+
+      console.error(`Unknown action: ${action}. Use: status, warmup, rebuild`);
+      process.exit(1);
+    });
 }
 
-// ── Score normalization for --all mode ────────────────────────────────
+// ── Display helpers ──────────────────────────────────────────────────
 
-interface MergedResult {
+function printWikiResult(r: SearchResult, indent: string, isTTY: boolean, qTerms: string[]): void {
+  const typeTag = `[${r.type}]`;
+  const catTag = r.category ? ` ${r.category}` : '';
+  const wsTag = r.workspace ? ` [ws:${r.workspace}]` : '';
+  const scoreTag = r.score !== null ? `  (${r.score.toFixed(4)})` : '';
+  const title = isTTY ? highlightTerms(r.title, qTerms) : r.title;
+  console.log(`${indent}${typeTag}${catTag}${wsTag}  ${r.id}  ${title}${scoreTag}`);
+  if (r.snippet) {
+    const snippet = isTTY ? highlightTerms(r.snippet, qTerms) : r.snippet;
+    console.log(`${indent}  ${snippet}`);
+  } else if (r.summary) {
+    const summary = isTTY ? highlightTerms(truncate(r.summary, 80), qTerms) : truncate(r.summary, 80);
+    console.log(`${indent}  ${summary}`);
+  }
+}
+
+function printCodeResult(r: CodeSearchResult, indent: string, isTTY: boolean, qTerms: string[]): void {
+  const scoreTag = r.score !== null ? `  (${r.score.toFixed(4)})` : '';
+  const name = isTTY ? highlightTerms(r.name, qTerms) : r.name;
+  const sigTag = r.signature ? `  ${truncate(r.signature, 60)}` : '';
+  console.log(`${indent}[${r.kind}] ${name}  ${r.filePath}${sigTag}${scoreTag}`);
+}
+
+// ── Multi-signal score normalization ────────────────────────────────
+// Three-layer scoring:
+//   1. Source-level boost (wiki type / code kind)
+//   2. Name-match bonus for code results (exact > prefix > contains)
+//   3. Dynamic source weight based on query type (identifier → boost code)
+//   4. Rank-based normalization (position-aware, handles ties)
+
+export interface MergedResult {
   source: 'wiki' | 'code';
   kind: string;
   name: string;
   detail: string;
   normalizedScore: number;
+  snippet?: string;
+  signature?: string;
 }
 
-function minMaxNormalize(scores: number[]): Map<number, number> {
-  const norm = new Map<number, number>();
-  if (scores.length === 0) return norm;
-  const min = Math.min(...scores);
-  const max = Math.max(...scores);
-  const range = max - min || 1;
-  for (const s of scores) norm.set(s, (s - min) / range);
-  return norm;
+const WIKI_TYPE_BOOST: Record<string, number> = {
+  spec: 1.15,
+  domain: 1.10,
+  knowhow: 1.05,
+  project: 0.95,
+  roadmap: 0.95,
+  issue: 0.85,
+  note: 0.80,
+};
+
+const CODE_KIND_BOOST: Record<string, number> = {
+  class: 1.20,
+  interface: 1.15,
+  function: 1.10,
+  method: 1.10,
+  component: 1.08,
+  route: 1.12,
+  type_alias: 1.05,
+  enum: 1.05,
+  constant: 1.00,
+  variable: 0.90,
+  field: 0.85,
+  property: 0.80,
+};
+
+function isCodeIdentifier(query: string): boolean {
+  const trimmed = query.trim();
+  if (/^[a-z]+[A-Z]/.test(trimmed)) return true;
+  if (/^[A-Z][a-z]+[A-Z]/.test(trimmed)) return true;
+  if (/^[A-Z]{2,}[a-z]/.test(trimmed)) return true;
+  if (/^[a-z]+_[a-z]+/.test(trimmed)) return true;
+  if (/^[A-Z][a-zA-Z]+$/.test(trimmed) && !trimmed.includes(' ')) return true;
+  return false;
 }
 
-function mergeAndNormalize(wiki: SearchResult[], code: CodeSearchResult[], limit: number): MergedResult[] {
-  const WIKI_WEIGHT = 0.6;
-  const CODE_WEIGHT = 0.4;
+function splitCamelSnake(s: string): string[] {
+  return s
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(/[\s_\-.]+/)
+    .map(t => t.toLowerCase())
+    .filter(t => t.length > 0);
+}
 
-  const wikiScores = wiki.map(r => r.score ?? 0);
-  const codeScores = code.map(r => r.score ?? 0);
-  const wikiNorm = minMaxNormalize(wikiScores);
-  const codeNorm = minMaxNormalize(codeScores);
+function codeNameMatchBonus(codeName: string, query: string): number {
+  const nameLower = codeName.toLowerCase();
+  const queryLower = query.toLowerCase().trim();
+  if (!queryLower) return 0;
+  if (nameLower === queryLower) return 50;
+  if (nameLower.startsWith(queryLower)) return 30;
+  if (queryLower.startsWith(nameLower)) return 20;
+  if (nameLower.includes(queryLower) || queryLower.includes(nameLower)) return 10;
+  const queryTokens = splitCamelSnake(query);
+  const nameTokens = splitCamelSnake(codeName);
+  if (queryTokens.length === 0) return 0;
+  const matched = queryTokens.filter(qt => nameTokens.some(nt => nt.includes(qt) || qt.includes(nt)));
+  if (matched.length === queryTokens.length) return 15 + 5 * matched.length;
+  if (matched.length > 0) return 5 * matched.length;
+  return 0;
+}
+
+function rankNormalize(items: Array<{ index: number; score: number }>): number[] {
+  if (items.length === 0) return [];
+  const n = items.length;
+  const sorted = [...items].sort((a, b) => b.score - a.score);
+  const result = new Array<number>(n);
+
+  let i = 0;
+  while (i < n) {
+    let j = i;
+    while (j < n - 1 && sorted[j + 1].score === sorted[j].score) j++;
+    const avgRank = (i + j) / 2;
+    const normalizedRank = 1 - avgRank / n;
+    for (let k = i; k <= j; k++) {
+      result[sorted[k].index] = normalizedRank;
+    }
+    i = j + 1;
+  }
+  return result;
+}
+
+function mergeAndNormalize(wiki: SearchResult[], code: CodeSearchResult[], limit: number, query?: string): MergedResult[] {
+  const q = query ?? '';
+  const isIdQuery = isCodeIdentifier(q);
+  const hasStrongCodeMatch = code.length > 0 && code.some(r =>
+    codeNameMatchBonus(r.name, q) >= 15,
+  );
+  const WIKI_WEIGHT = isIdQuery ? 0.4 : hasStrongCodeMatch ? 0.5 : 0.6;
+  const CODE_WEIGHT = isIdQuery ? 0.6 : hasStrongCodeMatch ? 0.5 : 0.4;
+
+  const codeNames = new Set(code.map(r => r.name.toLowerCase()));
+
+  const wikiScored = wiki.map((r, i) => {
+    const raw = r.score ?? 0;
+    let typeBoost = WIKI_TYPE_BOOST[r.type] ?? 1.0;
+    if (r.id.startsWith('kg-') && codeNames.has(r.title.toLowerCase())) {
+      typeBoost *= 0.7;
+    }
+    return { ...r, finalScore: raw * typeBoost, index: i };
+  });
+
+  const codeScored = code.map((r, i) => {
+    const raw = r.score ?? 0;
+    const kindBoost = CODE_KIND_BOOST[r.kind] ?? 1.0;
+    const nameBonus = codeNameMatchBonus(r.name, q);
+    return { ...r, finalScore: raw * kindBoost + nameBonus, index: i };
+  });
+
+  const wikiRanks = rankNormalize(wikiScored.map(r => ({ index: r.index, score: r.finalScore })));
+  const codeRanks = rankNormalize(codeScored.map(r => ({ index: r.index, score: r.finalScore })));
 
   const merged: MergedResult[] = [];
-  for (const r of wiki) {
-    const raw = r.score ?? 0;
+  for (let i = 0; i < wikiScored.length; i++) {
+    const r = wikiScored[i];
     merged.push({
       source: 'wiki',
       kind: r.type,
       name: r.title,
       detail: r.category ? `${r.category}  ${r.id}` : r.id,
-      normalizedScore: (wikiNorm.get(raw) ?? 0) * WIKI_WEIGHT,
+      normalizedScore: wikiRanks[i] * WIKI_WEIGHT,
+      snippet: r.snippet ?? undefined,
     });
   }
-  for (const r of code) {
-    const raw = r.score ?? 0;
+  for (let i = 0; i < codeScored.length; i++) {
+    const r = codeScored[i];
     merged.push({
       source: 'code',
       kind: r.kind,
       name: r.name,
       detail: r.filePath,
-      normalizedScore: (codeNorm.get(raw) ?? 0) * CODE_WEIGHT,
+      normalizedScore: codeRanks[i] * CODE_WEIGHT,
+      signature: r.signature,
     });
   }
 

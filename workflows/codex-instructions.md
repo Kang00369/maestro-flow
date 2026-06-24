@@ -1,50 +1,112 @@
 # Codex Code Guidelines
-## Delegate & CLI
+
 
 - **Delegate Usage**: @~/.maestro/workflows/delegate-usage.md
 - **CLI Endpoints Config**: @~/.maestro/cli-tools.json
 
 **Strictly follow the cli-tools.json configuration**
 
-## Core Principles
+# Coding Philosophy
 
-- Follow project's existing patterns and conventions
-- Single responsibility, DRY, YAGNI
-- Small testable changes, commit frequently
-- Study 3+ similar patterns before implementing
-- Boring solutions over clever code
+## Core Beliefs
 
-**Git Operations:**
-- Only stage/commit files produced by current task
-- Use `git add <specific-files>` instead of `git add .`
+- **Pursue good taste** - Eliminate edge cases to make code logic natural and elegant
+- **Embrace extreme simplicity** - Complexity is the root of all evil
+- **Be pragmatic** - Code must solve real-world problems, not hypothetical ones
+- **Data structures first** - Bad programmers worry about code; good programmers worry about data structures
+- **Never break backward compatibility** - Existing functionality is sacred and inviolable
+- **Incremental progress over big bangs** - Small changes that compile and pass tests
+- **Learning from existing code** - Study and plan before implementing
+- **Clear intent over clever code** - Be boring and obvious
+- **Follow existing code style** - Match import patterns, naming conventions, and formatting of existing codebase
+- **Minimize changes** - Only modify what's directly required; avoid refactoring, adding features, or "improving" code beyond the request
+- **No unsolicited documentation** - NEVER generate reports, documentation files, or summaries without explicit user request. If required, save to .workflow/.scratchpad/
 
-**Multi-CLI Coexistence (CRITICAL):**
-- Conflicts with uncommitted changes → **STOP and report**, never overwrite
+## Simplicity Means
+
+- Single responsibility per function/class
+- Avoid premature abstractions
+- No clever tricks - choose the boring solution
+- If you need to explain it, it's too complex
+
+## Fix, Don't Hide
+
+**Solve problems, don't silence symptoms** - Skipped tests, `@ts-ignore`, empty catch, `as any`, excessive timeouts = hiding bugs, not fixing them
+
+**NEVER**:
+- Make assumptions - verify with existing code
+- Generate reports, summaries, or documentation files without explicit user request
+- Use suppression mechanisms (`skip`, `ignore`, `disable`) without fixing root cause
+
+**ALWAYS**:
+- Plan complex tasks thoroughly before implementation
+- Generate task decomposition for multi-module work (>3 modules or >5 subtasks)
+- Track progress using TODO checklists for complex tasks
+- Validate planning documents before starting development
+- Commit working code incrementally
+- Update plan documentation and progress tracking as you go
+- Learn from existing implementations
+- Stop after 3 failed attempts and reassess
+- **Edit fallback**: When Edit tool fails 2+ times on same file, try Bash sed/awk first, then Write to recreate if still failing
+
+## Learning the Codebase
+
+- Find 3 similar features/components
+- Identify common patterns and conventions
+- Use same libraries/utilities when possible
+- Follow existing test patterns
+
+## Tooling
+
+- Use project's existing build system
+- Use project's test framework
+- Use project's formatter/linter settings
+- Don't introduce new tools without strong justification
+
+## Content Uniqueness Rules
+
+- **Each layer owns its abstraction level** - no content sharing between layers
+- **Reference, don't duplicate** - point to other layers, never copy content
+- **Maintain perspective** - each layer sees the system at its appropriate scale
+- **Avoid implementation creep** - higher layers stay architectural
+
+# Context Requirements
+
+Before implementation, always:
+- Identify 3+ existing similar patterns
+- Map dependencies and integration points
+- Understand testing framework and coding conventions
 
 ## Knowledge System
 
-**ALWAYS search before acting.** Never assume context is pre-loaded.
+**Gate rule: On any coding/modification/debugging task, run `maestro search` BEFORE reading code or editing files. Use targeted queries — multiple short searches beat one long one.**
 
-### Search Commands
+### Required search (every task, no exceptions)
 
-- `maestro search "<query>" [--type spec|knowhow|issue] [--category <cat>]`
-- `maestro spec load --category <cat>` / `--keyword <kw>`
-- `maestro kg search <symbol>` / `maestro kg context <node>`
+```bash
+maestro search "<1-3 word topic phrase>"
+```
 
-### Proactive Search — ALWAYS Execute
+**Query rules:**
+- Use **1-3 core keywords** per query — never dump all context into one search
+- Separate concepts from symbols: `maestro search "topology layout"` then `maestro search "DetailedTopologySVG" --code`
+- Run multiple targeted searches rather than one broad query
 
-**L0 — Every task, no exceptions:**
-- `maestro search "<feature/module keywords>"`
+```bash
+# ❌ Bad: keyword dump (5+ unrelated terms → diluted BM25 scores)
+maestro search "topology display frontend DetailedTopologySVG elk"
 
-**L1 — Unfamiliar code:**
-- `maestro kg search "<symbol>"`
-- `maestro kg context <file-or-symbol>`
+# ✅ Good: targeted multi-search
+maestro search "topology layout"
+maestro search "DetailedTopologySVG" --code
+maestro search "elk layout" --type knowhow
+```
 
-**L2 — Architecture / debugging / refactoring / tests:**
-- `maestro search --type spec --category arch`
-- `maestro kg callers <fn>` / `maestro kg callees <fn>`
-- `maestro search --type spec --category test "<module>"`
-- `maestro kg search "<module>" --code`
+Then add follow-up searches based on results:
+- Specific symbol/function → `maestro kg search <symbol>` or `maestro kg context <node>`
+- Architecture/testing → `maestro search --type spec --category arch|test`
+- Call chains → `maestro kg callers <fn>` / `maestro kg callees <fn>`
+- Domain rules → `maestro spec load --category <cat> [--keyword <kw>]`
 
 ### Record
 
@@ -52,3 +114,18 @@
 - **Knowhow** → persist non-obvious knowledge (deviations, root causes, constraints)
 
 Category routing: decisions→`arch`, patterns→`coding`, pitfalls→`debug`/`learning`, rules→`review`, tests→`test`.
+
+### Confidence & Conflict Marking
+
+When search results conflict with current context, **mark the entry**:
+
+```bash
+maestro spec conflict mark <file> <line> --note "<conflict reason>"
+maestro spec conflict list                    # view all marked entries
+```
+
+Confidence levels: `high` (verified) → `medium` (default) → `low` (stale) → `contested` (conflict detected).
+
+- `contested` → 注入时排末尾，`[CONTESTED]` 标记 + 冲突说明
+- `low` → `[LOW CONFIDENCE]` 标记
+- 消除由 `/manage-knowledge-audit` 审查命令专门处理

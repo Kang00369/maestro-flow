@@ -197,7 +197,7 @@ Session folder: `.workflow/.csv-wave/{sessionId}/` — create via `mkdir -p`
 
 If `--dimensions` flag provided, override with explicit list.
 
-6. **Specs loading**: Run `maestro spec load --category review` to load review standards, checklists, AND discoverable knowhow tools (unless `--skip-specs`)
+6. **Specs loading**: Run `maestro spec load --category review` to load review standards, checklists, AND discoverable knowhow tools (unless `--skip-specs`). Also run `maestro spec conflict list` to load existing conflict markers (review should prioritize verifying contested entries against code)
 7. **CSV generation**: One row per dimension + one aggregation row
 
 **Wave computation**: Simple 2-wave -- all dimension tasks = wave 1, aggregation = wave 2.
@@ -352,11 +352,13 @@ Generate `context.md`:
 | standard | critical + high |
 | deep | critical + high + medium |
 
+**Spec conflict check**: If any finding directly contradicts a loaded spec entry (code behavior ≠ spec rule), suggest `maestro spec conflict mark <file> <line> --note "<evidence>"` on the spec entry. Code is the single source of truth. Log spec conflicts in review.json as `spec_conflicts[]`.
+
 **Phase index update**: Update `{artifact_dir}/index.json` with review status.
 
 **Register artifact**: Append to `state.json.artifacts[]` with `type: "review"`, `id: REV-NNN`, `path: "scratch/{YYYYMMDD}-review-P{N}-{slug}"`, `depends_on: exec_art.id`. Output directory is independent scratch, not shared with plan.
 
-Display summary.
+Display summary. If spec conflicts detected, suggest: `maestro spec conflict list` → `$manage-knowledge-audit --scope spec`.
 
 ### Shared Discovery Board Protocol
 
@@ -411,4 +413,13 @@ echo '{"ts":"<ISO>","worker":"{id}","type":"vulnerability","data":{"location":"s
 - [ ] Issues auto-created for qualifying severity findings
 - [ ] Phase index.json updated with review status
 - [ ] discoveries.ndjson append-only throughout
+- [ ] Ralph-invoked: `maestro ralph complete <idx> --status {STATUS}` called with correct verdict
 </success_criteria>
+
+<ralph_completion>
+When invoked as a ralph session step, end by calling the CLI (no standalone report):
+```
+maestro ralph complete <idx> --status {STATUS} [--evidence {path}]
+```
+Status verdicts: **DONE** (normal), **DONE_WITH_CONCERNS** (caveats; pass `--concerns`), **NEEDS_RETRY** (transient error), **BLOCKED** (hard blocker; pass `--reason`).
+</ralph_completion>

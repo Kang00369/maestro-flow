@@ -261,6 +261,7 @@ Output: `plan.json` (summary, approach, task_ids[], task_count, complexity, wave
 - Group simple unrelated changes into a batch task to minimize agent spawns
 - depends_on only for genuine output dependencies; most tasks should be parallel
 - Each task must be substantial (15-60 min); sub-5-min changes must be merged
+- **Vertical slice for UI**: a user-facing feature is ONE end-to-end task/wave (backend endpoint + frontend wiring + integration); never split into backend-only/frontend-only. Each UI delivery wave needs ≥1 task carrying a `[UI-observable]` convergence criterion (verifiable user flow; runtime-checked by ralph frontend-verify gate)
 
 ### Deep Work Rules (MANDATORY for all modes)
 
@@ -322,7 +323,7 @@ Bidirectional linking (main flow, post-planner): update matching issues in `.wor
 
 1. **Spawn workflow-plan-checker agent**
    - Input: plan.json + all .task/TASK-*.json + index.json (success_criteria)
-   - Check dimensions: requirements coverage, feasibility, dependency correctness (no circular deps), convergence criteria quality (grep-verifiable, no subjective language), read_first completeness, action concreteness (no vague references), wave structure (no conflicting files), completeness (no orphan tasks)
+   - Check dimensions: requirements coverage, feasibility, dependency correctness (no circular deps), convergence criteria quality (grep-verifiable, no subjective language), read_first completeness, action concreteness (no vague references), wave structure (no conflicting files), completeness (no orphan tasks), UI-observable coverage (when plan touches UI: each delivery wave has ≥1 `[UI-observable]` criterion)
 
 2. **Revision loop** (max 3 rounds)
    - Critical issues → re-spawn planner with issues, revise, re-check

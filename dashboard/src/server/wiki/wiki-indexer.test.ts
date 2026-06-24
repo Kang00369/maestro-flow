@@ -33,22 +33,22 @@ describe('WikiIndexer', () => {
     );
     await write(
       'specs/one.md',
-      `---\ntitle: Spec One\ntags:\n  - auth\n---\n# Spec One\nAbout [[spec-two]]`,
+      `---\ntitle: Spec One\ntags:\n  - auth\n---\n# Spec One\nAbout [[Spec Two]]`,
     );
     await write(
       'specs/two.md',
-      `---\ntitle: Spec Two\n---\n# Spec Two\nRefs [[spec-one]]`,
+      `---\ntitle: Spec Two\n---\n# Spec Two\nRefs [[Spec One]]`,
     );
 
     const indexer = new WikiIndexer({ workflowRoot: tmpRoot });
     const index = await indexer.get();
 
     const ids = index.entries.map((d) => d.id).sort();
-    expect(ids).toContain('spec-one');
-    expect(ids).toContain('spec-two');
-    expect(index.byId['spec-one'].tags).toEqual(['auth']);
-    expect(index.backlinks['spec-one']).toContain('spec-two');
-    expect(index.backlinks['spec-two']).toContain('spec-one');
+    expect(ids).toContain('spec:project:one');
+    expect(ids).toContain('spec:project:two');
+    expect(index.byId['spec:project:one'].tags).toEqual(['auth']);
+    expect(index.backlinks['spec:project:one']).toContain('spec:project:two');
+    expect(index.backlinks['spec:project:two']).toContain('spec:project:one');
   });
 
   it('filters by type and tag', async () => {
@@ -57,13 +57,79 @@ describe('WikiIndexer', () => {
 
     const indexer = new WikiIndexer({ workflowRoot: tmpRoot });
     const xTagged = await indexer.query({ type: 'spec', tag: 'x' });
-    expect(xTagged.map((d) => d.id)).toEqual(['spec-a']);
+    expect(xTagged.map((d) => d.id)).toEqual(['spec:project:a']);
+  });
+});
+
+describe('WikiIndexer ref links keep knowhow type prefix', () => {
+  it('spec-entry ref resolves to the prefixed container id (no broken link)', async () => {
+    // Container id keeps the prefix: knowhow-rcp-... — the ref target must match.
+    await write(
+      'knowhow/RCP-stripe-min-amount-stripe-minimum-guard.md',
+      `---\ntitle: Stripe minimum guard\n---\n# Stripe minimum guard\nBody`,
+    );
+    // QRF is not in the old strip-list — used to coincidentally work; must stay correct.
+    await write(
+      'knowhow/QRF-linked-listings-fast-path.md',
+      `---\ntitle: Linked listings fast path\n---\n# Linked listings\nBody`,
+    );
+    await write(
+      'specs/payments.md',
+      `---\ntitle: Payments\n---\n# Payments\n\n` +
+        `<spec-entry title="Stripe min amount guard" type="coding" ` +
+        `ref="knowhow/RCP-stripe-min-amount-stripe-minimum-guard.md">\n` +
+        `### Stripe min amount guard\nEnforce Stripe minimum charge amount.\n</spec-entry>\n\n` +
+        `<spec-entry title="Linked listings fast path" type="coding" ` +
+        `ref="knowhow/QRF-linked-listings-fast-path.md">\n` +
+        `### Linked listings fast path\nFast path for linked listings.\n</spec-entry>\n`,
+    );
+
+    const indexer = new WikiIndexer({ workflowRoot: tmpRoot });
+    const index = await indexer.get();
+
+    const rcpSub = index.entries.find((e) => e.title === 'Stripe min amount guard');
+    expect(rcpSub?.related).toContain('knowhow-rcp-stripe-min-amount-stripe-minimum-guard');
+    expect(index.byId['knowhow-rcp-stripe-min-amount-stripe-minimum-guard']).toBeDefined();
+
+    const qrfSub = index.entries.find((e) => e.title === 'Linked listings fast path');
+    expect(qrfSub?.related).toContain('knowhow-qrf-linked-listings-fast-path');
+    expect(index.byId['knowhow-qrf-linked-listings-fast-path']).toBeDefined();
+
+    const broken = buildGraph(index).brokenLinks.map((b) => b.target);
+    expect(broken).not.toContain('knowhow-stripe-min-amount-stripe-minimum-guard');
+    expect(broken).not.toContain('knowhow-rcp-stripe-min-amount-stripe-minimum-guard');
+    expect(broken).not.toContain('knowhow-qrf-linked-listings-fast-path');
+  });
+
+  it('knowhow-entry ref resolves to the prefixed container id (no broken link)', async () => {
+    await write(
+      'knowhow/REF-payment-architecture.md',
+      `---\ntitle: Payment architecture\n---\n# Payment architecture\nBody`,
+    );
+    await write(
+      'knowhow/KNW-session-notes.md',
+      `---\ntitle: Session notes\n---\n# Session notes\n\n` +
+        `<knowhow-entry title="See payment arch" type="reference" ` +
+        `ref="knowhow/REF-payment-architecture.md">\n` +
+        `### See payment arch\nRelated reference.\n</knowhow-entry>\n`,
+    );
+
+    const indexer = new WikiIndexer({ workflowRoot: tmpRoot });
+    const index = await indexer.get();
+
+    const sub = index.entries.find((e) => e.title === 'See payment arch');
+    expect(sub?.related).toContain('knowhow-ref-payment-architecture');
+    expect(index.byId['knowhow-ref-payment-architecture']).toBeDefined();
+
+    const broken = buildGraph(index).brokenLinks.map((b) => b.target);
+    expect(broken).not.toContain('knowhow-payment-architecture');
+    expect(broken).not.toContain('knowhow-ref-payment-architecture');
   });
 });
 
 describe('graph-analysis', () => {
   it('detects orphans as entries with no in and no out edges', async () => {
-    await write('specs/a.md', `---\ntitle: A\n---\n# A\nLinks [[b]]`);
+    await write('specs/a.md', `---\ntitle: A\n---\n# A\nLinks [[B]]`);
     await write('specs/b.md', `---\ntitle: B\n---\n# B`);
     await write('specs/c.md', `---\ntitle: C\n---\n# C`);
 
@@ -72,9 +138,9 @@ describe('graph-analysis', () => {
     const graph = buildGraph(index);
     const orphans = detectOrphans(graph, index.entries);
 
-    expect(orphans).toContain('spec-c');
-    expect(orphans).not.toContain('spec-a');
-    expect(orphans).not.toContain('spec-b');
+    expect(orphans).toContain('spec:project:c');
+    expect(orphans).not.toContain('spec:project:a');
+    expect(orphans).not.toContain('spec:project:b');
   });
 
   it('reports broken links', async () => {
@@ -83,20 +149,20 @@ describe('graph-analysis', () => {
     const index = await indexer.get();
     const graph = buildGraph(index);
     expect(graph.brokenLinks).toEqual(
-      expect.arrayContaining([{ sourceId: 'spec-a', target: 'does-not-exist' }]),
+      expect.arrayContaining([{ sourceId: 'spec:project:a', target: 'does-not-exist' }]),
     );
   });
 
   it('ranks hubs by incoming link count', async () => {
     await write('specs/hub.md', `---\ntitle: Hub\n---\n# Hub`);
-    await write('specs/a.md', `---\ntitle: A\n---\n# A\n[[hub]]`);
-    await write('specs/b.md', `---\ntitle: B\n---\n# B\n[[hub]]`);
+    await write('specs/a.md', `---\ntitle: A\n---\n# A\n[[Hub]]`);
+    await write('specs/b.md', `---\ntitle: B\n---\n# B\n[[Hub]]`);
 
     const indexer = new WikiIndexer({ workflowRoot: tmpRoot });
     const index = await indexer.get();
     const graph = buildGraph(index);
     const hubs = detectHubs(graph, 5);
-    expect(hubs[0]).toEqual({ id: 'spec-hub', inDegree: 2 });
+    expect(hubs[0]).toEqual({ id: 'spec:project:hub', inDegree: 2 });
   });
 
   it('computes health score with penalties', async () => {
@@ -123,7 +189,7 @@ describe('search (BM25)', () => {
     const index = await indexer.get();
     const inv = buildInvertedIndex(index.entries);
     const results = searchBM25(inv, 'authentication');
-    expect(results[0].docId).toBe('spec-auth');
+    expect(results[0].docId).toBe('spec:project:auth');
   });
 
   it('returns empty for stop-word-only query', async () => {
@@ -170,7 +236,7 @@ describe('WikiWriter', () => {
       title: 'Fresh Spec',
       body: '# Fresh Spec\nHello',
     });
-    expect(entry.id).toBe('spec-new-spec');
+    expect(entry.id).toBe('spec:project:new-spec');
     expect(entry.source.path).toBe('specs/new-spec.md');
   });
 
@@ -193,7 +259,7 @@ describe('WikiWriter', () => {
     const indexer = new WikiIndexer({ workflowRoot: tmpRoot });
     const writer = new WikiWriter(tmpRoot, indexer);
     try {
-      await writer.update('knowhow-s', {
+      await writer.update('knowhow-knw-s', {
         body: 'updated',
         expectedHash: 'deadbeef',
       });
@@ -209,7 +275,7 @@ describe('WikiWriter', () => {
     await write('knowhow/KNW-s.md', `---\ntitle: Old\ntags:\n  - a\n---\n# Old\nbody`);
     const indexer = new WikiIndexer({ workflowRoot: tmpRoot });
     const writer = new WikiWriter(tmpRoot, indexer);
-    const entry = await writer.update('knowhow-s', {
+    const entry = await writer.update('knowhow-knw-s', {
       title: 'New',
       body: 'new body',
     });
@@ -221,9 +287,9 @@ describe('WikiWriter', () => {
     await write('specs/gone.md', `---\ntitle: Gone\n---\n# Gone`);
     const indexer = new WikiIndexer({ workflowRoot: tmpRoot });
     const writer = new WikiWriter(tmpRoot, indexer);
-    await writer.remove('spec-gone');
+    await writer.remove('spec:project:gone');
     const index = await indexer.get();
-    expect(index.byId['spec-gone']).toBeUndefined();
+    expect(index.byId['spec:project:gone']).toBeUndefined();
   });
 
   it('rejects writes on virtual entries', async () => {

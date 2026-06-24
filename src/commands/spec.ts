@@ -453,17 +453,14 @@ export function registerSpecCommand(program: Command): void {
 
         // If ref file doesn't exist AND --knowhow-type given → create knowhow doc first
         if (!fileExists(absRefPath) && knowhowType) {
-          const KNOWHOW_PREFIX_MAP: Record<string, string> = {
-            session: 'KNW', tip: 'TIP', template: 'TPL', recipe: 'RCP',
-            reference: 'REF', decision: 'DCS', asset: 'AST', blueprint: 'BLP',
-            document: 'DOC',
-          };
+          const { KNOWHOW_PREFIX_MAP } = await import('../utils/frontmatter.js');
           const prefix = KNOWHOW_PREFIX_MAP[knowhowType] ?? 'DOC';
           const dir = pathJoin(process.cwd(), '.workflow', 'knowhow');
           if (!fileExists(dir)) mkDir(dir, { recursive: true });
 
+          const { escapeYamlValue } = await import('../utils/frontmatter.js');
           const now = new Date();
-          const fmLines = ['---', `title: ${title}`, `type: ${knowhowType}`, `category: ${category}`, `created: ${now.toISOString()}`];
+          const fmLines = ['---', `title: ${escapeYamlValue(title)}`, `type: ${knowhowType}`, `category: ${category}`, `created: ${now.toISOString()}`];
           if (keywords.length > 0) {
             fmLines.push('keywords:');
             for (const t of keywords) fmLines.push(`  - ${t}`);
@@ -864,6 +861,130 @@ export function registerSpecCommand(program: Command): void {
         if (result.content.length > 500) console.log('\n... (truncated)');
       }
     });
+  // ── conflict ─────────────────────────────────────────────────────────
+  const conflict = spec
+    .command('conflict')
+    .description('Manage confidence and conflict markers on spec entries');
+
+  conflict
+    .command('list')
+    .alias('ls')
+    .description('List all entries with conflict markers or degraded confidence')
+    .option('--json', 'Output as JSON')
+    .action(async (opts: { json?: boolean }) => {
+      const { listConflicts } = await import('../tools/spec-conflict-marker.js');
+      const conflicts = listConflicts(process.cwd());
+
+      if (opts.json) {
+        console.log(JSON.stringify(conflicts, null, 2));
+        return;
+      }
+
+      if (conflicts.length === 0) {
+        console.log('No conflicts or degraded entries found.');
+        return;
+      }
+
+      console.log(`Found ${conflicts.length} marked entries:\n`);
+      for (const c of conflicts) {
+        const badge = c.confidence === 'contested' ? '[CONTESTED]'
+          : c.confidence === 'low' ? '[LOW]'
+          : `[${c.confidence.toUpperCase()}]`;
+        console.log(`  ${badge} ${c.file}:${c.lineStart} "${c.title}" [${c.category}]`);
+        if (c.conflictNote) console.log(`    Note: ${c.conflictNote}`);
+        if (c.conflictMarker) console.log(`    Marker: ${c.conflictMarker}`);
+      }
+    });
+
+  conflict
+    .command('mark')
+    .description('Mark a spec entry as conflicted')
+    .argument('<file>', 'Spec filename (e.g. coding-conventions.md)')
+    .argument('<line>', 'Line number of the <spec-entry> tag')
+    .requiredOption('--note <text>', 'Conflict description')
+    .option('--marker <id>', 'Conflict marker ID (auto-generated if omitted)')
+    .option('--confidence <level>', 'Confidence level: high|medium|low|contested (default: contested)')
+    .action(async (file: string, line: string, opts: { note: string; marker?: string; confidence?: string }) => {
+      const { markConflict } = await import('../tools/spec-conflict-marker.js');
+      const result = markConflict(process.cwd(), file, parseInt(line, 10), {
+        note: opts.note,
+        marker: opts.marker,
+        confidence: (opts.confidence as 'contested') || 'contested',
+      });
+
+      if (result.success) {
+        console.log(`Marked ${file}:${line} as conflicted.`);
+      } else {
+        console.error(`Error: ${result.error}`);
+        process.exit(1);
+      }
+    });
+
+  conflict
+    .command('clear')
+    .description('Clear conflict markers from a spec entry')
+    .argument('<file>', 'Spec filename')
+    .argument('<line>', 'Line number of the <spec-entry> tag')
+    .option('--confidence <level>', 'Set new confidence level after clearing (default: remove)')
+    .action(async (file: string, line: string, opts: { confidence?: string }) => {
+      const { clearConflict } = await import('../tools/spec-conflict-marker.js');
+      const result = clearConflict(
+        process.cwd(),
+        file,
+        parseInt(line, 10),
+        opts.confidence as 'high' | undefined,
+      );
+
+      if (result.success) {
+        console.log(`Cleared conflict markers from ${file}:${line}.`);
+      } else {
+        console.error(`Error: ${result.error}`);
+        process.exit(1);
+      }
+    });
+
+  conflict
+    .command('set-confidence')
+    .description('Set confidence level on a spec entry')
+    .argument('<file>', 'Spec filename')
+    .argument('<line>', 'Line number of the <spec-entry> tag')
+    .argument('<level>', 'Confidence level: high|medium|low|contested')
+    .action(async (file: string, line: string, level: string) => {
+      const { setConfidence } = await import('../tools/spec-conflict-marker.js');
+      const result = setConfidence(
+        process.cwd(),
+        file,
+        parseInt(line, 10),
+        level as 'high',
+      );
+
+      if (result.success) {
+        console.log(`Set confidence=${level} on ${file}:${line}.`);
+      } else {
+        console.error(`Error: ${result.error}`);
+        process.exit(1);
+      }
+    });
+
+  conflict
+    .command('clear-all')
+    .description('Clear all conflict markers in a spec file')
+    .argument('<file>', 'Spec filename')
+    .option('--confidence <level>', 'Set new confidence level after clearing')
+    .action(async (file: string, opts: { confidence?: string }) => {
+      const { clearAllConflicts } = await import('../tools/spec-conflict-marker.js');
+      const result = clearAllConflicts(
+        process.cwd(),
+        file,
+        opts.confidence as 'high' | undefined,
+      );
+
+      console.log(`Cleared ${result.cleared} conflict markers from ${file}.`);
+      if (result.errors.length > 0) {
+        for (const err of result.errors) console.error(`  Error: ${err}`);
+      }
+    });
+
   // ── analytics ────────────────────────────────────────────────────────
   spec
     .command('analytics')

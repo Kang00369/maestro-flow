@@ -11,32 +11,34 @@
 
 ## Knowledge System
 
-**ALWAYS search before acting.** Never assume context is pre-loaded.
+**Gate rule: On any coding/modification/debugging task, run `maestro search` BEFORE reading code or editing files. Use targeted queries — multiple short searches beat one long one.**
 
-### Search Commands
+### Required search (every task, no exceptions)
 
-| Layer | Command | Purpose |
-|-------|---------|---------|
-| **1. Unified** | `maestro search "<query>" [--type spec\|knowhow\|issue] [--category <cat>]` | All knowledge types |
-| **2. Domain rules** | `maestro spec load --category <cat> [--keyword <kw>]` | Load rules before coding |
-| **3. Code structure** | `maestro kg search <symbol>` / `maestro kg context <node>` | Dependencies, call chains |
+```bash
+maestro search "<1-3 word topic phrase>"
+```
 
-Do not use deprecated commands: `spec search`, `knowhow search`, `wiki search`.
+**Query rules:**
+- Use **1-3 core keywords** per query — never dump all context into one search
+- Separate concepts from symbols: `maestro search "topology layout"` then `maestro search "DetailedTopologySVG" --code`
+- Run multiple targeted searches rather than one broad query
 
-### Proactive Search — ALWAYS Execute
+```bash
+# ❌ Bad: keyword dump (5+ unrelated terms → diluted BM25 scores)
+maestro search "topology display frontend DetailedTopologySVG elk"
 
-**L0 — Every task, no exceptions:**
-- `maestro search "<feature/module keywords>"`
+# ✅ Good: targeted multi-search
+maestro search "topology layout"
+maestro search "DetailedTopologySVG" --code
+maestro search "elk layout" --type knowhow
+```
 
-**L1 — Unfamiliar code:**
-- `maestro kg search "<symbol>"`
-- `maestro kg context <file-or-symbol>`
-
-**L2 — Architecture / debugging / refactoring / tests:**
-- `maestro search --type spec --category arch`
-- `maestro kg callers <fn>` / `maestro kg callees <fn>`
-- `maestro search --type spec --category test "<module>"`
-- `maestro kg search "<module>" --code`
+Then add follow-up searches based on results:
+- Specific symbol/function → `maestro kg search <symbol>` or `maestro kg context <node>`
+- Architecture/testing → `maestro search --type spec --category arch|test`
+- Call chains → `maestro kg callers <fn>` / `maestro kg callees <fn>`
+- Domain rules → `maestro spec load --category <cat> [--keyword <kw>]`
 
 ### Record
 
@@ -44,3 +46,18 @@ Do not use deprecated commands: `spec search`, `knowhow search`, `wiki search`.
 - **Knowhow** → `/manage-knowhow-capture` (use `--spec-category <cat>` to bridge into agent injection)
 
 Category routing: decisions→`arch`, patterns→`coding`, pitfalls→`debug`/`learning`, rules→`review`, tests→`test`.
+
+### Confidence & Conflict Marking
+
+When search results conflict with current context, **mark the entry**:
+
+```bash
+maestro spec conflict mark <file> <line> --note "<conflict reason>"
+maestro spec conflict list                    # view all marked entries
+```
+
+Confidence levels: `high` (verified) → `medium` (default) → `low` (stale) → `contested` (conflict detected).
+
+- `contested` → 注入时排末尾，`[CONTESTED]` 标记 + 冲突说明
+- `low` → `[LOW CONFIDENCE]` 标记
+- 消除由 `/manage-knowledge-audit` 审查命令专门处理

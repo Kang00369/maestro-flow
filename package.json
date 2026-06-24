@@ -1,7 +1,7 @@
 {
   "name": "maestro-flow",
-  "version": "0.5.3",
-  "description": "Workflow orchestration CLI with MCP endpoint support and extensible architecture",
+  "version": "0.5.35",
+  "description": "Intent-driven workflow orchestration for multi-agent AI development with adaptive lifecycle engine and self-reinforcing knowledge graph",
   "type": "module",
   "imports": {
     "#maestro-dashboard/agents/*": "./dashboard/dist-server/dashboard/src/server/agents/*",
@@ -40,7 +40,7 @@
     "dashboard/package.json"
   ],
   "scripts": {
-    "build": "cd dashboard && npx tsc -p tsconfig.node.json && cd .. && tsc && node -e \"const fs=require('fs');const p=require('path');const s='src/tools/impeccable/live/static',d='dist/src/tools/impeccable/live/static';if(fs.existsSync(s)){fs.mkdirSync(d,{recursive:true});for(const f of fs.readdirSync(s)){fs.copyFileSync(p.join(s,f),p.join(d,f))}}\" && node -e \"const fs=require('fs');const s='src/graph/db/schema.sql',d='dist/src/graph/db/schema.sql';if(fs.existsSync(s)){fs.mkdirSync(require('path').dirname(d),{recursive:true});fs.copyFileSync(s,d)}\"",
+    "build": "cd dashboard && npx tsc -p tsconfig.node.json && cd .. && tsc && node -e \"const fs=require('fs');const p=require('path');const s='src/tools/impeccable/live/static',d='dist/src/tools/impeccable/live/static';if(fs.existsSync(s)){fs.mkdirSync(d,{recursive:true});for(const f of fs.readdirSync(s)){fs.copyFileSync(p.join(s,f),p.join(d,f))}}\" && node -e \"const fs=require('fs');const p=require('path');for(const [s,d] of [['src/graph/db/schema.sql','dist/src/graph/db/schema.sql'],['src/graph/kg/schema.sql','dist/src/graph/kg/schema.sql']]){if(fs.existsSync(s)){fs.mkdirSync(p.dirname(d),{recursive:true});fs.copyFileSync(s,d)}}\"",
     "dev": "tsc --watch",
     "start": "node bin/maestro.js",
     "mcp": "node bin/maestro-mcp.js",
@@ -64,6 +64,7 @@
     "commander": "^13.1.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.7.0",
+    "ignore": "^7.0.5",
     "ink": "^6.0.0",
     "ink-big-text": "^2.0.0",
     "ink-gradient": "^4.0.0",
@@ -73,9 +74,11 @@
     "pg": "^8.20.0",
     "react": "^19.0.0",
     "tree-sitter-wasms": "^0.1.13",
+    "undici": "^8.5.0",
     "web-tree-sitter": "^0.25.3",
     "ws": "^8.19.0",
-    "zod": "^4.0.0"
+    "zod": "^4.0.0",
+    "@huggingface/transformers": "^3.8.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

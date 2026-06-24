@@ -10,6 +10,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseSpecEntries, type SpecEntryParsed } from './spec-entry-parser.js';
 import { CATEGORY_MAP } from './spec-loader.js';
+import { stripFrontmatter } from '../utils/frontmatter.js';
 
 // ============================================================================
 // Types
@@ -22,6 +23,8 @@ export interface IndexedEntry {
   content: string;
   title: string;
   id: string;
+  confidence?: string;
+  conflictMarker?: string;
 }
 
 // ============================================================================
@@ -66,6 +69,8 @@ export function buildKeywordIndex(projectPath: string): Map<string, IndexedEntry
         content: entry.content,
         title: entry.title,
         id: `${file}:${entry.lineStart}`,
+        confidence: entry.confidence,
+        conflictMarker: entry.conflictMarker,
       };
 
       for (const kw of entry.keywords) {
@@ -131,10 +136,4 @@ export function lookupKeywords(index: Map<string, IndexedEntry[]>, keywords: str
 // Internal
 // ============================================================================
 
-function stripFrontmatter(raw: string): string {
-  const trimmed = raw.trimStart();
-  if (!trimmed.startsWith('---')) return raw;
-  const endIdx = trimmed.indexOf('\n---', 3);
-  if (endIdx === -1) return raw;
-  return trimmed.substring(endIdx + 4).trim();
-}
+// stripFrontmatter imported from utils/frontmatter.ts

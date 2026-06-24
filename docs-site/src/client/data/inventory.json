@@ -501,14 +501,6 @@
       "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Skill", "AskUserQuestion"]
     },
     {
-      "name": "maestro-ralph-beta",
-      "file": ".claude/commands/maestro-ralph-beta.md",
-      "category": "maestro",
-      "description": "Beta version of Ralph lifecycle engine with loop-runner endpoint — self-running loop controller for adaptive maestro workflow",
-      "argumentHint": "<intent> [-y] | continue | status",
-      "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Skill", "AskUserQuestion"]
-    },
-    {
       "name": "maestro-ralph-execute",
       "file": ".claude/commands/maestro-ralph-execute.md",
       "category": "maestro",

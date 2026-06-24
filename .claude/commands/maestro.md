@@ -14,16 +14,8 @@ allowed-tools:
   - TodoWrite
 ---
 <purpose>
-Orchestrate all maestro commands based on user intent and project state.
-Classify intent → select chain → create session → dispatch to `maestro-ralph-execute`.
-
-Entry points:
-- **`/maestro "intent"`** — Intent-based: classify → chain → execute
-- **`/maestro -c`** — Resume previous session
-- **`/maestro --dry-run "intent"`** — Show chain, no execution
-- **`/maestro --super "intent"`** — Production-ready mode (read maestro-super.md)
-
-**Session**: `.workflow/.maestro/{session_id}/status.json` — 工作流唯一真源。session_id 格式 `maestro-{YYYYMMDD-HHmmss}`（本 command 创建，静态链）或 `ralph-{YYYYMMDD-HHmmss}`（`/maestro-ralph` 创建，自适应链）。两类都由 `/maestro-ralph-execute` 推进；schema 与 ralph 共用（含 `ralph_protocol_version: "1"` + `active_step_index`）。
+Orchestrate all maestro commands: classify intent → select chain → create session → dispatch to `maestro-ralph-execute`.
+Session: `.workflow/.maestro/{session_id}/status.json`.
 </purpose>
 
 <deferred_reading>
@@ -56,6 +48,7 @@ $ARGUMENTS — user intent text, or special keywords.
 10. **每个 step 必须 `completion_confirmed: true`** — 由 `maestro ralph complete N --status DONE|DONE_WITH_CONCERNS` 写入
 11. **schema** — `ralph_protocol_version: "1"` 标记 CLI-driven session；新增字段全部可选
 12. **Invariant violation = BLOCK** — 违反上述任一 invariant 即阻断当前操作，不可绕过。特别是 invariant 1（dispatch via ralph-execute）和 invariant 2（session before execution）和 invariant 10（completion_confirmed 由 CLI 写入）为硬约束。
+14. **禁止以上下文消耗为由中断执行** — harness 自动处理 context compression，以"上下文不足"或"避免 context overflow"为由中断属于 invariant violation
 13. **Classification evidence** — S_CLASSIFY 的 chain 选择决策 MUST 记录到 status.json 的 `classification_rationale` 字段：匹配了哪个 pattern、排除了哪些备选、confidence level。无记录的分类不可进入 S_CREATE。
 </invariants>
 
@@ -164,11 +157,16 @@ S_FALLBACK:
    ```
    📋 任务分解完成。可随时复制下面一行设定目标（执行过程中输入即可）：
 
-   /goal 目标达成条件: {session_dir}/status.json 中 task_decomposition[*].status == "done" 且 task_decomposition[*].completion_confirmed == true 且 steps[*].completion_confirmed == true。未达成时：阅读 {session_dir}/status.json 取得 execution_criteria / boundary_contract / task_decomposition / steps 作为行动手册，调用 /maestro-ralph continue 推进；严禁手动执行 skill 或越界修改 status.json.boundary_contract.out_of_scope。
+   /goal 完成以下子目标：
+   {for each G in task_decomposition:}
+   - {G.id}: {G.goal} — 完成条件: {G.done_when}
+   {end for}
+   达成条件: {session_dir}/status.json 中 task_decomposition[*].status == "done" 且 task_decomposition[*].completion_confirmed == true 且 steps[*].completion_confirmed == true。未达成时：阅读 {session_dir}/status.json 取得 execution_criteria / boundary_contract / task_decomposition / steps 作为行动手册，调用 /maestro-ralph continue 推进；严禁手动执行 skill 或越界修改 status.json.boundary_contract.out_of_scope。
    ```
 
 ### A_CREATE_SESSION
 
+0. **Specs 预检**：当 chain 包含 `analyze-macro` / `analyze` / `plan` / `execute` 等执行 stage 且 `.workflow/specs/` 目录不存在时，在 steps 最前面插入 `spec-setup`（stage=`spec-setup`，无 decision）。确保下游可获得项目约束规则注入。chain ∈ {grill, brainstorm, blueprint, init, status, quick} 时跳过
 1. Read `.workflow/state.json` 获取 phase / milestone（含 D-007 反查 `phase_slugs`）；读最新 macro analyze artifact 注入 `scope_verdict` + `analyze_macro_id`（如存在）；读最新 blueprint artifact 注入 `blueprint_id`
 2. Create `.workflow/.maestro/maestro-{YYYYMMDD-HHMMSS}/status.json`（与 ralph 共用 schema）：
    ```json
@@ -228,6 +226,7 @@ S_FALLBACK:
 - [ ] plan 支持 `{phase}` / `--from analyze:{ANL_ID}` / `--from blueprint:{BLP_ID}` 三路径；`source_artifact_ref` 写入 step
 - [ ] Broad lifecycle intents decomposed (≤3 boundary questions); narrow/single-step skip
 - [ ] status.json 唯一真源；无 markdown 清单；post-goal-audit 节点在 decomposed 时追加；/goal 提示词以 status.json 为判据
+- [ ] Specs 预检：chain 含执行 stage + `.workflow/specs/` 不存在 → steps 最前面插入 `spec-setup`
 - [ ] Chain selected and confirmed (or auto-confirmed)
 - [ ] Session dir created with status.json before execution; decomposition fields additive-only
 - [ ] 执行 step 含 `command_scope` + `command_path` + `completion_confirmed`；decision step 由 `step.decision` 标识

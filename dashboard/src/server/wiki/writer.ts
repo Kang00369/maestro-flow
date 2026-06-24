@@ -134,10 +134,16 @@ export class WikiWriter {
 
     this.indexer.invalidate(targetPath);
     const index = await this.indexer.rebuild();
-    const id = `${req.type}-${req.slug}`;
-    const entry = index.byId[id];
+    let expectedId: string;
+    if (req.type === 'spec') {
+      expectedId = `spec:project:${req.slug}`;
+    } else {
+      const prefix = categoryToPrefix(req.category).toLowerCase();
+      expectedId = `knowhow-${prefix}-${req.slug}`;
+    }
+    const entry = index.byId[expectedId] ?? index.byId[`${req.type}-${req.slug}`];
     if (!entry) {
-      throw new WikiWriteError('NOT_FOUND', `created entry not indexed: ${id}`);
+      throw new WikiWriteError('NOT_FOUND', `created entry not indexed: ${expectedId}`);
     }
     return entry;
   }

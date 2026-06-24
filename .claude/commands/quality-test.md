@@ -1,7 +1,7 @@
 ---
 name: quality-test
 description: Use when implementation needs user acceptance testing with interactive verification and gap closure
-argument-hint: "[phase] [--smoke] [--auto-fix]"
+argument-hint: "[phase] [--smoke] [--auto-fix] [--frontend-verify]"
 allowed-tools:
   - Read
   - Write
@@ -13,16 +13,7 @@ allowed-tools:
   - AskUserQuestion
 ---
 <purpose>
-Run UAT-style conversational testing for a completed phase. Designs test scenarios from verification criteria, walks through each scenario interactively one at a time with plain text responses, and records pass/fail results with severity inference.
-
-When issues are found, spawns parallel debug agents (one per gap cluster) to diagnose root causes, then optionally triggers the gap-fix loop (plan --gaps -> execute -> re-verify) to auto-close gaps.
-
-Key mechanisms from GSD verify-work:
-- **Session persistence**: uat.md survives context resets, resume from any point
-- **Severity inference**: Natural language -> blocker/major/minor/cosmetic (never ask)
-- **Cold-start smoke tests**: --smoke flag injects basic sanity tests before UAT
-- **Parallel auto-diagnosis**: Spawn debug agents per gap cluster with pre-filled symptoms
-- **Gap-plan closure loop**: --auto-fix triggers verify -> plan --gaps -> execute -> re-verify
+UAT-style conversational testing for a completed phase. Interactive scenario walk-through with severity inference. Issues trigger parallel debug agents and optional gap-fix loop (--auto-fix).
 </purpose>
 
 <required_reading>
@@ -36,7 +27,50 @@ Flags, artifact context resolution, and output directory format defined in workf
 </context>
 
 <execution>
+**Mode select:** `--frontend-verify` → 走下方 **Frontend Verify Mode**（确定性浏览器 smoke，**不是**对话式 UAT）；否则 Follow '~/.maestro/workflows/test.md' completely.
+
+### Frontend Verify Mode (`--frontend-verify`)
+
+补 ralph 链路缺失的运行时可用性门：确定性验证每个用户可观测能力真正经 UI 可触发，避免"后端绿灯=完成"。
+
+1. **Resolve targets**: 读 phase 的 `plan.json` / `.task/TASK-*.json`，提取所有 `[UI-observable]` convergence.criteria（plan 阶段产出）；缺失则枚举后端写端点（POST/PUT/PATCH/DELETE）作为待验证清单。
+2. **Start app**: `next start`（或从 dashboard/package.json 解析的既有启动脚本）；启动失败 → E003。
+3. **Drive browser**: 用 chrome-devtools MCP（`mcp__claude_dms3-chrome-devtools__*`：navigate / click / fill / take_snapshot / list_network_requests）逐条执行每个 `[UI-observable]` 流程，断言：UI 入口存在且可触发 → 对应写请求返回 2xx → DOM 出现预期结果。
+4. **Write evidence**: 产出 `e2e-results.json`（结构见下），逐条记 pass/fail + 证据（网络状态码、快照引用）。**确定性断言，禁止"无人应答=全过"**。
+5. **Verdict**: 任一 `[UI-observable]` fail 或写端点无 UI 入口 → STATUS=NEEDS_RETRY（ralph 经 post-frontend-verify 触发 Fix-Loop）；全过 → DONE。
+
+```json
+// e2e-results.json
+{ "phase": "{phase}", "app_url": "http://localhost:3000",
+  "checks": [ { "criterion": "[UI-observable] ...", "ui_entry": "<selector/route>",
+    "request": "POST /api/notes", "status": 201, "dom_assert": "list shows new item",
+    "passed": true } ],
+  "summary": { "total": 0, "passed": 0, "failed": 0 }, "verdict": "pass|fail" }
+```
+
+Ralph-invoked 完成：`maestro ralph complete <idx> --status {STATUS} --evidence e2e-results.json`。
+
+---
+
 Follow '~/.maestro/workflows/test.md' completely.
+
+### Phase Gates (MANDATORY, BLOCKING)
+
+**GATE 1: Setup → Test Design**
+- REQUIRED: Target resolved (phase or scratch task). E001 if missing.
+- REQUIRED: Smoke tests pass (if --smoke). E003 if fail.
+- BLOCKED if missing: cannot design tests without resolved target.
+
+**GATE 2: Test Design → Execution**
+- REQUIRED: test-plan.json generated with categorized tests mapped to requirements.
+- REQUIRED: uat.md created or resumed.
+- BLOCKED if plan missing: do not start interactive testing without plan.
+
+**GATE 3: Execution → Completion**
+- REQUIRED: All tests presented and responses processed.
+- REQUIRED: UAT confidence scored with 4-dimension factor model.
+- REQUIRED: Pressure pass completed if > 80% pass rate.
+- BLOCKED if incomplete: finish all scenarios before reporting.
 
 **Command-specific extensions (not in workflow):**
 
@@ -75,14 +109,35 @@ Append to state.json.artifacts[]:
 }
 ```
 
-**Next-step routing on completion:**
-- All tests pass → `/maestro-milestone-audit`
-- Issues found, --auto-fix ran and succeeded → `/maestro-execute {phase}`
-- Issues found, --auto-fix ran but gaps remain → `/quality-debug --from-uat {phase}`
-- Issues found, manual fix needed → `/quality-debug --from-uat {phase}`
-- Coverage below threshold → `/quality-auto-test {phase}`
-- Need integration tests → `/quality-auto-test {phase}`
 </execution>
+
+<completion>
+### Standalone report
+
+```
+--- COMPLETION STATUS ---
+STATUS: DONE|DONE_WITH_CONCERNS|NEEDS_RETRY
+CONCERNS: {description if applicable}
+--- END STATUS ---
+```
+
+### Ralph-invoked completion
+
+End the step by calling the CLI (no text block output):
+```
+maestro ralph complete <idx> --status {STATUS} [--evidence {path}]
+```
+
+### Next-step routing
+
+| Condition | Suggestion |
+|-----------|-----------|
+| All tests pass | `/maestro-milestone-audit` |
+| --auto-fix succeeded | `/maestro-execute {phase}` |
+| --auto-fix gaps remain | `/quality-debug --from-uat {phase}` |
+| Manual fix needed | `/quality-debug --from-uat {phase}` |
+| Coverage below threshold | `/quality-auto-test {phase}` |
+</completion>
 
 <error_codes>
 | Code | Severity | Condition | Recovery |
@@ -114,4 +169,5 @@ Append to state.json.artifacts[]:
 - [ ] Gaps updated with root_cause, fix_direction, affected_files
 - [ ] Gap-fix loop triggered if --auto-fix (max 2 iterations)
 - [ ] Next step routed (phase-transition if pass, verify if auto-fix success, debug --from-uat if issues, test-gen if low coverage)
+- [ ] `--frontend-verify`: 每条 [UI-observable] criterion 经真实浏览器断言，产出 e2e-results.json；任一 fail → NEEDS_RETRY（不放行）
 </success_criteria>

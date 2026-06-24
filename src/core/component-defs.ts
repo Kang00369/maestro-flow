@@ -45,7 +45,85 @@ export interface ComponentDef {
    * When omitted, `sourcePath` is used as before (backward compat).
    */
   sourceCountDir?: string;
+  /**
+   * Filter for top-level entries in the source directory.
+   * When present, only entries where this returns true are copied/counted.
+   * Receives the entry name (filename or directory name).
+   */
+  fileFilter?: (name: string) => boolean;
+  /**
+   * UI grouping category for ComponentGrid.
+   * Components sharing the same category display under a shared header.
+   */
+  category?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Skill registries — built-in vs optional extras
+// ---------------------------------------------------------------------------
+
+const BUILTIN_TEAM_SKILLS = new Set([
+  'team-adversarial-swarm', 'team-coordinate', 'team-executor',
+  'team-lifecycle-v4', 'team-quality-assurance', 'team-review',
+  'team-swarm', 'team-tech-debt', 'team-testing',
+]);
+
+interface OptionalSkillEntry {
+  name: string;
+  label: string;
+  description: string;
+}
+
+const EXTRA_TEAM_SKILLS: OptionalSkillEntry[] = [
+  { name: 'team-arch-opt', label: 'Team Arch Opt', description: 'Architecture optimization' },
+  { name: 'team-brainstorm', label: 'Team Brainstorm', description: 'Multi-role brainstorming' },
+  { name: 'team-designer', label: 'Team Designer', description: 'Team skill scaffolding' },
+  { name: 'team-frontend', label: 'Team Frontend', description: 'Frontend development' },
+  { name: 'team-frontend-debug', label: 'Team Frontend Debug', description: 'Chrome DevTools debugging' },
+  { name: 'team-interactive-craft', label: 'Team Interactive', description: 'Interactive components' },
+  { name: 'team-issue', label: 'Team Issue', description: 'Issue resolution pipeline' },
+  { name: 'team-motion-design', label: 'Team Motion', description: 'Animation & motion design' },
+  { name: 'team-perf-opt', label: 'Team Perf Opt', description: 'Performance optimization' },
+  { name: 'team-planex', label: 'Team Planex', description: 'Plan-and-execute pipeline' },
+  { name: 'team-roadmap-dev', label: 'Team Roadmap', description: 'Roadmap-driven development' },
+  { name: 'team-ui-polish', label: 'Team UI Polish', description: 'UI design quality fixes' },
+  { name: 'team-uidesign', label: 'Team UI Design', description: 'Design tokens & audit' },
+  { name: 'team-ultra-analyze', label: 'Team Ultra Analyze', description: 'Deep collaborative analysis' },
+  { name: 'team-ux-improve', label: 'Team UX Improve', description: 'UX interaction fixes' },
+  { name: 'team-visual-a11y', label: 'Team Visual A11y', description: 'Visual accessibility QA' },
+];
+
+const SCHOLAR_SKILLS: OptionalSkillEntry[] = [
+  { name: 'scholar-anti-ai-writing', label: 'Anti-AI Writing', description: 'Remove AI writing patterns' },
+  { name: 'scholar-citation-verify', label: 'Citation Verify', description: 'Citation verification' },
+  { name: 'scholar-experiment', label: 'Experiment Analysis', description: 'Experimental results analysis' },
+  { name: 'scholar-ideation', label: 'Research Ideation', description: 'Research gap analysis & planning' },
+  { name: 'scholar-latex-organizer', label: 'LaTeX Organizer', description: 'LaTeX template cleanup' },
+  { name: 'scholar-publish', label: 'Scholar Publish', description: 'Post-acceptance preparation' },
+  { name: 'scholar-rebuttal-pro', label: 'Rebuttal Pro', description: 'Review response with CLI analysis' },
+  { name: 'scholar-review', label: 'Scholar Review', description: 'Paper review & rebuttal' },
+  { name: 'scholar-thesis-docx', label: 'Thesis DOCX', description: 'Thesis Word formatting' },
+  { name: 'scholar-writing', label: 'Scholar Writing', description: 'End-to-end paper writing' },
+];
+
+const META_SKILLS: OptionalSkillEntry[] = [
+  { name: 'skill-generator', label: 'Skill Generator', description: 'Create new Claude Code skills' },
+  { name: 'skill-simplify', label: 'Skill Simplify', description: 'Simplify skills with integrity check' },
+  { name: 'skill-tuning', label: 'Skill Tuning', description: 'Diagnose and optimize skill issues' },
+  { name: 'prompt-generator', label: 'Prompt Generator', description: 'Generate/convert prompt files' },
+  { name: 'delegation-check', label: 'Delegation Check', description: 'Check delegation prompt contracts' },
+];
+
+const NON_CORE_SKILL_NAMES = new Set([
+  ...BUILTIN_TEAM_SKILLS,
+  ...EXTRA_TEAM_SKILLS.map((s) => s.name),
+  ...SCHOLAR_SKILLS.map((s) => s.name),
+  ...META_SKILLS.map((s) => s.name),
+]);
+
+const EXTRA_TEAM_SKILL_NAMES = new Set(EXTRA_TEAM_SKILLS.map((s) => s.name));
+const SCHOLAR_SKILL_NAMES = new Set(SCHOLAR_SKILLS.map((s) => s.name));
+const META_SKILL_NAMES = new Set(META_SKILLS.map((s) => s.name));
 
 // ---------------------------------------------------------------------------
 // Definitions
@@ -86,14 +164,44 @@ export const COMPONENT_DEFS: ComponentDef[] = [
   },
   {
     id: 'commands',
-    label: 'Commands',
-    description: 'Claude Code slash commands',
+    label: 'Commands (Core)',
+    description: 'Core maestro/manage/spec/quality commands',
     sourcePath: join('.claude', 'commands'),
     target: (mode, projectPath) =>
       mode === 'global'
         ? join(homedir(), '.claude', 'commands')
         : join(projectPath, '.claude', 'commands'),
     alwaysGlobal: false,
+    category: 'commands',
+    fileFilter: (name) => !name.startsWith('odyssey-') && !name.startsWith('learn-'),
+  },
+  {
+    id: 'commands-odyssey',
+    label: 'Odyssey Commands',
+    description: 'Long-running cycles: debug, improve, planex, review, UI',
+    sourcePath: join('.claude', 'commands'),
+    target: (mode, projectPath) =>
+      mode === 'global'
+        ? join(homedir(), '.claude', 'commands')
+        : join(projectPath, '.claude', 'commands'),
+    alwaysGlobal: false,
+    category: 'commands',
+    defaultSelected: false,
+    fileFilter: (name) => name.startsWith('odyssey-'),
+  },
+  {
+    id: 'commands-learn',
+    label: 'Learn Commands',
+    description: 'Knowledge extraction: decompose, follow, investigate',
+    sourcePath: join('.claude', 'commands'),
+    target: (mode, projectPath) =>
+      mode === 'global'
+        ? join(homedir(), '.claude', 'commands')
+        : join(projectPath, '.claude', 'commands'),
+    alwaysGlobal: false,
+    category: 'commands',
+    defaultSelected: false,
+    fileFilter: (name) => name.startsWith('learn-'),
   },
   {
     id: 'agents',
@@ -108,14 +216,29 @@ export const COMPONENT_DEFS: ComponentDef[] = [
   },
   {
     id: 'skills',
-    label: 'Skills',
-    description: 'Claude Code skills',
+    label: 'Skills (Core)',
+    description: 'Core workflow and utility skills',
     sourcePath: join('.claude', 'skills'),
     target: (mode, projectPath) =>
       mode === 'global'
         ? join(homedir(), '.claude', 'skills')
         : join(projectPath, '.claude', 'skills'),
     alwaysGlobal: false,
+    category: 'skills',
+    fileFilter: (name) => !NON_CORE_SKILL_NAMES.has(name),
+  },
+  {
+    id: 'skills-team',
+    label: 'Team Skills (Built-in)',
+    description: 'Built-in team skills (coordinate, review, testing, etc.)',
+    sourcePath: join('.claude', 'skills'),
+    target: (mode, projectPath) =>
+      mode === 'global'
+        ? join(homedir(), '.claude', 'skills')
+        : join(projectPath, '.claude', 'skills'),
+    alwaysGlobal: false,
+    category: 'skills',
+    fileFilter: (name) => BUILTIN_TEAM_SKILLS.has(name),
   },
   {
     id: 'claude-md',
@@ -295,4 +418,73 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       return buildAgentsStandardAgents(claudeDir, targetDir);
     },
   },
+  // -------------------------------------------------------------------------
+  // Optional skill packages — group bundles (use `install toggle` for individual control)
+  // -------------------------------------------------------------------------
+  {
+    id: 'skills-extra-team',
+    label: 'Extra Team Skills',
+    description: `${EXTRA_TEAM_SKILLS.length} additional team skills (arch-opt, brainstorm, frontend, etc.)`,
+    sourcePath: join('.claude', 'skills'),
+    target: (mode, projectPath) =>
+      mode === 'global'
+        ? join(homedir(), '.claude', 'skills')
+        : join(projectPath, '.claude', 'skills'),
+    alwaysGlobal: false,
+    category: 'skills',
+    defaultSelected: false,
+    fileFilter: (name) => EXTRA_TEAM_SKILL_NAMES.has(name),
+  },
+  {
+    id: 'skills-scholar',
+    label: 'Scholar Skills',
+    description: `${SCHOLAR_SKILLS.length} academic writing & research skills`,
+    sourcePath: join('.claude', 'skills'),
+    target: (mode, projectPath) =>
+      mode === 'global'
+        ? join(homedir(), '.claude', 'skills')
+        : join(projectPath, '.claude', 'skills'),
+    alwaysGlobal: false,
+    category: 'skills',
+    defaultSelected: false,
+    fileFilter: (name) => SCHOLAR_SKILL_NAMES.has(name),
+  },
+  {
+    id: 'skills-meta',
+    label: 'Meta Skills',
+    description: `${META_SKILLS.length} skill tooling (generator, tuning, simplify, etc.)`,
+    sourcePath: join('.claude', 'skills'),
+    target: (mode, projectPath) =>
+      mode === 'global'
+        ? join(homedir(), '.claude', 'skills')
+        : join(projectPath, '.claude', 'skills'),
+    alwaysGlobal: false,
+    category: 'skills',
+    defaultSelected: false,
+    fileFilter: (name) => META_SKILL_NAMES.has(name),
+  },
 ];
+
+// ---------------------------------------------------------------------------
+// Manifest migration — map old individual skill IDs to new group bundles
+// ---------------------------------------------------------------------------
+
+const VALID_IDS = new Set(COMPONENT_DEFS.map((d) => d.id));
+
+const LEGACY_SKILL_TO_GROUP = new Map<string, string>();
+for (const s of EXTRA_TEAM_SKILLS) LEGACY_SKILL_TO_GROUP.set(s.name, 'skills-extra-team');
+for (const s of SCHOLAR_SKILLS) LEGACY_SKILL_TO_GROUP.set(s.name, 'skills-scholar');
+for (const s of META_SKILLS) LEGACY_SKILL_TO_GROUP.set(s.name, 'skills-meta');
+
+export function migrateComponentIds(ids: string[]): string[] {
+  const result = new Set<string>();
+  for (const id of ids) {
+    if (VALID_IDS.has(id)) {
+      result.add(id);
+    } else {
+      const groupId = LEGACY_SKILL_TO_GROUP.get(id);
+      if (groupId) result.add(groupId);
+    }
+  }
+  return Array.from(result);
+}

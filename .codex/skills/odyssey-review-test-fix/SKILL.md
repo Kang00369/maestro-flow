@@ -7,7 +7,7 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 
 <purpose>
 Deep code review with generalization: archaeology → explore → multi-dimensional review →
-fix critical/high → confirm → generalize (举一反三) → discover → persist.
+fix all findings → confirm → generalize (举一反三) → discover → persist.
 
 Unlike `quality-review` (pipeline gate verdict), this reviews AND fixes: exhaustive documentation,
 targeted fixes, codebase-wide generalization, decision journal. `--skip-fix` for review-only.
@@ -24,15 +24,25 @@ Core behaviors:
 </purpose>
 
 <boundary>
-**范围内:** 目标代码多维度审查 → 修复 critical/high → 泛化 pattern
+**范围内:** 目标代码多维度审查 → Fix ALL findings within fix_threshold (default: all = exhaustive across all severity levels) → 泛化 pattern
 **范围外:** 深度根因 → `$odyssey-debug` | 需求实现 → `$odyssey-planex` | UI 优化 → `$odyssey-ui`
 **探索自由度:** 边界内自由 — 跨维度关联、追溯历史、泛化全项目。穷尽修复 ALL 发现（按 severity 递降）。
+
+**Zero-residual principle:** Every finding MUST have a concrete action (fix / issue / decision). "Report and shelve" is not allowed. "Pre-existing issue" is not a valid skip reason — if discovered within scope, it must be addressed.
 </boundary>
 
 <execution_discipline>
 **三条铁律（所有阶段适用）:**
 1. **Phase auto-commit** — 阶段完成后**自动** `git commit`，无需用户确认（session.json/evidence.ndjson 不纳入）
-2. **有把握才改** — 有把握→改代码 commit；不确定→记录 `evidence.ndjson {"phase":"decision","status":"pending"}` 不改代码
+2. **Confident edits only, but must attempt** — only modify what you're confident about; record decisions only when genuinely requiring human judgment
+   - Confident → edit code directly, commit
+   - Needs decision → record `evidence.ndjson {"phase":"decision","status":"pending"}`, don't touch code
+   - No speculative changes
+   - ⚠️ **Decision gate** — ONLY these qualify as decisions (not fixes):
+     - Cross-module architectural tradeoffs requiring human direction
+     - Ambiguous business semantics where the fix could alter intended behavior
+     - Requires new dependency or breaking API change
+   - ❌ "Unsure how to fix", "Large scope", "Pre-existing issue" are NOT valid decision reasons — either fix it, or explain specifically why it's unfixable
 3. **多 CLI 辅助** — `maestro delegate` 多 `--role`（analyze/review/explore）交叉验证，修复前后各 review 一次
 </execution_discipline>
 
@@ -81,7 +91,7 @@ SESSION_DIR/
   "generalization_stats": { "patterns_extracted": 0, "total_hits": 0, "true_positives": 0, "false_positives": 0, "cross_layer_confirmed": 0, "regression_risks": 0, "by_layer": {} },
   "phase_goals": [], "phase_goals_all_done": false,
   "self_iteration_log": [],
-  "cross_phase_loops": 0, "max_loops": 3
+  "cross_phase_loops": 0, "max_loops": 5
 }
 ```
 
@@ -124,7 +134,7 @@ S_RECORD 将可沉淀知识 **写入 understanding.md §8 Learnings**，按分�
 </context>
 
 <self_iteration>
-**Quality Gate** — auto-evaluate after each analytical phase. Insufficient → re-enter (max 2 rounds).
+**Quality Gate** — auto-evaluate after each analytical phase. Insufficient → re-enter (max **3 rounds**).
 
 | Dimension | Sufficient | Insufficient |
 |-----------|-----------|-------------|
@@ -132,7 +142,7 @@ S_RECORD 将可沉淀知识 **写入 understanding.md §8 Learnings**，按分�
 | Depth | ≥80% findings have file:line evidence | Most findings lack specifics |
 | Actionability | Each conclusion has concrete next action | "Consider reviewing" without action |
 
-**Expansion:** Round 1 = widen scope. Round 2 = shift perspective.
+**Expansion:** Round 1 = widen scope. Round 2 = shift perspective. Round 3 = combine both + targeted deep-dive on remaining gaps.
 **Applicable stages:** S_ARCHAEOLOGY, S_EXPLORE, S_REVIEW, S_FIX, S_GENERALIZE
 </self_iteration>
 
@@ -205,7 +215,7 @@ spawn_agents_on_csv({ csv_path: "tasks.csv", id_column: "id",
   output_csv_path: "wave-1-results.csv", output_schema: SHARED_OUTPUT_SCHEMA })
 ```
 Merge → evidence.ndjson (phase: "archaeology").
-CLI delegate `--role analyze --mode analysis` for change review (run_in_background, STOP).
+CLI delegate `--role analyze --mode analysis` for change review (execute with `run_in_background: true`, then wait for callback — do NOT halt the Odyssey flow).
 Update `understanding.md` §2.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-review({slug}): S_ARCHAEOLOGY — 考古"`
@@ -237,16 +247,21 @@ Transition: any findings exist AND !skip_fix → S_FIX. Else → S_GENERALIZE or
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-review({slug}): S_REVIEW — 审查"`
 
 ### S_FIX
-Skip if `--skip-fix` or no critical/high findings.
-**穷尽修复** — 按 severity 递降（critical→high→medium→low）逐轮修复所有 findings。每轮修复后 re-review 修改区域，新发现追加。
+Skip if `--skip-fix` or no findings.
+**Exhaustive fix** — Fix ALL findings within fix_threshold (default: all = exhaustive across all severity levels). Fix in severity-descending order (critical→high→medium→low), re-review modified areas after each round, append new findings.
 **Normal**: `request_user_input` to confirm. **`-y`**: auto-fix all, record `deferred`.
 Implement targeted fixes. Record evidence (phase: "fix"). Quality Gate check.
+
+**Remaining check after each round:**
+- If > 0 → retry from tier 1 (NOT limited by max_loops — max_loops only limits cross-phase loops, not FIX-internal retries)
+- If remaining unchanged for 2 consecutive rounds (same findings stuck) → classify each stuck finding individually: record as decision (if meets Decision gate criteria) or issue (with fix suggestion)
+- ❌ Blanket "N remaining items are pre-existing" is forbidden — each item must have individual classification and reason
 
 📌 **Auto-commit**: `git add -A && git commit -m "odyssey-review({slug}): S_FIX — 修复"`
 
 ### S_CONFIRM
 Skip if `--skip-fix`.
-Run tests on modified files. CLI delegate `--role review --mode analysis` for fix review (run_in_background, STOP).
+Run tests on modified files. CLI delegate `--role review --mode analysis` for fix review (execute with `run_in_background: true`, then wait for callback — do NOT halt the Odyssey flow).
 Write `session.json.confirmation`. Update `understanding.md` §5.
 `needs_rework` → S_FIX. `confirmed` → mark G3 done.
 
@@ -280,16 +295,25 @@ spawn_agents_on_csv({ csv_path: "tasks.csv", id_column: "id",
 
 **Cross-layer dedup**: Multi-layer hit → boost confidence. Single → `needs_review`. Historical fix → `regression_risk`.
 **Iterative deepening**: ≥3 hits in same module → targeted deep scan. Max 1 round.
-**CLI validation** (optional): Delegate to verify true/false positives (run_in_background, STOP).
+**CLI validation** (optional): Delegate to verify true/false positives (execute with `run_in_background: true`, then wait for callback — do NOT halt the Odyssey flow).
 
 Update `understanding.md` §6. Write `session.json.generalization_stats`. Mark G4 done.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-review({slug}): S_GENERALIZE — 泛化"`
 
 ### S_DISCOVER
-Classify hits: `bug` / `risk` / `safe`.
+Classify hits: `bug` / `risk` / `safe` / `issue`.
+**Triage routing:**
+- `bug`/`issue` + directly fixable → **fix immediately** → back to S_FIX
+- `bug`/`issue` + requires cross-module/architectural decision → create issue (with fix suggestion + impact analysis)
+- `risk` → evaluate if guard/validation can mitigate directly; if yes, fix it
+- `safe` → mark skip
 **Normal**: `request_user_input` for bug routing. **`-y`**: auto create issue, `deferred`.
-**Cross-phase loop**: fixable sibling → S_FIX (!skip_fix, loops < max_loops → cross_phase_loops++); new review target → S_REVIEW (loops < max_loops); triage complete OR budget exhausted → S_RECORD.
+**Cross-phase loop**:
+- Fixable sibling → S_FIX (!skip_fix, cross_phase_loops++)
+- New review target → S_REVIEW (cross_phase_loops++)
+- S_DISCOVER → S_RECORD: triage complete AND remaining_actionable == 0
+- S_DISCOVER → S_RECORD: loops >= max_loops → MUST log each unfixed item with specific reason (blanket "pre-existing" is forbidden)
 Append evidence (phase: discovery + decision). Update `understanding.md` §7. Mark G5 done.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-review({slug}): S_DISCOVER — 发现"`
@@ -366,7 +390,7 @@ Goals:      {done}/{total} ({skipped} skipped)
 - [ ] CLI exploration, explore.json written
 - [ ] All dimensions reviewed via spawn_agents_on_csv Wave 2
 - [ ] Severity matrix produced
-- [ ] Critical/high fixed and confirmed (unless --skip-fix)
+- [ ] All findings fixed and confirmed within fix_threshold (unless --skip-fix)
 - [ ] `--skip-fix`: no source code modifications
 - [ ] Generalization via spawn_agents_on_csv Wave 3 (unless --skip-generalize)
 - [ ] Discoveries classified and routed
@@ -374,4 +398,5 @@ Goals:      {done}/{total} ({skipped} skipped)
 - [ ] Goal Prompt displayed, phase_goals G1-G6 tracked
 - [ ] `-y`: no blocking, deferred counted
 - [ ] Self-iteration quality gates passed
+- [ ] **Every unfixed finding has individual classification and reason** — blanket "pre-existing" labels are forbidden
 </success_criteria>

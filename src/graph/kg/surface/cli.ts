@@ -8,8 +8,126 @@ import { MaestroGraph } from '../engine.js';
 import { searchUnified, parseQuery } from '../query/search.js';
 import { bfs, findShortestPath, getCallers, getCallees, getImpactRadius } from '../query/traversal.js';
 import { buildContext } from '../query/context-builder.js';
-import { syncKnowledgeGraph } from '../extraction/orchestrator.js';
+import { syncKnowledgeGraph, type CodegraphSyncOptions } from '../extraction/orchestrator.js';
 import { getKgDatabasePath } from '../db/connection.js';
+import type { UnifiedNode, SourceType } from '../db/types.js';
+
+function parseCsv(value: string | undefined): string[] | undefined {
+  return value
+    ? value.split(',').map((s: string) => s.trim()).filter(Boolean)
+    : undefined;
+}
+
+function normalizeSources(value: string | undefined): SourceType[] | undefined {
+  return parseCsv(value) as SourceType[] | undefined;
+}
+
+function parseInteger(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function normalizeCodegraphOptions(opts: {
+  src?: string;
+  includeTests?: boolean;
+  maxFileSize?: string;
+  excludeDir?: string;
+  excludeFile?: string;
+  noCreateMaestroIgnore?: boolean;
+  allowExtractorScripts?: boolean;
+}): CodegraphSyncOptions | undefined {
+  const srcDirs = parseCsv(opts.src);
+  const excludeDirs = parseCsv(opts.excludeDir);
+  const excludeFiles = parseCsv(opts.excludeFile);
+  const maxFileSize = parseInteger(opts.maxFileSize);
+  if (!srcDirs && !excludeDirs && !excludeFiles && !maxFileSize && !opts.includeTests && !opts.noCreateMaestroIgnore && !opts.allowExtractorScripts) {
+    return undefined;
+  }
+  return {
+    srcDirs,
+    excludeDirs,
+    excludeFiles,
+    maxFileSize,
+    includeTests: opts.includeTests,
+    createMaestroIgnore: opts.noCreateMaestroIgnore ? false : undefined,
+    allowExtractorScripts: opts.allowExtractorScripts,
+  };
+}
+
+function printSyncResults(results: Awaited<ReturnType<typeof syncKnowledgeGraph>>): void {
+  let totalNodes = 0;
+  let totalEdges = 0;
+  for (const r of results) {
+    totalNodes += r.nodesAdded;
+    totalEdges += r.edgesAdded;
+    console.log(`  ${r.source}: +${r.nodesAdded} nodes, +${r.edgesAdded} edges (${r.durationMs}ms)`);
+  }
+  console.log(`\nTotal: ${totalNodes} nodes, ${totalEdges} edges`);
+}
+
+async function syncProject(
+  opts: {
+    full?: boolean;
+    source?: string;
+    json?: boolean;
+    src?: string;
+    includeTests?: boolean;
+    maxFileSize?: string;
+    excludeDir?: string;
+    excludeFile?: string;
+    noCreateMaestroIgnore?: boolean;
+    allowExtractorScripts?: boolean;
+  },
+  label = 'Syncing MaestroGraph...',
+): Promise<void> {
+  const projectRoot = resolve('.');
+  const sources = normalizeSources(opts.source);
+  const codegraph = normalizeCodegraphOptions(opts);
+
+  if (!opts.json) console.log(label);
+  const results = await syncKnowledgeGraph(projectRoot, {
+    full: opts.full,
+    sources,
+    codegraph,
+  });
+
+  if (opts.json) {
+    console.log(JSON.stringify(results, null, 2));
+    return;
+  }
+
+  printSyncResults(results);
+}
+
+async function openGraph(): Promise<MaestroGraph> {
+  const projectRoot = resolve('.');
+  if (!MaestroGraph.isInitialized(projectRoot)) {
+    console.error('MaestroGraph not initialized for this project.');
+    console.error('  Run: maestro kg sync');
+    process.exit(1);
+  }
+  return MaestroGraph.open(projectRoot);
+}
+
+function formatNodeLabel(node: UnifiedNode): string {
+  const loc = node.filePath ? ` ${node.filePath}:${node.startLine}` : '';
+  const detail = node.signature || node.definition;
+  const suffix = detail ? ` -- ${detail.substring(0, 80)}` : '';
+  return `[${node.sourceType}:${node.kind}] ${node.name}${loc}${suffix}`;
+}
+
+function resolveNodeOrExit(mg: MaestroGraph, query: string): UnifiedNode {
+  const direct = mg.getNode(query);
+  if (direct) return direct;
+
+  const matches = mg.searchUnified(query, { sourceTypes: ['codegraph'], limit: 5 }).directMatches;
+  if (matches.length === 0) {
+    console.error(`Node not found: ${query}`);
+    process.exit(1);
+  }
+  return matches[0].node;
+}
 
 // ---------------------------------------------------------------------------
 // 注册 maestro kg 子命令
@@ -42,26 +160,43 @@ export function registerKgCommands(program: Command): void {
     .description('Sync knowledge graph — extract from all sources')
     .option('--full', 'Full rebuild (ignore file hashes)')
     .option('--source <sources>', 'Comma-separated sources: domain,spec,knowhow,codebase,issue,codegraph')
+    .option('--src <paths>', 'Comma-separated code source roots for codegraph source')
+    .option('--max-file-size <bytes>', 'Maximum code file size to index')
+    .option('--include-tests', 'Include test files in code index')
+    .option('--exclude-dir <patterns>', 'Comma-separated directory ignore patterns')
+    .option('--exclude-file <patterns>', 'Comma-separated file ignore patterns')
+    .option('--no-create-maestro-ignore', 'Do not create .maestroignore when missing')
+    .option('--allow-extractor-scripts', 'Allow execution of .mjs extractor plugins')
     .option('--json', 'Output as JSON')
-    .action(async (opts) => {
-      const projectRoot = resolve('.');
-      const sources = opts.source ? opts.source.split(',').map((s: string) => s.trim()) : undefined;
+    .action(async (opts) => syncProject(opts));
 
-      console.log('Syncing MaestroGraph...');
-      const results = await syncKnowledgeGraph(projectRoot, {
-        full: opts.full,
-        sources: sources as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      });
+  kg
+    .command('sync-all')
+    .description('Compatibility alias for sync — sync all MaestroGraph sources')
+    .option('--full', 'Full rebuild (ignore file hashes)')
+    .option('--source <sources>', 'Comma-separated sources: domain,spec,knowhow,codebase,issue,codegraph')
+    .option('--src <paths>', 'Comma-separated code source roots for codegraph source')
+    .option('--max-file-size <bytes>', 'Maximum code file size to index')
+    .option('--include-tests', 'Include test files in code index')
+    .option('--exclude-dir <patterns>', 'Comma-separated directory ignore patterns')
+    .option('--exclude-file <patterns>', 'Comma-separated file ignore patterns')
+    .option('--no-create-maestro-ignore', 'Do not create .maestroignore when missing')
+    .option('--allow-extractor-scripts', 'Allow execution of .mjs extractor plugins')
+    .option('--json', 'Output as JSON')
+    .action(async (opts) => syncProject(opts, 'Syncing MaestroGraph (all knowledge sources)...'));
 
-      if (opts.json) {
-        console.log(JSON.stringify(results, null, 2));
-        return;
-      }
-
-      for (const r of results) {
-        console.log(`  ${r.source}: +${r.nodesAdded} nodes, +${r.edgesAdded} edges (${r.durationMs}ms)`);
-      }
-    });
+  kg
+    .command('index')
+    .description('Compatibility alias for sync --source codegraph')
+    .option('--src <paths>', 'Comma-separated code source roots to index')
+    .option('--max-file-size <bytes>', 'Maximum code file size to index')
+    .option('--include-tests', 'Include test files in code index')
+    .option('--exclude-dir <patterns>', 'Comma-separated directory ignore patterns')
+    .option('--exclude-file <patterns>', 'Comma-separated file ignore patterns')
+    .option('--no-create-maestro-ignore', 'Do not create .maestroignore when missing')
+    .option('--allow-extractor-scripts', 'Allow execution of .mjs extractor plugins')
+    .option('--json', 'Output as JSON')
+    .action(async (opts) => syncProject({ ...opts, source: 'codegraph' }, 'Indexing code with MaestroGraph...'));
 
   // ── query ─────────────────────────────────────────────────────────
   kg
@@ -108,22 +243,57 @@ export function registerKgCommands(program: Command): void {
       }
     });
 
-  // ── context ───────────────────────────────────────────────────────
   kg
-    .command('context <node-id>')
-    .description('Show full context for a node (all related layers)')
-    .option('--depth <n>', 'Graph traversal depth', '1')
+    .command('search <text>')
+    .description('Compatibility alias for query')
+    .option('--source <types>', 'Filter by source type (comma-separated)')
+    .option('--kind <types>', 'Filter by node kind')
+    .option('--limit <n>', 'Max results', '20')
     .option('--json', 'Output as JSON')
-    .action(async (nodeId: string, opts) => {
-      const mg = await MaestroGraph.open(resolve('.'));
+    .action(async (text: string, opts) => {
+      const mg = await openGraph();
       try {
-        const node = mg.getNode(nodeId);
-        if (!node) {
-          console.error(`Node not found: ${nodeId}`);
-          process.exit(1);
+        const parsed = parseQuery(text);
+        const sourceTypes = parseCsv(opts.source) ?? (parsed.sourceTypes.length > 0 ? parsed.sourceTypes : undefined);
+        const kinds = parseCsv(opts.kind) ?? (parsed.kinds.length > 0 ? parsed.kinds : undefined);
+        const effectiveText = parsed.text || text;
+        const output = mg.searchUnified(effectiveText, {
+          sourceTypes: sourceTypes as SourceType[] | undefined,
+          kinds,
+          limit: Math.min(Number(opts.limit) || 20, 500),
+        });
+
+        if (opts.json) {
+          console.log(JSON.stringify({
+            query: text,
+            total: output.directMatches.length,
+            nodes: output.directMatches.map(r => ({ ...r.node, score: r.score })),
+            engine: 'maestrograph',
+          }, null, 2));
+          return;
         }
 
-        const traversal = mg.traverse(nodeId, {
+        console.log(`Search: "${effectiveText}"  (${output.directMatches.length} results, MaestroGraph)`);
+        for (const r of output.directMatches) {
+          console.log(`  ${r.node.id}  ${formatNodeLabel(r.node)}  (${r.score.toFixed(1)})`);
+        }
+      } finally {
+        mg.close();
+      }
+    });
+
+  // ── context ───────────────────────────────────────────────────────
+  kg
+    .command('context <node>')
+    .description('Show full context for a node id or symbol name (all related layers)')
+    .option('--depth <n>', 'Graph traversal depth', '1')
+    .option('--json', 'Output as JSON')
+    .action(async (nodeQuery: string, opts) => {
+      const mg = await openGraph();
+      try {
+        const node = resolveNodeOrExit(mg, nodeQuery);
+
+        const traversal = mg.traverse(node.id, {
           maxDepth: Math.min(Number(opts.depth) || 1, 10),
         });
 
@@ -134,10 +304,12 @@ export function registerKgCommands(program: Command): void {
               id: n.id, kind: n.kind, name: n.name, sourceType: n.sourceType,
             })),
             edges: traversal.edges,
+            resolvedFrom: nodeQuery,
           }, null, 2));
           return;
         }
 
+        if (node.id !== nodeQuery) console.log(`Resolved "${nodeQuery}" -> ${node.id}`);
         console.log(`Node: [${node.sourceType}:${node.kind}] ${node.name}`);
         if (node.definition) console.log(`  Definition: ${node.definition}`);
         if (node.filePath) console.log(`  File: ${node.filePath}:${node.startLine}`);
@@ -145,7 +317,7 @@ export function registerKgCommands(program: Command): void {
         if (traversal.nodes.size > 1) {
           console.log(`\nRelated (${traversal.nodes.size - 1}):`);
           for (const [id, related] of traversal.nodes) {
-            if (id === nodeId) continue;
+            if (id === node.id) continue;
             console.log(`  [${related.sourceType}:${related.kind}] ${related.name}`);
           }
         }
@@ -187,25 +359,26 @@ export function registerKgCommands(program: Command): void {
 
   // ── callers ───────────────────────────────────────────────────────
   kg
-    .command('callers <node-id>')
-    .description('Show callers of a function/method')
+    .command('callers <node>')
+    .description('Show callers of a function/method by node id or symbol name')
     .option('--depth <n>', 'Traversal depth', '1')
     .option('--json', 'Output as JSON')
-    .action(async (nodeId: string, opts) => {
-      const mg = await MaestroGraph.open(resolve('.'));
+    .action(async (nodeQuery: string, opts) => {
+      const mg = await openGraph();
       try {
-        const callers = mg.getCallers(nodeId, Math.min(Number(opts.depth) || 1, 10));
+        const node = resolveNodeOrExit(mg, nodeQuery);
+        const callers = mg.getCallers(node.id, Math.min(Number(opts.depth) || 1, 10));
 
         if (opts.json) {
-          console.log(JSON.stringify(callers.map(c => ({
+          console.log(JSON.stringify({ node: node.id, callers: callers.map(c => ({
             id: c.node.id, name: c.node.name, kind: c.node.kind, edgeKind: c.edge.kind,
-          })), null, 2));
+          })) }, null, 2));
           return;
         }
 
-        console.log(`Callers of ${nodeId} (${callers.length}):`);
+        console.log(`Callers of ${node.id} (${callers.length}):`);
         for (const { node, edge } of callers) {
-          console.log(`  [${node.kind}] ${node.name} --${edge.kind}-->`);
+          console.log(`  ${formatNodeLabel(node)} --${edge.kind}-->`);
         }
       } finally {
         mg.close();
@@ -214,25 +387,26 @@ export function registerKgCommands(program: Command): void {
 
   // ── callees ───────────────────────────────────────────────────────
   kg
-    .command('callees <node-id>')
-    .description('Show callees of a function/method')
+    .command('callees <node>')
+    .description('Show callees of a function/method by node id or symbol name')
     .option('--depth <n>', 'Traversal depth', '1')
     .option('--json', 'Output as JSON')
-    .action(async (nodeId: string, opts) => {
-      const mg = await MaestroGraph.open(resolve('.'));
+    .action(async (nodeQuery: string, opts) => {
+      const mg = await openGraph();
       try {
-        const callees = mg.getCallees(nodeId, Math.min(Number(opts.depth) || 1, 10));
+        const node = resolveNodeOrExit(mg, nodeQuery);
+        const callees = mg.getCallees(node.id, Math.min(Number(opts.depth) || 1, 10));
 
         if (opts.json) {
-          console.log(JSON.stringify(callees.map(c => ({
+          console.log(JSON.stringify({ node: node.id, callees: callees.map(c => ({
             id: c.node.id, name: c.node.name, kind: c.node.kind, edgeKind: c.edge.kind,
-          })), null, 2));
+          })) }, null, 2));
           return;
         }
 
-        console.log(`Callees of ${nodeId} (${callees.length}):`);
+        console.log(`Callees of ${node.id} (${callees.length}):`);
         for (const { node, edge } of callees) {
-          console.log(`  --${edge.kind}--> [${node.kind}] ${node.name}`);
+          console.log(`  --${edge.kind}--> ${formatNodeLabel(node)}`);
         }
       } finally {
         mg.close();
@@ -241,17 +415,19 @@ export function registerKgCommands(program: Command): void {
 
   // ── impact ────────────────────────────────────────────────────────
   kg
-    .command('impact <node-id>')
-    .description('Show transitive impact radius')
+    .command('impact <node>')
+    .description('Show transitive impact radius by node id or symbol name')
     .option('--depth <n>', 'Max depth', '3')
     .option('--json', 'Output as JSON')
-    .action(async (nodeId: string, opts) => {
-      const mg = await MaestroGraph.open(resolve('.'));
+    .action(async (nodeQuery: string, opts) => {
+      const mg = await openGraph();
       try {
-        const impact = mg.getImpact(nodeId, Math.min(Number(opts.depth) || 3, 10));
+        const node = resolveNodeOrExit(mg, nodeQuery);
+        const impact = mg.getImpact(node.id, Math.min(Number(opts.depth) || 3, 10));
 
         if (opts.json) {
           console.log(JSON.stringify({
+            node: node.id,
             nodeCount: impact.nodes.size,
             edgeCount: impact.edges.length,
             nodes: [...impact.nodes.values()].map(n => ({ id: n.id, kind: n.kind, name: n.name })),
@@ -259,10 +435,10 @@ export function registerKgCommands(program: Command): void {
           return;
         }
 
-        console.log(`Impact radius for ${nodeId}: ${impact.nodes.size} nodes, ${impact.edges.length} edges`);
-        for (const node of impact.nodes.values()) {
-          if (node.id === nodeId) continue;
-          console.log(`  [${node.sourceType}:${node.kind}] ${node.name}`);
+        console.log(`Impact radius for ${node.id}: ${impact.nodes.size} nodes, ${impact.edges.length} edges`);
+        for (const related of impact.nodes.values()) {
+          if (related.id === node.id) continue;
+          console.log(`  ${formatNodeLabel(related)}`);
         }
       } finally {
         mg.close();

@@ -74,9 +74,8 @@ export async function runNext(opts: NextCmdOptions): Promise<number> {
   // Pick next pending execution step. Decision nodes (step.decision != null)
   // are intentionally skipped — this CLI only loads executable skill steps.
   // Decision evaluation belongs to the calling skill, which may either:
-  //   - v1 (split):   /maestro-ralph-execute handoff → /maestro-ralph (S_DECISION_EVAL)
-  //   - v1 (codex):   $maestro-ralph-execute handoff → $maestro-ralph
-  //   - v2 (single):  /maestro-ralph-beta inline tick (S_TICK_DECISION)
+  //   - split: /maestro-ralph-execute handoff → /maestro-ralph (S_DECISION_EVAL)
+  //   - codex: $maestro-ralph-execute handoff → $maestro-ralph
   // The CLI must NOT prescribe a specific skill name — that's the caller's
   // routing concern.
   const next = data.steps.find(s => s.status === 'pending' && !s.decision);

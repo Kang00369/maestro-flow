@@ -17,6 +17,65 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '0.5.35',
+    date: '2026-06',
+    changes: [
+      { type: 'feat', text_en: 'Search engine embedding upgrade — bilingual E5 + content hash incremental rebuild + hybrid fusion', text_zh: '搜索引擎嵌入模型升级——双语 E5 + content hash 增量重建 + hybrid 融合' },
+      { type: 'feat', text_en: 'Enhanced query — IDF adaptive weighting + camelCase splitting', text_zh: '增强查询功能——IDF 自适应加权与 camelCase 拆分' },
+      { type: 'feat', text_en: 'Embedding search performance — batch inference + smart device detection + incremental indexing', text_zh: '嵌入搜索性能优化——批量推理 + 智能设备检测 + 增量索引' },
+      { type: 'feat', text_en: 'Search semantic enhancement — synonym/stemming query expansion + embedding hybrid retrieval', text_zh: '搜索语义增强——同义词/词干查询扩展 + 嵌入模型混合检索' },
+      { type: 'fix', text_en: 'Codex command chain context passing — 4 Critical + 7 High fixes', text_zh: 'codex 命令链上下文传递——4 Critical + 7 High 修复' },
+      { type: 'fix', text_en: 'Install pipeline custom hook selection loss + update reinstall option completion', text_zh: '安装流水线自定义 hook 选择丢失 + update 重装选项补全' },
+    ],
+  },
+  {
+    version: '0.5.34',
+    date: '2026-06',
+    changes: [
+      { type: 'feat', text_en: 'Spec confidence system with conflict marking — high/medium/low/contested states + audit resolution', text_zh: 'Spec 置信度系统与冲突标记——high/medium/low/contested 四态 + 审查消除' },
+      { type: 'feat', text_en: 'Knowledge extractor plugin registry + node type registration for extensible KG extraction', text_zh: '知识提取器插件注册 + 节点类型注册，扩展化 KG 提取' },
+      { type: 'feat', text_en: 'Knowledge command conflict resolution — harvest pre-check + audit 4-state decisions + review conflict marking', text_zh: '知识命令冲突解决闭环——harvest 预检 + audit 四态决策 + review 冲突标记' },
+      { type: 'fix', text_en: 'Search system 16 quality fixes — dedup, BM25F scoring, CJK bigram/trigram, performance', text_zh: '搜索系统 16 项质量修复——去重/BM25F 评分/CJK bigram+trigram/性能' },
+      { type: 'fix', text_en: 'Fix install/registry/config 7 bugs — component resolution, migration, CLI tools config', text_zh: '修复 install/registry/config 系统 7 个 bug' },
+      { type: 'fix', text_en: 'Fix 3 performance risks — Math.max spread overflow, O(n²) includes, linear find', text_zh: '泛化修复 3 项性能风险——Math.max spread 溢出/O(n²) includes/线性查找' },
+    ],
+  },
+  {
+    version: '0.5.33',
+    date: '2026-06',
+    changes: [
+      { type: 'fix', text_en: 'Install component selection changed to group bundles — 53→25 items, individual control via `install toggle`', text_zh: 'Install 组件选择改为分组打包——53→25 项，个别控制用 `install toggle`' },
+      { type: 'fix', text_en: 'Fix ComponentGrid cursor index mismatch — navigation and rendering now share unified ordered array', text_zh: '修复 ComponentGrid 光标索引错位——导航和渲染统一使用 ordered 数组' },
+      { type: 'fix', text_en: 'Add viewport scrolling to ComponentGrid — 20-row window prevents terminal overflow', text_zh: 'ComponentGrid 添加 viewport 滚动——20 行窗口防止终端溢出' },
+      { type: 'fix', text_en: 'Improve group label visibility in GroupedHub and ComponentGrid — primary color instead of dimColor', text_zh: '改善 GroupedHub 和 ComponentGrid 分组标签可见度——主色替代暗色' },
+      { type: 'fix', text_en: 'Add manifest migration for legacy individual skill IDs to new group bundle IDs', text_zh: '新增 manifest 迁移——旧个别 skill ID 自动映射到新 group bundle ID' },
+    ],
+  },
+  {
+    version: '0.5.32',
+    date: '2026-06',
+    changes: [
+      { type: 'feat', text_en: 'New `maestro install toggle` — per-skill/command enable/disable controller with tri-state Tab view', text_zh: '新增 `maestro install toggle` 命令/技能独立控制器，三态 Tab 视图' },
+      { type: 'feat', text_en: 'Granular skill selection install — each new skill independently selectable + command group selection', text_zh: '细粒度技能选择安装——每个新增技能独立可选 + 命令族分组选择' },
+      { type: 'feat', text_en: 'Script plugins disabled by default — secure by default, explicit opt-in required', text_zh: '脚本插件默认禁用——secure by default，需显式启用' },
+      { type: 'fix', text_en: 'Odyssey zero-residual execution hardening — 6 systematic fixes eliminating premature stops', text_zh: 'Odyssey 零遗留执行强化——6 项系统性修复消除过早停止' },
+      { type: 'fix', text_en: 'KG code index streaming writes + atomic commits — no more OOM on large repos', text_zh: 'KG 代码索引流式写入 + 原子提交，大仓库不再 OOM' },
+      { type: 'fix', text_en: 'Install toggle multi-dimensional review fixes — module split, dedup, boundary corrections', text_zh: 'Install toggle 多维度审查修复——拆分模块、消除重复、修复边界' },
+    ],
+  },
+  {
+    version: '0.5.31',
+    date: '2026-06',
+    changes: [
+      { type: 'feat', text_en: 'KG custom extractor plugin system — declarative config + script plugins + generator command', text_zh: 'KG 自定义提取器插件机制——声明式配置 + 脚本插件 + 生成命令' },
+      { type: 'fix', text_en: 'Switch kg CLI to MaestroGraph surface — compatibility aliases for index/sync-all/search, symbol name resolution for context/callers/callees/impact', text_zh: '切换 kg 命令到 MaestroGraph——兼容别名 index/sync-all/search，context/callers/callees/impact 支持符号名解析' },
+      { type: 'refactor', text_en: 'Core workflow files optimization — 13 files, -675 lines removed', text_zh: '核心 workflow 文件精简优化——13 个文件 -675 行' },
+      { type: 'refactor', text_en: 'Full command and workflow instruction optimization — purpose trimming + structure completion + Phase Gates normalization', text_zh: '全量优化命令文件和 workflow 指令——purpose 精简 + 结构补全 + Phase Gates 规范化' },
+      { type: 'docs', text_en: 'Instruction authoring guide update — optimization principles and anti-patterns for model behavior consistency', text_zh: '更新指令文件编写指南——优化原则与反模式，确保模型行为一致性' },
+      { type: 'docs', text_en: 'docs-site: add Odyssey command family documentation with category registration and i18n', text_zh: 'docs-site 新增 Odyssey 命令族文档——类别注册 + i18n' },
+    ],
+  },
+  {
     version: '0.5.3',
     date: '2026-06',
     changes: [
