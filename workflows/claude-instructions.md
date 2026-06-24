@@ -141,5 +141,60 @@ Category routing: decisions→`arch`, patterns→`coding`, pitfalls→`debug`/`l
 maestro spec conflict mark <file> <line> --note "<reason>"
 ```
 
-Levels: `high` → `medium` (default) → `low` (`[LOW CONFIDENCE]`) → `contested` (`[CONTESTED]`).
-Resolution: `/manage-knowledge-audit`
+Levels: `high` (verified) → `medium` (default) → `low` (stale) → `contested` (conflict detected).
+
+- `contested` → sorted last during injection, labeled `[CONTESTED]` with conflict note
+- `low` → labeled `[LOW CONFIDENCE]`
+- Resolution handled by `/manage-knowledge-audit`
+
+## Capability Routing
+
+When the right Maestro command or skill is unclear, search before acting. Do not choose from memory when a router or discovery command exists.
+
+- Clear development intent, unclear chain: use `/maestro <intent>` to classify the intent, select the chain, create a session, and dispatch it.
+- Unclear command or skill availability: use `/maestro-help` for read-only command, skill, and guide discovery.
+- User asks "how to use", "what commands exist", "what should I use", or "how does Maestro work": route to `/maestro-help`.
+
+Do not hand-pick commands or abandon Maestro capabilities when `/maestro` and `/maestro-help` cover the routing problem.
+
+## Knowledge Infrastructure
+
+For real development tasks, knowledge infrastructure is baseline project infrastructure, not optional convenience. If it is missing, initialize it instead of bypassing it.
+
+Startup checks:
+- If `.workflow/kg/maestro.db` is missing, run `maestro kg init && maestro kg sync`.
+- If `maestro search` reports `bm25-only`, treat it as a missing KG signal and initialize or sync the KG; the same applies when `maestro search --code` returns no code results unexpectedly.
+- For call-chain or symbol analysis, use `maestro kg context <symbol>`, `maestro kg callers <fn>`, or `maestro kg callees <fn>`.
+- Before refactoring, run `maestro kg sync --full`.
+- For graph health, run `maestro wiki health` to inspect orphans, hubs, and broken links.
+
+Do not use "KG is not initialized" as a reason to fall back to blind grep. `kg-auto-init` should cover this path; if it does not, run `maestro kg init` manually.
+
+## Skill Auto-Triggers
+
+When a task matches a specialized Maestro skill, invoke that skill instead of relying on memory.
+
+| Scenario | Skill |
+|----------|-------|
+| Multi-angle code review | `team-review` |
+| Tech debt discovery and remediation | `team-tech-debt` |
+| Security vulnerability audit | `security-audit` |
+| Test coverage gap filling | `team-testing` / `quality-auto-test` |
+| Performance bottleneck optimization | `team-perf-opt` |
+| Architecture optimization | `team-arch-opt` |
+| UI design or polish | `team-uidesign` / `team-ui-polish` |
+| Root-cause debugging | `quality-debug` / `odyssey-debug` |
+| Academic writing or papers | `scholar-*` |
+| Persisting code knowledge into knowhow | `codify-to-knowhow` / `manage-knowhow-capture` |
+| Unclear skill selection | `/maestro-help skills` |
+
+## Explore vs Delegate Boundary
+
+| Scenario | Tool | Reason |
+|----------|------|--------|
+| Multi-angle read-only scan with 3+ prompts | `maestro explore` | Lightweight and sessionless |
+| Single focused lookup | `maestro explore` | Sufficient for narrow discovery |
+| Deep implementation, long analysis, or writes | `maestro delegate` | Session-backed and chainable |
+| Broad research over more than 5 files | `maestro delegate --role explore/research` | Preserves main-session context |
+
+Keep the main session focused on planning, review, and interaction. Delegate heavy work with `--async`; Maestro reports completion through the MCP channel and the `delegate-monitor` hook.
