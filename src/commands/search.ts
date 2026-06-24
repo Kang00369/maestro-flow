@@ -18,6 +18,7 @@ import { truncate, extractSnippet, highlightTerms } from '../utils/cli-format.js
 import { WikiIndexer } from '#maestro-dashboard/wiki/wiki-indexer.js';
 import type { WikiEntry, WikiNodeType } from '#maestro-dashboard/wiki/wiki-types.js';
 import { loadWorkspaceConfig, resolveWorkspaceLinks } from '../config/index.js';
+import { tryDaemonSearch, startDaemon, stopDaemon, spawnDaemon, readDaemonInfo, isDaemonAlive, getDaemonPath } from '../search/daemon.js';
 
 // Valid type filter values — matches WikiNodeType.
 const VALID_TYPES = ['project', 'roadmap', 'spec', 'issue', 'knowhow', 'note', 'domain'] as const;
@@ -85,10 +86,26 @@ export function getLastSearchMeta(): SearchMeta { return _lastSearchMeta; }
 
 export async function runUnifiedSearch(q: string, opts: UnifiedSearchOptions & { skipEmbedding?: boolean }): Promise<SearchResult[]> {
   const limit = opts.limit > 0 ? opts.limit : 20;
-  const indexer = getIndexer();
-
   const candidateLimit = Math.max(limit * 3, 60);
-  const { results: scored, embeddingUsed, embeddingDocs } = await indexer.searchWithMeta(q, candidateLimit, { skipEmbedding: opts.skipEmbedding });
+
+  // Try daemon first (warm ONNX model, no cold-start penalty)
+  const workflowRoot = resolve('.workflow');
+  const daemonResult = await tryDaemonSearch(workflowRoot, q, candidateLimit, opts.skipEmbedding);
+  let scored: Array<{ entry: WikiEntry; score: number }>;
+  let embeddingUsed: boolean;
+  let embeddingDocs: number;
+
+  if (daemonResult?.ok && daemonResult.results) {
+    scored = daemonResult.results;
+    embeddingUsed = daemonResult.embeddingUsed ?? false;
+    embeddingDocs = daemonResult.embeddingDocs ?? 0;
+  } else {
+    const indexer = getIndexer();
+    const result = await indexer.searchWithMeta(q, candidateLimit, { skipEmbedding: opts.skipEmbedding });
+    scored = result.results;
+    embeddingUsed = result.embeddingUsed;
+    embeddingDocs = result.embeddingDocs;
+  }
   _lastSearchMeta = { embeddingUsed, embeddingDocs };
 
   let filtered = scored;
@@ -278,6 +295,68 @@ export function registerSearchCommand(program: Command): void {
           console.log(`  [code:${r.kind}]  ${name}  ${r.detail}${sigTag}${scoreTag}`);
         }
       }
+    });
+
+  // ── Search daemon management ───────────────────────────────────────────
+
+  program
+    .command('search-daemon')
+    .description('Manage the resident search daemon (warm ONNX model)')
+    .argument('<action>', 'start | stop | status')
+    .action(async (action: string) => {
+      const workflowRoot = resolve('.workflow');
+
+      if (action === 'start' || action === 'start-daemon') {
+        const info = readDaemonInfo(workflowRoot);
+        if (info && isDaemonAlive(info)) {
+          console.log(`Search daemon already running (pid=${info.pid}, port=${info.port})`);
+          return;
+        }
+        console.log('Starting search daemon...');
+        const projectPath = process.cwd();
+        const wsConfig = loadWorkspaceConfig(projectPath);
+        const resolved = resolveWorkspaceLinks(projectPath, wsConfig);
+        const linkedWorkspaces = resolved
+          .filter(lw => lw.valid)
+          .map(lw => ({ name: lw.name, workflowRoot: lw.workflowRoot, shareTypes: lw.share }));
+        const { port } = await startDaemon(workflowRoot, { workflowRoot, linkedWorkspaces });
+        console.log(`Search daemon started (pid=${process.pid}, port=${port})`);
+        // Keep process alive
+        return;
+      }
+
+      if (action === 'stop') {
+        const stopped = stopDaemon(workflowRoot);
+        console.log(stopped ? 'Search daemon stopped.' : 'No daemon running.');
+        return;
+      }
+
+      if (action === 'status') {
+        const info = readDaemonInfo(workflowRoot);
+        if (!info) { console.log('Search daemon: not running'); return; }
+        const alive = isDaemonAlive(info);
+        console.log(`Search daemon: ${alive ? 'running' : 'stale (pid dead)'}  pid=${info.pid}  port=${info.port}  started=${info.startedAt}`);
+        if (!alive) try { const { unlinkSync } = await import('node:fs'); unlinkSync(getDaemonPath(workflowRoot)); } catch {}
+        return;
+      }
+
+      console.error(`Unknown action: ${action}. Use: start, stop, status`);
+    });
+
+  // Hidden flag for hook-spawned daemon startup
+  program
+    .command('search-start-daemon', { hidden: true })
+    .action(async () => {
+      const workflowRoot = resolve('.workflow');
+      const projectPath = process.cwd();
+      const wsConfig = loadWorkspaceConfig(projectPath);
+      const resolved = resolveWorkspaceLinks(projectPath, wsConfig);
+      const linkedWorkspaces = resolved
+        .filter(lw => lw.valid)
+        .map(lw => ({ name: lw.name, workflowRoot: lw.workflowRoot, shareTypes: lw.share }));
+      try {
+        await startDaemon(workflowRoot, { workflowRoot, linkedWorkspaces });
+      } catch { process.exit(0); }
     });
 
   program

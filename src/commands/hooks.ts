@@ -92,6 +92,7 @@ export const HOOK_DEFS: Record<string, HookDef> = {
   'kg-unified-injector': { event: 'UserPromptSubmit', level: 'standard', requiresWorkspace: true },
   'kg-unified-injector-agent': { event: 'PreToolUse', matcher: 'Agent', level: 'standard', requiresWorkspace: true },
   'search-cache-invalidator': { event: 'PostToolUse', matcher: 'Write|Edit', level: 'standard', requiresWorkspace: true },
+  'search-daemon-start': { event: 'Notification', level: 'standard', requiresWorkspace: true },
   'workflow-guard': { event: 'PreToolUse', matcher: 'Bash|Write|Edit', level: 'full', requiresWorkspace: true },
   'prompt-guard': { event: 'UserPromptSubmit', level: 'full', requiresWorkspace: false },
 };
@@ -1245,6 +1246,22 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     await indexer.rebuild();
     // Warm embedding index so next search skips cold ONNX load
     indexer.getEmbeddingIndex().catch(() => {});
+  },
+
+  'search-daemon-start': async () => {
+    const config = loadHooksConfig();
+    if (config.toggles['searchDaemonStart'] === false) return;
+
+    const raw = await readStdin();
+    const data = raw ? JSON.parse(raw) : {};
+    const cwd: string = data.cwd ?? process.cwd();
+
+    const workspace = resolveWorkspace({ cwd });
+    if (!workspace) return;
+
+    const workflowRoot = join(workspace, '.workflow');
+    const { spawnDaemon } = await import('../search/daemon.js');
+    await spawnDaemon(workflowRoot);
   },
 };
 
