@@ -306,13 +306,18 @@ Read `.workflow/state.json` and route by condition:
        "milestone_id": null, "source_artifact_ref": null,
        "status": "pending", "goal_ref": null,
        "completion_confirmed": false, "completion_status": null,
-       "completion_evidence": null, "completed_at": null
+       "completion_evidence": null,
+       "completion_summary": null, "completion_decisions": null,
+       "completion_caveats": null, "completion_deferred": null,
+       "completed_at": null
      }],
      "waves": [], "current_step": 0, "status": "running",
      "boundary_contract": {}, "execution_criteria": [],
      "task_decomposition": [{ "id": "G1", "goal": "", "done_when": "", "evidence": "",
-       "status": "pending|done", "completion_confirmed": false, "completed_at": null }],
-     "task_decomposition_all_done": false
+       "status": "pending|done|superseded", "completion_confirmed": false, "completed_at": null,
+       "superseded_by": null, "superseded_at": null, "origin": null }],
+     "task_decomposition_all_done": false,
+     "goal_changelog": []
    }
    ```
    Decomposition fields written ONLY if A_DECOMPOSE_TASKS produced them (additive)
@@ -348,7 +353,7 @@ Direct in-context skill invocation — **replaces the old spawn/wave/CSV mechani
    **--from auto-injection**: 当 step 是 `maestro-plan`，args 含 `{phase}` 但无 `--from` 且无 `--dir`，且 `session.context.analysis_dir` 已填充 → 查 state.json 同 phase+milestone 最新 completed analyze artifact → 注入 `--from analyze:{id}`，写 `step.source_artifact_ref`
 2. Mark step `status="running"`, persist status.json + `update_plan` (this step → in_progress)
 3. **Invoke the skill directly**: execute `$skill {resolved_args}` in coordinator context (NO spawn). Read its produced artifacts directly
-4. On success: capture summary; mark step `status="done"`. **Barrier-context update** (when step is a context-producing skill):
+4. On success: mark step `status="done"`. **Structured completion**: `Bash("maestro ralph complete {idx} --status DONE --summary \"...\" [--decisions \"...\"] [--caveats \"...\"] [--deferred \"...\"]")`（`--summary` MUST，动词开头 ≤100 字）。**Barrier-context update** (when step is a context-producing skill):
    | Skill | Read | Context Updates |
    |-------|------|-----------------|
    | maestro-grill | grill-report.md, state.json | grill_id |
@@ -543,6 +548,8 @@ S_DECISION_EVAL 入口；镜像 maestro-ralph `A_GOAL_AUDIT_EVALUATE`。Condense
 - [ ] --dry-run shows chain + sub-goal summary, no execution
 - [ ] --continue resumes from first pending step
 - [ ] update_goal released on convergence (A_APPLY_GOAL_DONE / A_FINALIZE); held while aborted
+- [ ] 每个 step completion 含 `--summary`（MUST）+ `--decisions/--caveats/--deferred`（SHOULD）
+- [ ] task_decomposition 支持 `superseded` 状态 + `goal_changelog` 审计轨迹
 
 ### Report Format
 
