@@ -374,6 +374,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     id: 'agy-context',
     label: 'Agy Context (GEMINI.md / AGENTS.md)',
     description: 'Antigravity workspace/global instructions',
+    defaultSelected: false,
     sourcePath: join('workflows', 'codex-instructions.md'),
     target: (mode, projectPath) =>
       mode === 'global'
@@ -387,6 +388,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     id: 'agy-md-chinese',
     label: 'Chinese Response (Agy)',
     description: 'Chinese response guidelines → GEMINI.md / AGENTS.md',
+    defaultSelected: false,
     sourcePath: join('workflows', 'chinese-response.md'),
     target: (mode, projectPath) =>
       mode === 'global'
@@ -401,6 +403,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     id: 'agy-skills',
     label: 'Agy Skills',
     description: 'Antigravity skills (commands become slash commands)',
+    defaultSelected: false,
     sourcePath: join('.claude', 'commands'),
     sourceCountDir: join('.claude', 'commands'),
     target: (mode, projectPath) =>
@@ -418,6 +421,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     id: 'agy-agents',
     label: 'Agy Sub-Agents',
     description: 'Antigravity sub-agent definitions (for define_subagent)',
+    defaultSelected: false,
     sourcePath: join('.claude', 'agents'),
     sourceCountDir: join('.claude', 'agents'),
     target: (mode, projectPath) =>
@@ -443,6 +447,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     id: 'agents-standard-md-chinese',
     label: 'Chinese Response (Agents Standard)',
     description: 'Chinese response guidelines → .agents/AGENTS.md',
+    defaultSelected: false,
     sourcePath: join('workflows', 'chinese-response.md'),
     target: (mode, projectPath) =>
       mode === 'global'
@@ -457,6 +462,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     id: 'agents-standard-context',
     label: 'Agent Context (AGENTS.md)',
     description: 'Open-standard .agents/ project instructions',
+    defaultSelected: false,
     sourcePath: join('workflows', 'codex-instructions.md'),
     target: (mode, projectPath) =>
       mode === 'global'
@@ -470,6 +476,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     id: 'agents-standard-skills',
     label: 'Agent Skills — Open Standard',
     description: 'Open-standard .agents/skills/ — portable across all .agents/-aware CLIs and IDEs',
+    defaultSelected: false,
     sourcePath: join('.claude', 'commands'),
     sourceCountDir: join('.claude', 'commands'),
     target: (mode, projectPath) =>
@@ -487,6 +494,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     id: 'agents-standard-agents',
     label: 'Agent Sub-Agents — Open Standard',
     description: 'Open-standard .agents/agents/ for sub-agent role definitions',
+    defaultSelected: false,
     sourcePath: join('.claude', 'agents'),
     sourceCountDir: join('.claude', 'agents'),
     target: (mode, projectPath) =>
