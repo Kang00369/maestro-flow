@@ -217,7 +217,7 @@ If user chooses "Execute from step N": set `$START_STEP = N` (used in 3f to set 
 
 ### 3e: Step-level command resolution (v1)
 
-> **Superseded by `ralph_protocol_version: "1"`.** The command body resolves `command_scope`/`command_path` per execution step via `maestro ralph skills --platform claude --json --quiet`; cross-step gates carry `step.decision`. Do NOT write a per-step `type` field (legacy skill/cli). `--exec` is recorded to `legacy_options.exec_mode` only — it never changes execution. FSM owns step ordering + decision evaluation (control-plane precedence, see command-body invariant 15).
+> **Superseded by `ralph_protocol_version: "2"`.** The command body resolves `command_scope`/`command_path` per execution step via `maestro ralph skills --platform claude --json --quiet`; cross-step gates carry `step.decision`. Do NOT write a per-step `type` field (legacy skill/cli). `--exec` is recorded to `legacy_options.exec_mode` only — it never changes execution. FSM owns step ordering + decision evaluation (control-plane precedence, see command-body invariant 15).
 
 ```
 If execMode is 'cli' or 'internal' → force that type for all steps ("cli" or "skill").
@@ -292,7 +292,7 @@ status.json already created in Step 3g, TodoWrite initialized in Step 3h.
 Skill({ skill: "maestro-ralph-execute" })
 ```
 
-The unified executor discovers the latest running session from `.workflow/.maestro/*/status.json` and executes steps in order. maestro sessions (source: "maestro") are `ralph_protocol_version: "1"`: execution steps load via `maestro ralph next`; any `step.decision` node hands off to `Skill("maestro-ralph")` for evaluation (same mechanism as ralph sessions). Decision nodes ARE supported in maestro sessions.
+The unified executor discovers the latest running session from `.workflow/.maestro/*/status.json` and executes steps in order. maestro sessions (source: "maestro") are `ralph_protocol_version: "2"`: execution steps load via `maestro ralph next`; any `step.decision` node hands off to `Skill("maestro-ralph")` for evaluation (same mechanism as ralph sessions). Decision nodes ARE supported in maestro sessions.
 
 ---
 

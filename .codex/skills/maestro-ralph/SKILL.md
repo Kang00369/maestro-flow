@@ -1,7 +1,7 @@
 ---
 name: maestro-ralph
 description: Use when the optimal command sequence is unclear and needs automated state-based determination
-argument-hint: "<intent> [-y] | status [session-id] | continue [session-id]"
+argument-hint: "<intent> [-y] | status [session-id] | continue [session-id] | --amend [change]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 <purpose>
@@ -54,9 +54,10 @@ $ARGUMENTS — intent text, flags, or keywords.
 **Parse:**
 ```
 -y flag                          → auto_confirm = true
+--amend / -a                     → amend_mode = true (running session 存在时触发目标修改流程)
 .md/.txt path                    → input_doc (supplementary context only, NEVER substitutes lifecycle stages)
 status|continue + session-id     → 当 intent ∈ {status,continue} 且后续 token 匹配 ralph-*|maestro-* → target_session_id
-Remaining                        → intent
+Remaining                        → intent (amend_mode 时为 change_request)
 ```
 
 **State files:**
@@ -100,6 +101,7 @@ S_CONFIRM         — 用户确认                             PERSIST: —
 S_DISPATCH        — 移交 maestro-ralph-execute           PERSIST: —
 S_DECISION_EVAL   — 委托评估质量门                       PERSIST: —
 S_APPLY_VERDICT   — 应用裁决 + 插入命令                  PERSIST: session.steps[], session.passed_gates[]
+S_AMEND_GOAL      — 修改 running session 目标               PERSIST: session.task_decomposition, .boundary_contract, .goal_changelog, .steps[]
 S_FALLBACK        — 请求用户输入                         PERSIST: —
 </states>
 
@@ -108,6 +110,8 @@ S_FALLBACK        — 请求用户输入                         PERSIST: —
 S_PARSE_ROUTE:
   → S_STATUS        WHEN: intent == "status"
   → S_CONTINUE      WHEN: intent == "continue"
+  → S_AMEND_GOAL    WHEN: amend_mode == true AND running session exists
+  → S_FALLBACK      WHEN: amend_mode == true AND no running session  DO: Display: "无 running session，--amend 需要活跃 session"
   → S_DECISION_EVAL WHEN: running session with decision step in "running" status
   → S_RESOLVE_PHASE WHEN: intent is non-empty                  ← phase 必须先于 position
   → S_FALLBACK      WHEN: no intent AND no running session
@@ -187,6 +191,11 @@ S_APPLY_VERDICT:
   GUARD: confidence_score > 95 AND fix AND retry > 0 → suggest proceed
   GUARD: auto_confirm → skip user prompt, apply adjusted verdict
   GUARD: not auto_confirm → request_user_input with override options
+
+S_AMEND_GOAL:
+  → S_DISPATCH      WHEN: change applied + user confirmed    DO: A_AMEND_GOAL
+  → END             WHEN: user cancels
+  GUARD: RISK_LEVEL=high → auto_confirm 无效，强制用户确认
 
 S_FALLBACK:
   → S_PARSE_ROUTE   WHEN: user provides input               DO: request_user_input
@@ -418,7 +427,7 @@ Generate steps from `session.lifecycle_position` to `milestone-complete`（`sess
      - 命中 → `command_scope = "global" | "project"`，`command_path = <绝对 SKILL.md 路径>`
      - 未命中 → `command_scope = "missing"`, `command_path = null`，A_CREATE_SESSION 报错 E006
    - **不在 build 阶段读取 SKILL.md 内容**；`<required_reading>` / `<deferred_reading>` 解析与加载由 `maestro ralph next` CLI 在执行期完成
-10. **每个 step 初始化** `completion_confirmed: false`, `completion_status: null`, `completion_evidence: null`, `deferred_reads: []`, `load: null`（由 `ralph next` 写入）
+10. **每个 step 初始化** `completion_confirmed: false`, `completion_status: null`, `completion_evidence: null`, `completion_summary: null`, `completion_decisions: null`, `completion_caveats: null`, `completion_deferred: null`, `deferred_reads: []`, `load: null`（由 `ralph next` 写入）
 11. **scope_verdict gating**（仅当 chain 起点 = `analyze-macro`）：
     - `scope_verdict ∈ {medium, small}` → 跳过 `roadmap` + `analyze` 两 stage；`plan` 选 standalone 列（`--from analyze:{analyze_macro_id}`），不带 `{phase}`
     - `scope_verdict == large` → 保留 `roadmap` + `analyze`；`plan` 选 phase 列（`{phase}`）
@@ -588,6 +597,21 @@ Runs only when `task_decomposition` present.
 2. Display: ◆ 已达最大重试次数，debug 已执行。请人工介入。
 3. Display: $maestro-ralph continue 恢复
 
+### A_AMEND_GOAL
+
+修改 running session 目标。详细流程：deferred_reading `ralph-amend-goal.md`。
+
+| Phase | 行为 | 产出 |
+|-------|------|------|
+| 1. 快照 | 读 `task_decomposition` + `boundary_contract` + 已完成 steps 的 `completion_summary` | Display: 目标列表 + 进度 |
+| 2. 解析 | `change_request` 非空 → 直接用；为空 → request_user_input（修改/新增/移除/调整边界） | `change_type` + `change_request` |
+| 3. Mini Grill | `maestro delegate --role analyze --mode analysis`：评估影响 | RISK_LEVEL + AFFECTED_GOALS + INVALIDATED_STEPS + NEW_GAPS |
+| 4. 确认 | request_user_input：应用并继续 / 仅改目标 / 取消 | 用户选择 |
+| 5. 应用 | 归档旧目标（`superseded`）→ 写入新目标（`origin: CHG-xxx`）→ 重建链路 → write status.json | handoff $maestro-ralph-execute |
+
+GUARD: `RISK_LEVEL == high` → request_user_input 不跳过（auto_confirm 无效）
+GUARD: 已完成（`status: "done"`）的目标不可 supersede（skip + warn）
+
 </actions>
 
 </state_machine>
@@ -600,7 +624,7 @@ Runs only when `task_decomposition` present.
 {
   "session_id": "ralph-{YYYYMMDD-HHmmss}",
   "source": "ralph", "status": "running",
-  "ralph_protocol_version": "1",   // CLI-driven; absent/0 → legacy inline ralph-execute
+  "ralph_protocol_version": "2",   // CLI-driven; absent/0 → legacy; "1" → basic CLI; "2" → structured completion + enhanced anchor
   "active_step_index": null,       // CLI-managed; only one step held at a time
   "intent": "", "lifecycle_position": "",
   "phase": null, "phase_is_new": false,
@@ -634,6 +658,10 @@ Runs only when `task_decomposition` present.
     "completion_confirmed": false,
     "completion_status": null,
     "completion_evidence": null,
+    "completion_summary": null,      // 一句话总结：做了什么（MUST on DONE）
+    "completion_decisions": null,    // 本 step 做出的关键决策列表
+    "completion_caveats": null,      // 后续 step 需注意的事项
+    "completion_deferred": null,     // 被推迟到后续的工作列表
     "completed_at": null,
     "deferred_reads": [],         // 由 ralph next CLI 解析 SKILL.md 时填充
     "load": null                  // { loaded_at, required_files[], deferred_files[], resolve_version } —— 由 ralph next 写入
@@ -647,10 +675,14 @@ Runs only when `task_decomposition` present.
   "execution_criteria": [],
   "task_decomposition": [
     { "id": "G1", "goal": "", "boundary": "", "done_when": "",
-      "evidence": "", "lifecycle": [], "status": "pending|done",
-      "completion_confirmed": false, "completed_at": null }
+      "evidence": "", "lifecycle": [], "status": "pending|done|superseded",
+      "completion_confirmed": false, "completed_at": null,
+      "superseded_by": null, "superseded_at": null, "origin": null }
   ],
-  "task_decomposition_all_done": false
+  "task_decomposition_all_done": false,
+
+  // goal_changelog: additive; absent → no amendments
+  "goal_changelog": []
 }
 ```
 
@@ -768,5 +800,15 @@ decision:post-goal-audit {retry+1}
 - [ ] Phase-level deferred chaining：plan/execute step 的 `--from`/`--dir` 注入由 A_RESOLVE_ARGS（ralph-execute）运行时完成；build 阶段标记意图，不预知 artifact ID
 - [ ] Phase-level plan step 运行时获得 `--from analyze:{phase_analyze_id}`（由 ralph-execute 从 state.json 查找注入）
 - [ ] Phase-level execute step 运行时获得 `source_artifact_ref = "plan:{id}"`
+- [ ] 每个 step 含 `completion_summary` + `completion_decisions` + `completion_caveats` + `completion_deferred`（初始 null）
+- [ ] `completion_summary` 在 DONE/DONE_WITH_CONCERNS 时为 MUST（由 CLI `--summary` 参数传入）
+- [ ] session_anchor 包含最近 5 个已完成 step 的 `completion_summary` + `completion_caveats`（滑动窗口）
+- [ ] session_anchor 包含 task_decomposition 全局视图（仅 `status != "superseded"` 的目标）
+- [ ] session_anchor 包含 Accumulated Signals（聚合所有 caveats + deferred）
+- [ ] `--amend` 路由到 S_AMEND_GOAL（需 running session）
+- [ ] A_AMEND_GOAL 执行 5 阶段（快照→解析→mini grill→确认→应用），每阶段产出可审计
+- [ ] 旧目标标 `superseded`（`superseded_by` + `superseded_at`），新目标标 `origin: "CHG-xxx"`
+- [ ] `goal_changelog` 记录完整 before/after 快照 + impact_assessment
+- [ ] `RISK_LEVEL=high` 时 amend 不跳过 auto_confirm
 
 </appendix>

@@ -696,7 +696,7 @@ GUARD: 已完成（`status: "done"`）的目标不可 supersede（skip + warn）
 {
   "session_id": "ralph-{YYYYMMDD-HHmmss}",
   "source": "ralph", "status": "running",
-  "ralph_protocol_version": "1",   // CLI-driven; absent/0 → legacy inline ralph-execute
+  "ralph_protocol_version": "2",   // CLI-driven; absent/0 → legacy; "1" → basic CLI; "2" → structured completion + enhanced anchor
   "active_step_index": null,       // CLI-managed; only one step held at a time
   "intent": "", "lifecycle_position": "",
   "phase": null, "phase_is_new": false,
