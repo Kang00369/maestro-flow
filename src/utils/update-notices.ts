@@ -403,3 +403,16 @@ registerNotice({
   ],
   actions: [],
 });
+
+registerNotice({
+  version: '0.5.36',
+  title: 'Session Anchor 锚定 + Search Daemon + API Explore',
+  highlights: [
+    'Session Anchor：每个 step 自动注入 intent/boundary/goal 上下文锚定',
+    'Re-grounding 漂移熔断：周期性意图保真检查 + 漂移安全门',
+    'Search Daemon 常驻进程：ONNX 模型热缓存，搜索响应提速',
+    '新增 api-explore 轻量代码探索 subagent + 独立配置文件',
+    'Boundary Grill 协议：analyze/collab/plan/brainstorm 边界冲突审查',
+  ],
+  actions: [],
+});
