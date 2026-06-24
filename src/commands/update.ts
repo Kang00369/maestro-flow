@@ -22,7 +22,6 @@ import { applyNotices, planNotices, printNoticePlan } from '../utils/update-noti
 const PACKAGE_NAME = 'maestro-flow';
 const REGISTRY_URL = `https://registry.npmjs.org/${PACKAGE_NAME}/latest`;
 const FETCH_TIMEOUT_MS = 8000;
-const VIEW_SERVER_PORT = 3001;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -74,9 +73,8 @@ function execAsync(cmd: string): Promise<{ stdout: string; stderr: string }> {
 // Pre-update: stop view server
 // ---------------------------------------------------------------------------
 
-/**
- * Check if the view server is running.
- */
+const VIEW_SERVER_PORT = 3001;
+
 async function checkViewServer(): Promise<{ status: string; workspace?: string } | null> {
   try {
     const res = await fetch(`http://127.0.0.1:${VIEW_SERVER_PORT}/api/health`, {
@@ -89,17 +87,12 @@ async function checkViewServer(): Promise<{ status: string; workspace?: string }
   }
 }
 
-/**
- * Stop the view server if running to prevent file locks during npm install.
- * Uses 2-stage approach: graceful API shutdown → force kill by port.
- */
 async function stopViewServer(): Promise<boolean> {
   const health = await checkViewServer();
   if (!health) return false;
 
   console.error('  Stopping view server to avoid file locks...');
 
-  // Stage 1: graceful API shutdown
   try {
     await fetch(`http://127.0.0.1:${VIEW_SERVER_PORT}/api/shutdown`, {
       method: 'POST',
@@ -115,7 +108,6 @@ async function stopViewServer(): Promise<boolean> {
     return true;
   }
 
-  // Stage 2: force kill by port
   try {
     if (process.platform === 'win32') {
       const { stdout } = await execAsync(`netstat -ano | findstr :${VIEW_SERVER_PORT}`);
@@ -142,7 +134,7 @@ async function stopViewServer(): Promise<boolean> {
     await new Promise(r => setTimeout(r, 500));
     console.error('  View server stopped.');
   } catch {
-    console.error('  Warning: could not stop view server. If update fails, run `maestro stop` first.');
+    console.error('  Warning: could not stop view server. Run `maestro stop` manually if update fails.');
   }
 
   return true;
@@ -416,7 +408,6 @@ export function registerUpdateCommand(program: Command): void {
       console.error('');
       console.error(`  Installing ${PACKAGE_NAME}@${latest.version}...`);
 
-      // --- Pre-update: stop view server to prevent file locks ---
       const viewServerWasRunning = await stopViewServer();
 
       console.error('');
@@ -435,7 +426,7 @@ export function registerUpdateCommand(program: Command): void {
         console.error('');
         console.error(`  You can try manually: npm install -g ${PACKAGE_NAME}@${latest.version}`);
         if (viewServerWasRunning) {
-          console.error('  Run `maestro view` to restart the dashboard.');
+          console.error('  Warning: view server was stopped — restart it manually if needed.');
         }
         console.error('');
         return;
@@ -453,7 +444,7 @@ export function registerUpdateCommand(program: Command): void {
 
       if (viewServerWasRunning) {
         console.error('');
-        console.error('  Run `maestro view` to restart the dashboard.');
+        console.error('  Note: view server was stopped for the update — restart it manually if needed.');
       }
 
       console.error('');

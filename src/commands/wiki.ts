@@ -736,9 +736,8 @@ async function fetchOrExit(url: string, init?: RequestInit): Promise<Response> {
   try {
     return await fetch(url, init);
   } catch (err) {
-    console.error(`Failed to reach dashboard at ${url}`);
+    console.error(`Failed to reach dashboard API at ${url}`);
     console.error(`  ${(err as Error).message}`);
-    console.error('  Hint: start the dashboard with "maestro view"');
     process.exit(1);
   }
 }
