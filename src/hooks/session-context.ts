@@ -125,7 +125,8 @@ function buildExploreSection(): string | null {
   try {
     const raw = JSON.parse(readFileSync(configPath, 'utf8')) as {
       baseUrl?: string; apiKey?: string; model?: string;
-      endpoints?: Record<string, { baseUrl?: string; apiKey?: string; model?: string }>;
+      endpoints?: Record<string, { baseUrl?: string; apiKey?: string; model?: string; maxTurns?: number }>;
+      maxTurns?: number; concurrency?: number;
     };
 
     const endpoints: string[] = [];
@@ -137,29 +138,18 @@ function buildExploreSection(): string | null {
     if (raw.endpoints) {
       for (const [name, ep] of Object.entries(raw.endpoints)) {
         if (ep.baseUrl && ep.apiKey && ep.model) {
-          endpoints.push(`${name}(${ep.model})`);
+          const turns = ep.maxTurns ? `,${ep.maxTurns}t` : '';
+          endpoints.push(`${name}(${ep.model}${turns})`);
         }
       }
     }
 
     if (endpoints.length === 0) return null;
 
-    // Load explore-usage.md if available for full injection
-    const usagePath = join(homedir(), '.maestro', 'workflows', 'explore-usage.md');
-    if (existsSync(usagePath)) {
-      try {
-        const usage = readFileSync(usagePath, 'utf8').trim();
-        return `## Explore [${endpoints.join(', ')}]\n\n${usage}`;
-      } catch {
-        // Fall through to compact format
-      }
-    }
-
-    return `## Explore\nEndpoints: ${endpoints.join(', ')}\n` +
-      `Prefer \`maestro explore\` for codebase search (read-only, parallel, structured).\n` +
-      `Prompt: \`maestro explore "FIND: <target> SCOPE: src/ EXCLUDE: tests EXPECTED: file:line list"\`\n` +
-      `Multi-prompt: \`maestro explore "p1" "p2" "p3" --json\`\n` +
-      `Serial within same endpoint, parallel across endpoints.`;
+    const parts = [`## Explore`, `Endpoints: ${endpoints.join(', ')}`];
+    if (raw.concurrency) parts.push(`Concurrency: ${raw.concurrency}`);
+    if (raw.maxTurns) parts.push(`MaxTurns: ${raw.maxTurns}`);
+    return parts.join(' | ');
   } catch {
     return null;
   }
