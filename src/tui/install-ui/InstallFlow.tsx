@@ -95,20 +95,17 @@ export function InstallFlow({ pkgRoot, version, initialStep, initialMode, initia
     <Box flexDirection="column" width="100%">
       {/* Header */}
       <Box flexDirection="column" paddingX={1}>
-        <Box flexDirection="column">
+        <Box>
           <Gradient name="fruit">
             <BigText text="MAESTRO" font="slick" />
           </Gradient>
-          <Box marginTop={-2}>
-            <Text dimColor>
-              <BigText text="flow" font="slick" />
-            </Text>
-          </Box>
-          <Box marginLeft={2}>
-            <Text dimColor>{t.install.headerVersion.replace('{version}', version)}</Text>
-          </Box>
         </Box>
-        <Box gap={1}>
+        <Box marginTop={-1} marginLeft={2} gap={2}>
+          <Text dimColor>flow</Text>
+          <Text dimColor>·</Text>
+          <Text dimColor>{t.install.headerVersion.replace('{version}', version)}</Text>
+        </Box>
+        <Box marginTop={1} gap={1}>
           {progressSteps.map((ps, i) => (
             <Text
               key={ps.key}

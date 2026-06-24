@@ -23,15 +23,12 @@ export interface CyberItemProps {
   description: string;
 }
 
-/** Fixed width for label padding to align file counts */
-const LABEL_WIDTH = 16;
-/** Fixed width for file count display */
-const FILE_COL_WIDTH = 10;
+const LABEL_WIDTH = 18;
+const FILE_COL_WIDTH = 12;
 
 function padEnd(str: string, len: number): string {
-  // Visual padding — accounts for wide chars by truncating to len
   if (str.length >= len) return str.slice(0, len);
-  return str + '.'.repeat(len - str.length);
+  return str + ' '.repeat(len - str.length);
 }
 
 export function CyberItem({
@@ -64,8 +61,8 @@ export function CyberItem({
         <Text color={C.neutral}>[{index}] </Text>
         <Text color={C.success}>{checkbox} </Text>
         <Text color={C.successBright} bold>{paddedLabel}</Text>
-        <Text> {filesStr} </Text>
-        <Text dimColor>{description}</Text>
+        <Text color={C.neutral}> {filesStr} </Text>
+        <Text color={C.neutral}>{description}</Text>
       </Box>
     );
   }
@@ -76,8 +73,8 @@ export function CyberItem({
         <Text color={C.neutral}>[{index}] </Text>
         <Text color={C.success}>{checkbox} </Text>
         <Text color={C.success}>{paddedLabel}</Text>
-        <Text> {filesStr} </Text>
-        <Text dimColor>{description}</Text>
+        <Text color={C.neutral}> {filesStr} </Text>
+        <Text color={C.neutral}>{description}</Text>
       </Box>
     );
   }
@@ -88,8 +85,8 @@ export function CyberItem({
         <Text color={C.neutral}>[{index}] </Text>
         <Text color={C.primary}>{checkbox} </Text>
         <Text color={C.primary} bold>{paddedLabel}</Text>
-        <Text> {filesStr} </Text>
-        <Text dimColor>{description}</Text>
+        <Text color={C.neutral}> {filesStr} </Text>
+        <Text color={C.neutral}>{description}</Text>
       </Box>
     );
   }
@@ -100,8 +97,8 @@ export function CyberItem({
       <Text color={C.neutral}>[{index}] </Text>
       <Text color={C.neutral}>{checkbox} </Text>
       <Text>{paddedLabel}</Text>
-      <Text> {filesStr} </Text>
-      <Text dimColor>{description}</Text>
+      <Text color={C.neutral}> {filesStr} </Text>
+      <Text color={C.neutral}>{description}</Text>
     </Box>
   );
 }

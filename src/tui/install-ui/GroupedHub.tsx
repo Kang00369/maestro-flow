@@ -134,18 +134,17 @@ export function GroupedHub({
   return (
     <Box flexDirection="column">
       {/* Scope selector */}
-      <Box>
-        <Text bold color={C.primary}>{t.install.hubScope} </Text>
+      <Box gap={1}>
+        <Text bold color={C.primary}>{t.install.hubScope}</Text>
         <Text color={mode === 'global' ? C.success : C.neutral} bold={mode === 'global'}>
-          {mode === 'global' ? '● ' : '○ '}{t.install.hubGlobal}
+          {mode === 'global' ? SYM.radioOn : SYM.radioOff} {t.install.hubGlobal}
         </Text>
-        <Text>  </Text>
         <Text color={mode === 'project' ? C.success : C.neutral} bold={mode === 'project'}>
-          {mode === 'project' ? '● ' : '○ '}{t.install.hubProject}
+          {mode === 'project' ? SYM.radioOn : SYM.radioOff} {t.install.hubProject}
         </Text>
-        <Text dimColor>  [g/p]</Text>
+        <Text dimColor>[g/p]</Text>
         {lastInstallDate && (
-          <Text dimColor>  {t.install.hubLastInstall.replace('{date}', lastInstallDate)}</Text>
+          <Text dimColor>{'·'} {t.install.hubLastInstall.replace('{date}', lastInstallDate)}</Text>
         )}
       </Box>
 
@@ -157,22 +156,22 @@ export function GroupedHub({
             const groupItems = flat.filter((e) => e.groupIdx === gi);
             return (
               <Box key={group.id} flexDirection="column">
-                <Text color={C.primary}>{'─'.repeat(2)} {group.title} {'─'.repeat(Math.max(0, 36 - group.title.length))}</Text>
+                <Text color={C.primary}>{'─'.repeat(2)} {group.title} {'─'.repeat(Math.max(0, 38 - group.title.length))}</Text>
                 {groupItems.map((entry) => {
                   const idx = flatIndexMap.get(`${entry.groupIdx}-${entry.itemIdx}`) ?? 0;
                   const hl = cursor === idx;
                   const item = entry.item;
                   return (
                     <Box key={item.id}>
-                      <Text color={hl ? C.primary : C.neutral}> </Text>
+                      <Text color={hl ? C.primary : C.neutral}>{hl ? SYM.cursor : ' '} </Text>
                       <Text color={item.enabled ? (hl ? C.successBright : C.success) : C.neutral}>
                         {item.enabled ? SYM.checkOn : SYM.checkOff}
                       </Text>
                       <Text> </Text>
                       <Text color={hl ? C.primary : undefined} bold={hl}>
-                        {item.label.padEnd(16)}
+                        {item.label.padEnd(18)}
                       </Text>
-                      <Text dimColor>{item.enabled ? item.summary : '—'}</Text>
+                      <Text color={item.enabled ? C.neutral : C.neutral}>{item.enabled ? item.summary : '—'}</Text>
                     </Box>
                   );
                 })}
@@ -182,12 +181,13 @@ export function GroupedHub({
           })}
 
           {/* Action rows */}
-          <Box flexDirection="column" marginTop={0}>
+          <Box flexDirection="column" marginTop={1}>
+            <Text color={C.primary}>{'─'.repeat(40)}</Text>
             <Text
-              color={cursor === flat.length ? C.successBright : C.neutral}
-              bold={cursor === flat.length}
+              color={cursor === flat.length ? C.successBright : C.success}
+              bold
             >
-              {cursor === flat.length ? SYM.cursor : ' '} {t.install.hubExecuteInstall}
+              {cursor === flat.length ? SYM.cursor : ' '} {'▶'} {t.install.hubExecuteInstall}
             </Text>
             <Text
               color={cursor === flat.length + 1 ? C.primary : C.neutral}
@@ -211,11 +211,13 @@ export function GroupedHub({
             borderStyle="single"
             borderColor={C.neutral}
             paddingX={1}
-            width={30}
+            width={38}
             marginLeft={2}
           >
             <Text bold color={C.primary}>{focusedItem.label}</Text>
-            <Text dimColor wrap="wrap">{focusedItem.detail}</Text>
+            <Box marginTop={1}>
+              <Text wrap="wrap">{focusedItem.detail}</Text>
+            </Box>
           </Box>
         )}
       </Box>
@@ -270,7 +272,7 @@ export function buildGroupedHubItems(
           id: 'components',
           label: t.install.hubLabelComponents,
           enabled: enabled.components,
-          summary: `${summaries.componentCount} sel · ${summaries.fileCount}f`,
+          summary: `${summaries.componentCount} selected · ${summaries.fileCount} files`,
           detail: t.install.hubDetailComponents.replace('{count}', String(summaries.componentCount)).replace('{files}', String(summaries.fileCount)),
         },
         {
