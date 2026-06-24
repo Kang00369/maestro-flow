@@ -12,6 +12,9 @@ import {
   loadSessionArchiveEntries,
   loadVirtualEntries,
   loadVirtualJsonEntries,
+  loadClaudeCodeSessions,
+  loadCodexSessions,
+  cwdToClaudeProjectSlug,
 } from './virtual-wiki-adapters.js';
 import { homedir } from 'node:os';
 import { existsSync, readdirSync } from 'node:fs';
@@ -762,6 +765,40 @@ export class WikiIndexer {
         const artifactsDir = join(milestonesRoot, m, 'artifacts');
         if (!existsSync(artifactsDir)) continue;
         out.push(...(await this.scanSessionArchives(artifactsDir)));
+      }
+    }
+
+    // CLI sessions: Claude Code (~/.claude/) and Codex (~/.codex/)
+    out.push(...(await this.scanCliSessions()));
+
+    return out;
+  }
+
+  private async scanCliSessions(): Promise<WikiEntry[]> {
+    const out: WikiEntry[] = [];
+    const projectCwd = dirname(this.workflowRoot);
+    const home = homedir();
+    const maxAgeDays = 90;
+    const maxFiles = 100;
+
+    // Claude Code: ~/.claude/projects/{project-slug}/*.jsonl
+    const projectSlug = cwdToClaudeProjectSlug(projectCwd);
+    const claudeProjectDir = join(home, '.claude', 'projects', projectSlug);
+    if (existsSync(claudeProjectDir)) {
+      try {
+        out.push(...(await loadClaudeCodeSessions(claudeProjectDir, projectSlug, maxAgeDays, maxFiles)));
+      } catch {
+        // Best-effort — don't break the index if session scan fails
+      }
+    }
+
+    // Codex: ~/.codex/sessions/**/*.jsonl (filtered by project cwd)
+    const codexRoot = join(home, '.codex');
+    if (existsSync(join(codexRoot, 'sessions'))) {
+      try {
+        out.push(...(await loadCodexSessions(codexRoot, projectCwd, maxAgeDays, maxFiles)));
+      } catch {
+        // Best-effort
       }
     }
 

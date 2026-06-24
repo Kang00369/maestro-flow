@@ -213,6 +213,13 @@ const SCRATCH_FIELD_CONFIGS: Record<FieldName, FieldConfig> = {
   body:    { boost: 0.3, b: 0.75 },
 };
 
+const SESSION_FIELD_CONFIGS: Record<FieldName, FieldConfig> = {
+  title:   { boost: 2,   b: 0.3  },
+  summary: { boost: 0.5, b: 0.75 },
+  tags:    { boost: 1,   b: 0    },
+  body:    { boost: 0.5, b: 0.75 },
+};
+
 // ---------------------------------------------------------------------------
 // Public types — kept unchanged for backward compatibility
 // ---------------------------------------------------------------------------
@@ -223,7 +230,7 @@ export interface Posting {
   tf: number;
 }
 
-export type FieldConfigKey = 'default' | 'kg' | 'scratch';
+export type FieldConfigKey = 'default' | 'kg' | 'scratch' | 'session';
 
 export interface InvertedIndex {
   /** @deprecated Legacy flat postings — not used by BM25F scoring. */
@@ -330,6 +337,11 @@ function isScratchDoc(entry: WikiEntry): boolean {
   return entry.ext?.virtualKind === 'scratch-doc';
 }
 
+function isSessionEntry(entry: WikiEntry): boolean {
+  const vk = entry.ext?.virtualKind;
+  return vk === 'claude-session' || vk === 'codex-session';
+}
+
 function extractFieldTexts(entry: WikiEntry): Record<FieldName, string> {
   return {
     title: entry.title,
@@ -342,6 +354,7 @@ function extractFieldTexts(entry: WikiEntry): Record<FieldName, string> {
 function getFieldConfigKey(entry: WikiEntry): FieldConfigKey {
   if (isKgVirtual(entry)) return 'kg';
   if (isScratchDoc(entry)) return 'scratch';
+  if (isSessionEntry(entry)) return 'session';
   return 'default';
 }
 
@@ -349,6 +362,7 @@ const FIELD_CONFIG_MAP: Record<FieldConfigKey, Record<FieldName, FieldConfig>> =
   default: FIELD_CONFIGS,
   kg: KG_FIELD_CONFIGS,
   scratch: SCRATCH_FIELD_CONFIGS,
+  session: SESSION_FIELD_CONFIGS,
 };
 
 function getFieldConfigs(entry: WikiEntry): Record<FieldName, FieldConfig> {
