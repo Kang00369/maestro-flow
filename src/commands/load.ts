@@ -1,21 +1,20 @@
 /**
  * Load Command — Unified knowledge loading (specs, wiki, sessions).
  *
- * Replaces separate `spec load` and `wiki load` as the primary entry point.
- *   maestro load <ids...>             — by wiki ID
- *   maestro load --category coding    — specs by category
- *   maestro load --type session       — recent sessions
- *   maestro load --type knowhow       — knowhow entries
+ *   maestro load --type session --list        — list recent sessions
+ *   maestro load --type session               — load recent sessions
+ *   maestro load --type spec --category coding — load coding specs
+ *   maestro load <ids...>                      — load by ID
  */
 
 import type { Command } from 'commander';
 import { resolve, join } from 'node:path';
 
+import { truncate } from '../utils/cli-format.js';
 import { WikiIndexer } from '#maestro-dashboard/wiki/wiki-indexer.js';
 import type { WikiEntry } from '#maestro-dashboard/wiki/wiki-types.js';
 import { loadWorkspaceConfig, resolveWorkspaceLinks } from '../config/index.js';
 
-// Types accepted by --type (including virtual aliases)
 const VALID_TYPES = ['spec', 'knowhow', 'note', 'domain', 'issue', 'project', 'roadmap', 'session', 'scratch'] as const;
 type LoadType = (typeof VALID_TYPES)[number];
 
@@ -35,16 +34,20 @@ function getIndexer(): WikiIndexer {
   return _indexer;
 }
 
-function matchesTypeFilter(entry: WikiEntry, type: LoadType): boolean {
+function matchesType(entry: WikiEntry, type: LoadType): boolean {
   if (type === 'session') return entry.category === 'session';
   if (type === 'scratch') return entry.category === 'scratch';
   return entry.type === type;
 }
 
+function displayType(e: WikiEntry): string {
+  if (e.category === 'session') return 'session';
+  if (e.category === 'scratch') return 'scratch';
+  return e.type;
+}
+
 function formatEntry(e: WikiEntry): string {
-  const typeBadge = e.category === 'session' ? 'session'
-    : e.category === 'scratch' ? 'scratch'
-    : e.type;
+  const badge = displayType(e);
   const catTag = e.category && e.category !== 'session' && e.category !== 'scratch'
     ? ` [${e.category}]` : '';
   const codePaths = Array.isArray(e.ext?.codePaths)
@@ -53,21 +56,33 @@ function formatEntry(e: WikiEntry): string {
     ? `\n\n[editedFiles: ${(e.ext.editedFiles as string[]).join(', ')}]` : '';
   const related = e.related.length > 0
     ? `\n[related: ${e.related.join(', ')}]` : '';
-  return `## [${typeBadge}]${catTag} ${e.title}\n\n${e.body || e.summary}${codePaths}${editedFiles}${related}`;
+  return `## [${badge}]${catTag} ${e.title}\n\n${e.body || e.summary}${codePaths}${editedFiles}${related}`;
 }
 
-function entryToJson(e: WikiEntry): Record<string, unknown> {
+function formatListLine(e: WikiEntry): string {
+  const badge = displayType(e);
+  const catTag = e.category && e.category !== 'session' && e.category !== 'scratch'
+    ? `  ${e.category}` : '';
+  const date = e.updated.slice(0, 10);
+  const title = truncate(e.title, 50);
+  return `  [${badge}]${catTag}  ${e.id}  ${title}  (${date})`;
+}
+
+function entryToJson(e: WikiEntry, brief: boolean): Record<string, unknown> {
+  const base: Record<string, unknown> = {
+    id: e.id, type: e.type, title: e.title,
+    category: e.category, updated: e.updated,
+  };
+  if (brief) {
+    base.summary = e.summary;
+    return base;
+  }
   return {
-    id: e.id,
-    type: e.type,
-    title: e.title,
-    summary: e.summary,
-    body: e.body,
-    category: e.category,
+    ...base,
+    summary: e.summary, body: e.body,
     related: e.related,
     codePaths: e.ext?.codePaths ?? null,
     editedFiles: e.ext?.editedFiles ?? null,
-    updated: e.updated,
   };
 }
 
@@ -76,28 +91,38 @@ export function registerLoadCommand(program: Command): void {
     .command('load [ids...]')
     .description('Unified knowledge loading — specs, wiki, sessions')
     .option('--type <type>', `Filter by type: ${VALID_TYPES.join(', ')}`)
-    .option('--category <cat>', 'Filter by category (e.g. coding, arch, debug, session, recipe)')
+    .option('--category <cat>', 'Filter by category (e.g. coding, arch, debug, recipe)')
     .option('--keyword <word>', 'Filter entries by keyword in title/body')
+    .option('--list', 'List matching entries (compact, no body)')
     .option('--scope <scope>', 'Spec scope: project|global|team|personal (default: project)')
-    .option('--limit <n>', 'Max entries to load (default: 10 for type filter, unlimited for IDs)', '10')
+    .option('--limit <n>', 'Max entries (default: 20 for --list, 10 for load)', '')
     .option('--json', 'Output as JSON')
     .action(async (ids: string[], opts) => {
       const hasIds = ids.length > 0;
-      const hasFilters = opts.type || opts.category;
+      const isList = opts.list === true;
 
-      if (!hasIds && !hasFilters) {
-        console.error('Usage: maestro load <ids...> or maestro load --type <type> [--category <cat>]');
+      if (!hasIds && !opts.type) {
+        console.error('Usage: maestro load --type <type> [--list] [--category <cat>]');
+        console.error('       maestro load <ids...>');
+        console.error(`Types: ${VALID_TYPES.join(', ')}`);
         process.exit(1);
       }
 
-      // spec category shortcut: --category coding → use spec-loader
-      if (!hasIds && opts.category && !opts.type) {
+      if (opts.type && !VALID_TYPES.includes(opts.type)) {
+        console.error(`Error: --type must be one of ${VALID_TYPES.join(', ')}`);
+        process.exit(1);
+      }
+
+      // --type spec (non-list): delegate to spec-loader for formatted output
+      if (!hasIds && !isList && opts.type === 'spec') {
         await loadBySpecCategory(opts);
         return;
       }
 
       const indexer = getIndexer();
       const index = await indexer.get();
+      const defaultLimit = isList ? 20 : 10;
+      const limit = opts.limit ? parseInt(opts.limit, 10) : defaultLimit;
       let entries: WikiEntry[];
 
       if (hasIds) {
@@ -105,26 +130,14 @@ export function registerLoadCommand(program: Command): void {
           .map(id => index.byId[id])
           .filter((e): e is WikiEntry => Boolean(e));
         const missing = ids.filter(id => !index.byId[id]);
-        if (missing.length > 0) {
-          console.error(`Not found: ${missing.join(', ')}`);
-        }
+        if (missing.length > 0) console.error(`Not found: ${missing.join(', ')}`);
       } else {
-        const limit = parseInt(opts.limit, 10) || 10;
-        let pool = index.entries;
-
-        if (opts.type) {
-          const type = opts.type as LoadType;
-          if (!VALID_TYPES.includes(type)) {
-            console.error(`Error: --type must be one of ${VALID_TYPES.join(', ')}`);
-            process.exit(1);
-          }
-          pool = pool.filter(e => matchesTypeFilter(e, type));
-        }
+        const type = opts.type as LoadType;
+        let pool = index.entries.filter(e => matchesType(e, type));
 
         if (opts.category) {
           pool = pool.filter(e => e.category === opts.category);
         }
-
         if (opts.keyword) {
           const kw = opts.keyword.toLowerCase();
           pool = pool.filter(e =>
@@ -134,8 +147,6 @@ export function registerLoadCommand(program: Command): void {
           );
         }
 
-        // Sort by updated date (newest first) for session/scratch; by title for others
-        const type = opts.type as LoadType | undefined;
         if (type === 'session' || type === 'scratch') {
           pool.sort((a, b) => new Date(b.updated).getTime() - new Date(a.updated).getTime());
         } else {
@@ -150,14 +161,24 @@ export function registerLoadCommand(program: Command): void {
         return;
       }
 
+      // --json
       if (opts.json) {
         console.log(JSON.stringify({
           totalLoaded: entries.length,
-          entries: entries.map(entryToJson),
+          entries: entries.map(e => entryToJson(e, isList)),
         }, null, 2));
         return;
       }
 
+      // --list: compact one-line-per-entry
+      if (isList) {
+        const type = opts.type ?? 'mixed';
+        console.log(`${type}: ${entries.length} entries`);
+        for (const e of entries) console.log(formatListLine(e));
+        return;
+      }
+
+      // Full load
       const sections = entries.map(formatEntry);
       console.log(`# Loaded ${entries.length} entries\n\n---\n\n${sections.join('\n\n---\n\n')}`);
     });
