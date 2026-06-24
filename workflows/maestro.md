@@ -1,7 +1,7 @@
 # Workflow: maestro
 
 Intelligent coordinator that routes user intent to optimal command chain based on project state.
-Builds a `ralph_protocol_version: "1"` session: every executable step carries `skill,args,stage,scope,command_scope,command_path`; every cross-step gate is a `step.decision` node. All execution dispatched to unified executor (`maestro-ralph-execute`); the command body (`.claude/commands/maestro.md`) owns session build + dispatch. `--exec` is legacy input only — recorded to `legacy_options.exec_mode`, never changes execution. This brain is consumed for **classification only** (intent → task_type → chain); it does NOT prescribe execution semantics.
+Builds a `ralph_protocol_version: "2"` session: every executable step carries `skill,args,stage,scope,command_scope,command_path`; every cross-step gate is a `step.decision` node. All execution dispatched to unified executor (`maestro-ralph-execute`); the command body (`.claude/commands/maestro.md`) owns session build + dispatch. `--exec` is legacy input only — recorded to `legacy_options.exec_mode`, never changes execution. This brain is consumed for **classification only** (intent → task_type → chain); it does NOT prescribe execution semantics.
 
 **Prerequisites:**
 - None for initial invocation (can bootstrap)

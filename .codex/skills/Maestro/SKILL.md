@@ -292,6 +292,7 @@ Read `.workflow/state.json` and route by condition:
    ```json
    {
      "session_id", "source": "maestro", "intent", "task_type", "chain_name",
+     "ralph_protocol_version": "2", "active_step_index": null,
      "phase", "phase_is_new": false, "milestone": "",
      "scope_verdict": null, "analyze_macro_id": null, "blueprint_id": null,
      "auto_mode": false,

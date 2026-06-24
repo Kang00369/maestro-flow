@@ -150,7 +150,7 @@ GUARD: 用户选"应用并继续"
    {change_type} — {reason}
    Risk: {RISK_LEVEL} | Superseded: {n} | Added: {n} | Skipped steps: {n} | Inserted steps: {n}
    ```
-3. Handoff: `Skill({ skill: "maestro-ralph-execute" })`
+3. Handoff → maestro-ralph-execute（平台适配：Claude 用 `Skill()`，Codex 用 `$` 直调）
 
 ---
 

@@ -186,12 +186,18 @@ S_FALLBACK:
        "milestone_id": null, "source_artifact_ref": null,
        "status": "pending", "goal_ref": null,
        "completion_confirmed": false, "completion_status": null,
-       "completion_evidence": null, "completed_at": null,
+       "completion_evidence": null,
+       "completion_summary": null, "completion_decisions": null,
+       "completion_caveats": null, "completion_deferred": null,
+       "completed_at": null,
        "deferred_reads": [], "load": null
      }],
      "waves": [], "current_step": 0, "status": "running",
      "boundary_contract": {}, "execution_criteria": [],
-     "task_decomposition": [], "task_decomposition_all_done": false
+     "task_decomposition": [{ "status": "pending|done|superseded",
+       "superseded_by": null, "superseded_at": null, "origin": null }],
+     "task_decomposition_all_done": false,
+     "goal_changelog": []
    }
    ```
 3. Validate: 所有 step 的 `command_scope != "missing"`，否则 raise E005 列出缺失 skill

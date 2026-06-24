@@ -686,7 +686,15 @@ GUARD: 已完成（`status: "done"`）的目标不可 supersede（skip + warn）
   "task_decomposition_all_done": false,
 
   // goal_changelog: additive; absent → no amendments
-  "goal_changelog": []
+  "goal_changelog": [
+    { "id": "CHG-001", "timestamp": "{ISO}",
+      "change_type": "modify|add|remove|boundary",
+      "reason": "变更描述",
+      "impact_assessment": { "risk_level": "low|medium|high",
+        "invalidated_steps": [], "new_steps_inserted": 0 },
+      "before": { "goals": [{"id":"G1","goal":"...","done_when":"..."}] },
+      "after":  { "goals": [{"id":"G1v2","goal":"...","done_when":"..."}] } }
+  ]
 }
 ```
 
