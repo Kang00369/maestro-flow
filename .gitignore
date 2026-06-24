@@ -3,6 +3,9 @@ dist/
 dist-server/
 .tmp/
 *.log
+# Python bytecode (generated when running skill scripts, e.g. team-adversarial-swarm/scripts)
+__pycache__/
+*.pyc
 .env
 .env.*
 .DS_Store
