@@ -1,9 +1,5 @@
 # Debug Workflow
 
-Scientific method debugging with subagent isolation. Three modes: **Standalone** (user describes issue), **From UAT** (`--from-uat`, pre-filled symptoms), **Parallel** (`--parallel`, concurrent agents per gap cluster).
-
-Output: `understanding.md` + `evidence.ndjson` per investigation.
-
 ---
 
 ## Iron Law

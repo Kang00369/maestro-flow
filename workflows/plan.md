@@ -76,8 +76,6 @@ When plan resolves to `scope == "standalone"` AND `state.json.current_milestone 
 5. Use this milestone ID for artifact registration (P5 Step 4)
 ```
 
-This ensures downstream commands (verify, milestone-audit, milestone-complete) have a valid milestone context without requiring roadmap.
-
 **Backward compatibility:** If `state.json.milestones[]` already has entries with `current_milestone != null`, skip creation (existing milestone takes precedence). Missing `type` field on legacy milestones defaults to `"standard"`.
 
 ---

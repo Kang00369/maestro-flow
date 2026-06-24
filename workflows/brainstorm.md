@@ -1,7 +1,5 @@
 # Workflow: Brainstorm
 
-Dual-mode brainstorming: auto pipeline (full multi-role analysis) or single role analysis.
-
 ## Architecture
 
 ```

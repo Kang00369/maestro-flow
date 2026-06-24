@@ -525,8 +525,6 @@ Implementer's choice. Research suggests: {relevant finding from researchContext}
 (e.g., "Standard Stack recommends React Query for server state. Common pitfall: avoid mixing with Redux for async.")
 ```
 
-This makes research findings visible to the planner through context.md without imposing hard constraints.
-
 **8.5: Write context.md**
 
 Write to `OUTPUT_DIR/context.md`:

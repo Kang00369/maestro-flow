@@ -204,7 +204,6 @@ Uses the native `maestro kg index` command (`src/graph/analyzers/fs-analyzer.ts`
 maestro kg index --src "$PROJECT_ROOT/src"
 ```
 
-This single command performs:
   - File system scan and code entity extraction (nodes, edges)
   - Import/call graph analysis and test pairing (tested_by edges)
   - Layer classification and topological tour generation

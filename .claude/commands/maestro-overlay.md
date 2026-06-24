@@ -142,8 +142,6 @@ Run:
 maestro overlay add ~/.maestro/overlays/<slug>.json
 ```
 
-This validates the overlay, copies it into place (idempotent), and applies it across all known install scopes. On validation failure, fix the JSON and re-run.
-
 ### 5. Report
 
 Show the user:

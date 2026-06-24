@@ -159,8 +159,6 @@ For each created TASK-{NNN}.json that has issue_id:
   Append history entry: { action: "planned", at: <ISO>, by: "maestro-plan", summary: "Linked to TASK-{NNN}" }
 ```
 
-This ensures issue → TASK traceability. The `task_refs[]` and `task_plan_dir` fields on the issue allow the dashboard to resolve and display associated TASK details.
-
 ### Mode: Revise / Check
 
 Follow workflow plan.md § "Revise Mode" and § "Check Mode" respectively. These modes bypass the standard P1-P5 create pipeline.

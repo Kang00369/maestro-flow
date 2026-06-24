@@ -1,7 +1,5 @@
 # Maestro for Antigravity CLI
 
-Workflow orchestration CLI with MCP endpoint support and extensible architecture, adapted for Antigravity CLI tooling.
-
 - **Coding Philosophy**: @~/.maestro/workflows/coding-philosophy.md
 
 ## Delegate & CLI
@@ -10,8 +8,6 @@ Workflow orchestration CLI with MCP endpoint support and extensible architecture
 - **CLI Endpoints Config**: @~/.maestro/cli-tools.json
 
 **Strictly follow the cli-tools.json configuration**
-
-Available CLI endpoints are dynamically defined by the config file. Use `maestro delegate --to agy` to dispatch tasks to the Antigravity CLI.
 
 ## Antigravity Tool Priority
 

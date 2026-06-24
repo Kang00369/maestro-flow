@@ -1,6 +1,5 @@
 # Boundary Grill — Embedded Mini-Review Protocol
 
-Lightweight adversarial review triggered inline when analyze / collab / plan / brainstorm detect boundary conflicts. NOT a standalone command.
 
 ## Conflict Types
 

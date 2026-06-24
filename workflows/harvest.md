@@ -1,6 +1,5 @@
 # Harvest Workflow
 
-Extract knowledge from **any workflow artifact** (analysis, brainstorm, debug, lite-plan/fix, scratchpad, sessions) and route into wiki / spec / issue stores.
 
 ---
 
@@ -259,8 +258,6 @@ For each routed item, record in `.workflow/harvest/harvest-log.jsonl`:
   "confidence": 0.85
 }
 ```
-
-This log prevents duplicate harvesting in future runs.
 
 ---
 

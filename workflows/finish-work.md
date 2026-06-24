@@ -1,7 +1,5 @@
 # Workflow: finish-work
 
-Last step of session commands. Inline-extracts spec/knowhow from this single session, then writes `archive.json` so the session enters `wiki search` (strategy 2: only sealed/archived sessions are indexed).
-
 ## Inputs
 
 Caller passes: `SESSION_DIR`, `SESSION_TYPE` (grill | brainstorm | analyze | blueprint | plan | execute | verify), `SESSION_ID`, `LINKED_MILESTONE` (optional).
@@ -129,8 +127,6 @@ Next: /maestro-milestone-complete will flip lifecycle.status → archived and pr
 ```
 
 ## Idempotency
-
-Re-running on same session: archive.json overwritten with fresh timestamps. Steps 2-3 skipped when existing `archive.json.extraction.harvested == true` (avoids duplicate spec/knowhow). Force re-extract: delete `archive.json` first.
 
 ## Boundary
 
