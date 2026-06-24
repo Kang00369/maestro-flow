@@ -198,3 +198,5 @@ When a task matches a specialized Maestro skill, invoke that skill instead of re
 | Broad research over more than 5 files | `maestro delegate --role explore/research` | Preserves main-session context |
 
 Keep the main session focused on planning, review, and interaction. Delegate heavy work with `--async`; Maestro reports completion through the MCP channel and the `delegate-monitor` hook.
+
+Multi-agent write work must use worktrees. When multiple agents may write in parallel, including multiple Codex delegates, CSV Wave agent fanout, or team execution, each agent must work in an independent git worktree when the project is inside a git repository. Use paths such as `maestro delegate --cd <worktree>` or agent isolation settings such as `isolation: "worktree"` so parallel agents do not overwrite one another in the same working tree. Single-agent serial tasks are not subject to this rule.
