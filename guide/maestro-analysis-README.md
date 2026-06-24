@@ -171,6 +171,8 @@
 - **P2 C 类散文层**：R3.1 Requirements 回读 · R2/R3.3/R4/R5/R9-1 · 架构档「正确处理引擎大脑」（R1.1 三路由/三引擎，不退役、单独正确处理）。
 - **B 类（设计，需产品决策）**：R7-1/R7-3/R8/H1/H3/H5——是否把 Maestro 从「LLM 灵活」推向「确定性强制」。
 
+> **完整排序 backlog**（FIX-01~20 + DECIDE-01~03，含验证门/依赖链/状态）→ [maestro-fix-backlog.md](./maestro-fix-backlog.md)
+
 ---
 
 ## 借鉴地图（harness-cli → Maestro）
