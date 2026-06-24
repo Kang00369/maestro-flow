@@ -794,11 +794,28 @@ function stripCommandTags(content: string): string {
     .trim();
 }
 
-function isSystemMessage(content: string): boolean {
-  return content.startsWith('Caveat:')
-    || content.startsWith('<local-command-caveat>')
-    || content.startsWith('<system-reminder>')
-    || content.trim().length === 0;
+const NOISE_PREFIXES = ['Caveat:', '<local-command-caveat>', '<system-reminder>', 'No response requested'];
+const NOISE_COMMANDS = new Set(['/clear', '/help', '/config', '/compact', 'clear', 'help']);
+
+function isNoiseMessage(content: string): boolean {
+  const t = content.trim();
+  if (t.length === 0) return true;
+  if (NOISE_COMMANDS.has(t)) return true;
+  for (const p of NOISE_PREFIXES) { if (t.startsWith(p)) return true; }
+  return false;
+}
+
+const CODEX_PROTOCOL_MARKERS = ['# Analysis Mode Protocol', '# Write Mode Protocol', 'PURPOSE:', '## Mode Definition', '## Prompt Structure', '## Operation Boundaries'];
+
+function isCodexNoiseMessage(msg: string): boolean {
+  if (msg.length > 500) {
+    const head = msg.slice(0, 200);
+    for (const m of CODEX_PROTOCOL_MARKERS) { if (head.includes(m)) return true; }
+  }
+  if (msg.length > 3000) return true;
+  const t = msg.trim();
+  if (t.length === 0) return true;
+  return false;
 }
 
 function extractCommands(content: string): string[] {
@@ -823,25 +840,27 @@ function buildSessionBody(meta: {
   commands: string[];
 }): string {
   const lines: string[] = [`# ${meta.title}`, ''];
-  lines.push(`- **Platform**: ${meta.platform}`);
-  if (meta.projectSlug) lines.push(`- **Project**: ${meta.projectSlug}`);
-  lines.push(`- **CWD**: ${meta.cwd}`);
-  if (meta.branch) lines.push(`- **Branch**: ${meta.branch}`);
+
+  const infoParts = [meta.platform];
+  if (meta.projectSlug) infoParts.push(meta.projectSlug);
+  infoParts.push(meta.cwd);
+  if (meta.branch) infoParts.push(`br:${meta.branch}`);
   if (meta.firstTs && meta.lastTs) {
-    lines.push(`- **Period**: ${meta.firstTs.slice(0, 19)} — ${meta.lastTs.slice(0, 19)}`);
+    infoParts.push(`${meta.firstTs.slice(0, 16)} — ${meta.lastTs.slice(11, 16)}`);
   }
-  lines.push(`- **Turns**: ${meta.turnCount}`);
+  infoParts.push(`${meta.turnCount}t`);
+  lines.push(infoParts.join(' | '));
 
   if (meta.queries.length > 0) {
-    lines.push('', '## Queries');
-    for (let i = 0; i < meta.queries.length; i++) {
-      lines.push(`${i + 1}. ${meta.queries[i]}`);
-    }
+    lines.push('', '## Q');
+    for (const q of meta.queries) lines.push(`- ${q}`);
   }
 
   if (meta.commands.length > 0) {
-    lines.push('', '## Commands');
-    for (const cmd of meta.commands) lines.push(`- ${cmd}`);
+    const meaningful = meta.commands.filter(c => !NOISE_COMMANDS.has(c));
+    if (meaningful.length > 0) {
+      lines.push('', `Cmds: ${meaningful.join(', ')}`);
+    }
   }
 
   return lines.join('\n');
@@ -893,9 +912,9 @@ export function adaptClaudeCodeSession(
 
       for (const cmd of extractCommands(content)) commandSet.add(cmd);
 
-      if (queries.length < MAX_USER_QUERIES && content && !isSystemMessage(content)) {
+      if (queries.length < MAX_USER_QUERIES && content) {
         const clean = stripCommandTags(content).slice(0, MAX_QUERY_LENGTH);
-        if (clean.length > 5) queries.push(clean);
+        if (clean.length > 5 && !isNoiseMessage(clean)) queries.push(clean);
       }
     }
 
@@ -923,10 +942,11 @@ export function adaptClaudeCodeSession(
     commands: [...commandSet],
   });
 
+  const meaningfulCmds = [...commandSet].filter(c => !NOISE_COMMANDS.has(c));
   const tags: string[] = ['session', 'claude'];
   if (projectSlug) tags.push(projectSlug);
   if (branch) tags.push(branch);
-  for (const cmd of commandSet) tags.push(cmd);
+  for (const cmd of meaningfulCmds) tags.push(cmd);
 
   return {
     id: `cc-session-${slug}`,
@@ -1045,7 +1065,7 @@ export function adaptCodexSession(
       if (evType === 'user_message') {
         turnCount++;
         const msg = asString(p.message);
-        if (queries.length < MAX_USER_QUERIES && msg && msg.length < 2000) {
+        if (queries.length < MAX_USER_QUERIES && msg && !isCodexNoiseMessage(msg)) {
           const clean = msg.replace(/\s+/g, ' ').trim().slice(0, MAX_QUERY_LENGTH);
           if (clean.length > 10) queries.push(clean);
         }
