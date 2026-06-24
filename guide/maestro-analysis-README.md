@@ -45,6 +45,99 @@
 
 ---
 
+## 0.5.35 合并后逐条校准 × 设计/缺陷归因（实测）
+
+> 把上文 R1–R10 / H1–H6 全部发现，放回**合并 upstream 后的 master `0.5.35`**（合并 commit `80f2f473`）逐条复核——4 路子代理并行 + R9 codex 交叉复核，按符号/语义重定位（旧行号已漂移），并以 **git 历史取证** 定 A/B 边界。校准日期：2026-06-24。
+> **完成情况**：✅ 已修复 · ⚠️ 部分改善（根因仍在）· ❌ 未修复/未改动 · 🔵 确认仍成立（原有机制/分叉）。
+> **归因三类**：**A 实现缺陷**（言行不一/死代码/疏漏·该修）· **B 有意设计**（改它=改产品方向·非 bug）· **C 意图对·执行漏一环**（补执行即兑现）。
+> **统计**：A 类 16（仅 R9-3 ✅ 已修，余 ❌）· B 类 8（多为「❌ 未改·本属设计」+ 2 🔵 确认）· C 类 8（R1.3/R9-4/H4 ⚠️ 部分，余 ❌）。**真修复仍仅 1 条（R9-3）**；与 §0.5 预判一致——0.5.35 只动「知识质量层 + 团队消息/角色契约」，未触结构根。
+
+### A 类 · 实现缺陷（无争议·该立刻修）
+
+| 发现 | 判定 | 当前证据 |
+|---|:---:|---|
+| R1.1-a regex 路由（缺 grill/blueprint/analyze-macro、fallback=quick） | ❌ | `intent-router.ts:10` DEFAULT_GRAPH='singles/quick'；`_intent-map.json` 仍无三链路、fallback singles/quick(276) |
+| R1.1-b deferred 大脑（旧架构残留、纯顺序、旧 schema） | ❌ | `workflows/maestro.md:290` "no decision nodes—purely sequential" 仍在；旧大脑未随新命令体退役 |
+| R1.1-c 命令体↔大脑架构矛盾（迁移未完成） | ❌ | `.claude/commands/maestro.md` ralph-protocol-v1 与大脑两套并存；运行时仍 Read 那份矛盾大脑 |
+| R3.1 roadmap Requirements 悬空（写了不读） | ❌ | 设计了 `Requirements` 追溯字段，但 `plan.md` 下游从不读（0.5.35 未触及） |
+| R6 三套编排运行时未合并 + PhaseOrchestrator 死代码 | ❌ | GraphWalker 自称 "unified bridge" 却未取代另两者；PhaseOrchestrator 从未有生产调用（仅测试引用） |
+| R6-1 verify.json 死路由 | ❌ | `chains/singles/verify.json` 缺失，`_intent-map.json:66-70` 仍引用（commit `9f270523` 删 verify 未清引用） |
+| R6-2 spec-map.json 错连 | ❌ | `chains/singles/spec-map.json:13` cmd 仍 `manage-codebase-rebuild` |
+| R6-3 spec-generate.json 孤儿 | ❌ | 存在但 chains/ 零引用；自身 id 还误写 `singles/roadmap-full` |
+| R7-2 E007 不暂停（inv 8·这组唯一真缺陷） | ❌ | 同 commit `c19cb04a` 的 BLOCKED 真 pause，E007 却只 `return 1`（`cmd-next.ts:49-59`）——能力在手边却漏接 |
+| R9-2 1184 行逐字节重复 | ❌ | team-swarm vs team-adversarial-swarm 下 aco/test_aco/pheromone/scoring 四文件 `diff` 全 IDENTICAL（473+475+144+92） |
+| R9-3 消息总线命名空间分裂 | ✅ | 主平台统一 `mcp__maestro__team_msg`（134 处）；`ccw-tools` 仅余 skill-converter.ts:506 死引用 |
+| R10-1 E-code 不落盘 | ❌ | RalphSession 无 findings 字段；E006/7/10 仅 stdout/stderr，dashboard 看不到 E007 陷阱 |
+| R10-2 dashboard 投影丢字段 | ❌ | `maestro-session-types.ts:16-26` RalphStep 仍缺 retry_count/max_retries/completion_status |
+| R10-3 fs-watcher 静默吞错 | ❌ | `fs-watcher.ts:180-182` 裸 `catch{}` 吞解析错（mid-write 容错合理，但真损坏也一并吞） |
+| H2 spec-validator block 死代码 + Edit 旁路 | ❌ | runner `hooks.ts:850` 引入即只传 2 参→block 死代码（commit `f0594770`）；`if(!content) return` Edit 仍旁路 |
+| H6 注入器冗余（6 个重叠） | ❌ | 旧注入器全在；新增 kg-unified-injector 是叠加且默认关（opt-in）；想删的 3 个一个没删 |
+
+### B 类 · 有意设计（改它=改产品方向，非 bug）
+
+> 判定栏 ❌ = 「未改动·本属设计」，非待修缺陷。⚠️ 标记的几条，其**风险敞口**正是 3 篇 harness 借鉴文档主张补强制之处。
+
+| 发现 | 判定 | 当前证据（git 取证） |
+|---|:---:|---|
+| R7-1 retry_count/max_retries「决策交 LLM」 | ❌ | commit `c19cb04a`：invariant 1 "Ralph never executes steps"，字段挂 `RalphStep.decision`=给 LLM 填的槽，`cmd-next.ts:90` 主动拒绝决策节点。⚠️ 无代码兜底 |
+| R7-3 confidence_score/parse_failed（inv 13）prose-only | ❌ | commit `93b87da8` 只改 `.md`；ralph 不写 `decisions.ndjson`，由 LLM 散文动作记录。⚠️ LOW-CONFIDENCE 靠 LLM 自觉 |
+| R7-4 引擎/Ralph 重试分叉 | 🔵 | `graph-walker.ts:1063-1100` 有界重试真存在；Ralph 侧交 LLM——分叉是有意分层 |
+| R7 反证 completion_confirmed 真强制（接线范本） | 🔵 | 同 commit 字段+4 处写入+`status-checker.ts:69` 校验一起接线；反衬 retry_count 不接 CLI 是分层 |
+| R8 知识 fail-open（软注入·读侧） | ❌ | commit `78acfcfa` 注释 `Design: advisory rather than rewriting`，出生即 advisory。⚠️ 空库静默、KG 只看未提交改动 |
+| H1 guard 火力指向危险命令（保真 guard advisory） | ❌ | 仅 workflow-guard `exit(2)`；PathGuard `enabled:false`、preflight warn、prompt-guard 只警告=有意火力分配 |
+| H3 注入 ≠ 调用（软注入） | ❌ | 全部 injector 仍 additionalContext/updatedInput 软拼（同 `78acfcfa` Design 注释） |
+| H5 requiresWorkspace 门控 | ❌ | 无 `.workflow/` 不触发=合理 gating；spec/kg-* 全 requiresWorkspace:true（global-spec-injection 未落 master） |
+
+### C 类 · 意图对·执行漏一环（补执行即兑现已有意图）
+
+| 发现 | 判定 | 当前证据 |
+|---|:---:|---|
+| R1.3 A_INFER_POSITION 浅启发式 | ⚠️ | 词表新增 grill/blueprint/analyze-macro + 前置 A_RESOLVE_PHASE/SCOPE_VERDICT；但关键词 override + bootstrap 机制未除（`maestro-ralph.md:210-234`） |
+| R2 上下文逐级再抽象、原文不回读 | ❌ | 管线分层是设计；缺「原文回读/意图锚点」机制。0.5.35 未改 `plan.md`/`analyze.md`（plan 仍吃 implementation_scope） |
+| R3.3 boundary_contract 不传播进 roadmap | ❌ | boundary_contract 是好设计，但 `roadmap-common.md` Load Context 不读它=断链（0.5.35 未触及） |
+| R4 `-y` 砍多了（连 Search-first 一起跳） | ❌ | 不交互对；但 `interview-mechanics.md` 第 4 行 Search-first 与第 6 行 skip 自相矛盾，自动落地被一并砍 |
+| R5 锚点早冻 + 全量重放 + 无回锚门 | ❌ | 「单一真源 status.json」是有意简化（`maestro-ralph.md:721`）；副作用放大漂移（R5.4 认定可修） |
+| R9-1 team 意图再派生（缺原话透传执行链） | ❌ | 管线派生是设计；原话以 requirement 透传进 prompt 但执行链不消费（`role-spec-template.md:94,141`） |
+| R9-4 角色加载契约分歧 | ⚠️ | 契约已统一只认 role_spec；但来源仍二元（动态 session role-spec vs 静态 roles/<role>/role.md） |
+| H4 静默 fail-open + 监控盲 | ⚠️ | 容错是设计；不可观测是漏的一环。新增 3 注入器 outcome/duration 埋点；但 500ms 截断、catch{}、不落 status.json 依旧 |
+
+---
+
+## 设计意图 vs 实现缺陷（git 取证 + 分层归属）
+
+> 承上表的「❌ 未修复」——它们并非同质。本节用**两把尺子**切开未解决项：① 是**有意设计(B)** / **实现缺陷(A)** / **意图对但执行漏一环(C)**；② 落在**哪一层**（skills 散文 / hooks / 纯 js·ts）。A/B 边界由 **git 历史取证**（commit message + 字段出生史 + 代码注释）定夺，非主观。
+
+### 判别钥匙：强制力的物理位置
+
+一条规则最终靠什么保证执行？`进程退出码`（hooks `exit(2)` / CLI `return`）= 硬强制 · `schema 校验` = 半强制 · `纯散文 MUST`（靠 LLM 自觉）= 不强制。**R7/R8 的统一根 = 最强的话（MUST/唯一真源）写在最弱的位置（散文）。**
+
+### git 取证的关键修正（推翻初判一半）
+
+初判把 R7 的 `retry_count`/`confidence_score`/inv13 归为「A 类·半接线假象」。git 取证后修正：
+
+- **`retry_count`/`max_retries`、`confidence_score`/`parse_failed`(inv 13) → 改判 B 类有意设计**。invariant 1 "Ralph never executes steps — only evaluates decisions"；`cmd-next.ts:90` 主动拒绝加载决策节点；字段挂在 `RalphStep.decision` 上 = 给 LLM 填的 schema 槽，`A_APPLY_FIX/ESCALATE` 是散文里的 LLM 动作（commit `c19cb04a`）。代码不自增**不是 bug，是有意把决策层交给 LLM**。
+  - ⚠️ 但这正是 R7/R8 的**风险敞口**：有意交 LLM = 无代码兜底。它是 B（设计），却恰是 harness 借鉴文档主张补强制的点。准确表述是「**有意把强制交给 LLM**」，非「假装有强制」。
+- **E007 不 pause(inv 8) → 仍是 A，且是这组唯一真缺陷**：同 commit `c19cb04a` 的 BLOCKED 分支真 pause 了，E007 却只 `return 1`——能力在手边却漏接。
+- **`completion_confirmed`（正例）→ B**：同 commit 字段+4 处写入+校验一起接线，反衬 retry_count 的「不接 CLI」是分层而非遗忘。
+- **软注入 advisory → git 确证 B**：commit `78acfcfa` 注释 `Design: ... advisory rather than rewriting`，出生即 advisory，无转变 commit。
+- **三引擎 / PhaseOrchestrator / spec-validator block / verify.json → git 确证 A**：GraphWalker 自称 "unified bridge" 却没取代另两个（演进残留）；PhaseOrchestrator 从未有生产调用（死代码）；spec-validator 引入即只传 2 参（死分支）；`9f270523` 删 verify 没清 `_intent-map` 引用（死路由铁证）。
+
+### 分层归属（这是 skills / hooks / 还是纯 js 的问题？）
+
+| 层 | 承载什么 | 落在这层的发现 | 性质 |
+|---|---|---|---|
+| **Skills·散文**（`commands/*.md`、`workflows/*.md`、skill specs） | 写给 LLM 的规则 + 编排逻辑 | R1.1-b/c、R1.2/1.3、R2/R3/R4/R5、R7 散文 invariant、R9-1 role.md、retry/confidence「交 LLM」设计 | **根在这**·多为设计哲学(B)+ 演进残留(A)，改它=改 .md |
+| **Hooks**（`src/hooks/`） | 唯一能 `exit(2)` 真阻断的强制面 | H1–H6、R8 读侧 | 「本可强制却有意没强制」的缺口：软注入/门控是 B，spec-validator 死代码是 A |
+| **纯 JS/TS**（`src/ralph`、`coordinator`、`team`、`dashboard`） | 运行时执行逻辑 | E007 不 pause、死路由、PhaseOrch 死代码、R10 监控、R9-2（实为 python）、R9-3 命名空间 | **无争议铁缺陷集中在这**·数量最少、最该立刻修 |
+
+> **一句话**：问题不均匀分布——**根在 skills 散文层**（架构矛盾、工作流逻辑、不变量全写成散文），**hooks 层是「本可强制却有意没强制」的缺口**，**纯 js/ts 层只有少数铁缺陷**（E007/死路由/死代码/监控丢字段）。最迷惑人的一点：不少**看似 js 代码 bug** 的（retry_count 不自增）其实是 skills 层「决策交 LLM」哲学在代码层的**投影**——代码是**故意留空**的。
+
+### 分析着眼点（方法）
+
+① **言行一致性**（声称的契约 vs 实现，主轴）→ ② **强制力的物理位置**（退出码/schema/散文）→ ③ **契约归属**（CLI 代码 vs LLM 散文兑现，定「没代码=缺陷还是分层」，git 取证专为此）→ ④ **出生史**（出生即空 vs 曾实现后回退）→ ⑤ **系统性 + 意图信号**（孤例还是成片；有无 `Design:` 注释/commit message 佐证有意）。
+
+---
+
 ## 借鉴地图（harness-cli → Maestro）
 
 | 借鉴点 | 治 | 文档 |
