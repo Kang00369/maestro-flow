@@ -1,7 +1,5 @@
 # UI Codify: Phase 3 — Reference Package Generation
 
-将提取结果转换为可分享的参考包，包含交互式预览页面。
-
 ## Prerequisites
 
 来自前序 Phase 的变量：

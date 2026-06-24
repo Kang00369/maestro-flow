@@ -1,9 +1,5 @@
 # Workflow: fork
 
-Create a git worktree for an entire milestone, enabling inter-milestone parallel development. Copies `.workflow/` context into the worktree since `.workflow/` is gitignored.
-
-Worktrees operate at the **milestone level** — all phases within a milestone are owned by one worktree and executed sequentially inside it. Per-phase parallelism within a milestone is not supported.
-
 ---
 
 ## Step 1: Parse Arguments and Flags

@@ -1,7 +1,5 @@
 # Workflow: milestone-complete
 
-Archive completed milestone, move artifacts to history, and prepare for next.
-
 ---
 
 ## Step 1: Validation
@@ -167,5 +165,3 @@ Next steps:
   /maestro-analyze              -- Start next milestone (standard only)
   /manage-status                -- View project state
 ```
-
-**Adhoc milestone note:** When completing an adhoc milestone, the "Next steps" section omits "Start next milestone" since adhoc milestones have no successor in a roadmap chain.

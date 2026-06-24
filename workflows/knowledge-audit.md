@@ -1,9 +1,5 @@
 # Knowledge Audit Workflow
 
-审查 spec / knowhow / artifact 三大知识存储，识别矛盾、失效、老化、孤儿，通过 keep/deprecate/delete 三态决策淘汰。
-
-与 `harvest.md` 对称：harvest 写入知识 → knowledge-audit 清理知识。与 `harvest --prune`（Stage 9）的区别：prune 做物理 GC（孤儿指针、格式损坏），audit 做语义审查（逻辑矛盾、生命周期决策）。
-
 ---
 
 ## Prerequisites

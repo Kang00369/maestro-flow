@@ -1,7 +1,5 @@
 # Workflow: Roadmap Common
 
-Shared logic for roadmap generation — used by roadmap.md.
-
 ---
 
 ## Worktree Guard
@@ -17,8 +15,6 @@ Block if `.workflow/worktree-scope.json` exists — must run from main worktree.
 ```
 specs_content = maestro spec load --category arch
 ```
-
-Ensure phases respect architectural constraints.
 
 ### Load Project History (if `.workflow/` exists)
 

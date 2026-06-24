@@ -1,7 +1,5 @@
 # UI Codify: Phase 2 — Parallel Agent Extraction
 
-从源代码文件中提取设计系统 token，通过 3 个并行 Agent 分析。
-
 ## Overview
 
 - 3 个 Agent 并行运行：Style、Animation、Layout
