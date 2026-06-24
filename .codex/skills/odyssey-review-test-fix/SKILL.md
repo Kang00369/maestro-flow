@@ -9,9 +9,6 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 Deep code review with generalization: archaeology → explore → multi-dimensional review →
 fix all findings → confirm → generalize (举一反三) → discover → persist.
 
-Unlike `quality-review` (pipeline gate verdict), this reviews AND fixes: exhaustive documentation,
-targeted fixes, codebase-wide generalization, decision journal. `--skip-fix` for review-only.
-
 **三句哲学约束（穷尽迭代）:**
 1. **零遗留** — 每个 finding 必须是 action item（修复 / issue / 决策），不允许只报告不处理
 2. **穷尽迭代** — 按 severity 从高到低逐轮修复，直到 0 remaining actionable findings 才退出 fix loop

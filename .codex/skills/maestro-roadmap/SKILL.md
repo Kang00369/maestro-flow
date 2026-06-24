@@ -11,8 +11,6 @@ Generate a milestone/phase roadmap using `spawn_agents_on_csv` with 2-wave analy
 Wave 1: parallel analysis (scope, risk, dependency). Wave 2: assembly -> roadmap.md with Milestone > Phase hierarchy.
 
 Additional: `--revise` (modify existing roadmap), `--review` (read-only health check).
-
-For formal specification documents (Product Brief, PRD, Architecture, Epics), use `maestro-blueprint` instead.
 </purpose>
 
 <context>

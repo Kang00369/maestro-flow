@@ -8,8 +8,6 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 <purpose>
 Closed-loop deep debugging: archaeology (what changed) → explore (call chains, error gaps) → diagnose (hypothesis-driven) → fix & confirm → generalize (举一反三) → discover siblings → persist learnings.
 
-Unlike `quality-debug` (fast fix), this treats every bug as a learning signal — digs into git history before hypotheses, confirms fixes with CLI review, scans for siblings of the root cause.
-
 Core philosophy:
 - **Archaeology before hypothesis** — look at what changed before guessing why
 - **Fix one, find many** — a single bug reveals a class of bugs

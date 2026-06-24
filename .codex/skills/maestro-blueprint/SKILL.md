@@ -7,10 +7,6 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, spawn_agents_on_csv, request
 <purpose>
 Formal specification document chain producing a complete specification package through 7 sequential phases (P0–P6, plus P1.5 requirement expansion) with multi-CLI analysis and interactive refinement. Pure documentation — no code generation, no roadmap generation.
 
-Parallel to `brainstorm` as an upstream origin command:
-- **brainstorm** = divergent exploration (lightweight, multi-role creative)
-- **blueprint** = convergent documentation (heavyweight, 7-phase formal spec chain)
-
 Output: `.workflow/blueprint/BLP-{slug}-{date}/` containing Product Brief, PRD, Architecture, and Epics.
 </purpose>
 

@@ -9,9 +9,6 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 Deep UI polish cycle: survey (design tokens + pattern inventory) -> audit (6 dimensions) ->
 diverge (creative exploration) -> fix -> verify -> generalize -> discover -> record.
 
-Unlike `$maestro-impeccable` (single command), this is a persistent session with evidence trails,
-decision journal, iterative improvement, and codebase-wide generalization. `--skip-fix` for audit-only.
-
 Core philosophy:
 - **Every pixel tells a story** — subtle details create the experience
 - **Diverge before converge** — explore creatively, then implement methodically

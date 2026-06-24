@@ -7,9 +7,6 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 
 <purpose>
 Wave-based multi-role coordination via `spawn_agents_on_csv`. Dynamic role generation + linear wave execution with per-wave evaluation gates.
-
-**Core difference from other team skills**: Roles are NOT predefined — they are dynamically generated from task analysis at runtime. Each role's behavioral instructions are encoded directly into the CSV `description` column, eliminating the need for role-spec files.
-
 **Core workflow**: Analyze Task → Generate Dynamic Roles → Build CSV → Wave-by-Wave Execution with Evaluation → Aggregate Results
 
 ```

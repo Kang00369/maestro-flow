@@ -9,8 +9,6 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
 Task companion command — pairs with any task to provide knowledge context loading,
 structured companion document recording, insight capture, and skill routing.
 
-Does not create sessions or modify workflow state. Pure side-car utility.
-
 Four modes:
 - **before** — Pre-task: load spec + knowhow index + codebase index, create companion doc
 - **note** — Mid-task: append a structured entry to the active companion doc

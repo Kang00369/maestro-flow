@@ -9,12 +9,6 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 Deep codebase improvement: survey (dependency + complexity baseline) -> audit (6 dimensions) ->
 diagnose (root cause analysis) -> fix -> verify -> generalize -> discover -> record.
 
-Unlike `$quality-review` (single pass), this is a persistent session with evidence trails,
-baseline metrics, iterative improvement, and codebase-wide generalization. `--skip-fix` for audit-only.
-
-Focuses on **program runtime quality** — performance, security, architecture, reliability,
-observability, maintainability. Combines static analysis with runtime-aware reasoning.
-
 Core philosophy:
 - **Measure before improving** — baseline first, then optimize
 - **Root cause over symptom** — trace each issue to its origin

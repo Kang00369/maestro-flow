@@ -1,11 +1,5 @@
 # Workflow: Issue Gaps Analysis (Codex — CSV Wave)
 
-Root cause analysis for issues via `spawn_agents_on_csv` wave execution.
-Supports single issue (ISS-ID) or batch with classification and parallel analysis.
-Produces analysis records in issues.jsonl and context.md for downstream `plan --gaps`.
-
-**Invoked by**: `maestro-analyze --gaps [ISS-ID]` (codex SKILL.md)
-
 ## Pipeline
 
 ```

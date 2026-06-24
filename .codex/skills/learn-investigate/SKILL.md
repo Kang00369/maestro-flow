@@ -9,9 +9,6 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
 Systematic investigation for understanding questions (not bug-fixing). 4-phase approach
 with scope lock and 3-strike escalation. Produces structured evidence trails and
 understanding documents that persist to the learning system.
-
-Unlike `quality-debug` (fixing bugs during execution), this answers "how does X work?",
-"why does Y happen?", "what would happen if Z?" questions.
 </purpose>
 
 <context>

@@ -14,8 +14,6 @@ Wave 1 (CLI exploration, parallel) -> Wave 2 (6-dimension scoring, parallel) -> 
 **Dual-layer scope (D-003)**:
 - **Macro layer** (text argument, e.g. `analyze "auth refactor"`): broad impact exploration. Produces `scope_verdict ∈ {small, medium, large}` to drive downstream routing (roadmap vs plan).
 - **Phase layer** (numeric argument, e.g. `analyze 1`): phase-scoped deep analysis under `current_milestone`. Milestone resolved via D-007 `phase_slugs` reverse lookup, NEVER direct `current_milestone` read.
-
-Produces context-package.json (standardized cross-command context contract) in all modes.
 </purpose>
 
 <context>

@@ -1,7 +1,5 @@
 # Team Lifecycle v4 — Agent Instruction
 
-This instruction is loaded by team-worker agents when spawned with roles: `analyst`, `writer`, `planner`, `executor`, `tester`, `reviewer`.
-
 ---
 
 ## Role-Based Execution

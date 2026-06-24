@@ -1,9 +1,5 @@
 # Workflow: Maestro (Codex Edition)
 
-CSV wave coordinator version of the intelligent coordinator. Replaces `spawn_agent / wait / close_agent` loop with `spawn_agents_on_csv` (max_workers=1) for sequential pipeline execution. Each chain step is a CSV row with `skill_call` column; agents read prior results from session directory for context propagation.
-
-> Referenced by: `~/.codex/skills/maestro/SKILL.md`
-
 ---
 
 ## Step 1: Parse Arguments

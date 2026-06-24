@@ -7,7 +7,6 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
 <purpose>
 Socratic stress-testing of a plan, idea, or requirement against codebase reality. Walks every branch of the decision tree one question at a time — challenging vague terminology against existing code, probing edge cases with concrete scenarios, and verifying assumptions with code evidence. Produces a verified context package (grill-report.md + terminology.md + context-package.json) for downstream brainstorm/analyze/roadmap consumption.
 
-Positioned BEFORE brainstorm in the pipeline: grill stress-tests and sharpens; brainstorm generates and elaborates.
 
 Codex specifics:
 - **No agent spawning** — codebase exploration runs directly via Glob/Grep/Read in coordinator context.

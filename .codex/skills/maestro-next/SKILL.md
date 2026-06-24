@@ -19,10 +19,6 @@ Codex specifics:
 - **Skill pool discovery via CLI** — `maestro ralph skills --platform codex --json --quiet`（project `.codex/skills/` 覆盖 global `~/.codex/skills/`）
 - **No session, no status.json, no goal** — 不调 `create_goal` / `update_plan`，由目标 skill 自行管理产出
 
-与 `$maestro` / `$maestro-ralph` 区别：
-- 不创建 session、不构建 chain、不写 status.json
-- 始终只推 1 个 top pick，最多列 2-3 个备选
-- 适用场景：意图清晰且单步即可完成；或需要定向推荐时
 </purpose>
 
 <context>
