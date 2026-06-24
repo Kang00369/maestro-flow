@@ -9,14 +9,7 @@
 
 ## Explore Priority
 
-Commands with codebase exploration/search steps should prefer `maestro explore` over inline Grep/Read:
-- **odyssey-\*** (archaeology, explore, discover phases)
-- **analyze, blueprint, grill** (discovery/scan phases)
-- **learn-investigate** (evidence gathering)
-- **issue-discover** (multi-perspective scan)
-- **impeccable teach/explore** (codebase scan)
-
-Use structured prompt format (`FIND/SCOPE/EXCLUDE/ATTENTION/EXPECTED`) for targeted searches. Multi-prompt parallel for multi-angle scans.
+`maestro explore` takes priority over Glob, Grep, and Read. When locating files or searching code patterns, call `maestro explore` first and stop to wait for results.
 
 # Coding Philosophy
 

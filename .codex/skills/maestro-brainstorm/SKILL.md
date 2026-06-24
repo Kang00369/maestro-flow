@@ -57,7 +57,7 @@ When `--from` is absent, auto-discover from state.json: latest `type=grill` arti
 Interview the user relentlessly until shared understanding is reached. Active only in interactive mode; skip when `-y/--yes`, `--skip-questions`, `--continue` (existing session), or input is already specific.
 
 - One decision per turn via request_user_input with 2–4 options + a (Recommended) default. The user controls termination — keep interviewing until convergence; they can interrupt naturally at any time.
-- Search-first when uncertain: before asking, resolve via `state.json`, the session directory, `maestro spec load`, `maestro search`, Glob/Grep/Read, or — for open-ended multi-file scans — `maestro delegate ... --role explore`. Never ask what code or memory can verify; never bounce your own ambiguity back to the user — search first, then ask only what truly needs human judgment.
+- Search-first when uncertain: before asking, resolve via `state.json`, the session directory, `maestro spec load`, `maestro search`, `maestro explore` (preferred, fallback Glob/Grep/Read). Never ask what code or memory can verify; never bounce your own ambiguity back to the user — search first, then ask only what truly needs human judgment.
 - Writeback cadence: each time a decision settles, immediately append/update its row in `guidance-specification.md` §11 (create the section if absent). Do NOT batch writeback to the end — partial decisions must already be on disk before the next question.
 - Branch jumps allowed: the user may switch freely between mode / role / upstream / sub-pipeline branches; sequence is not enforced, but every decision point must end with a definite answer.
 - Scope guard: only ask about decisions owned by `brainstorm`. Do not pre-resolve roadmap/plan choices.

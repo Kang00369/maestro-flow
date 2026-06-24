@@ -70,7 +70,7 @@ Analyze the task for gray areas and ambiguities:
 ### Step 5: Quick Analysis
 
 Rapid codebase exploration focused on the task:
-1. Search for related files using Grep/Glob
+1. Search for related files using `maestro explore` (preferred, fallback Grep/Glob)
 2. Identify existing patterns to follow
 3. Map dependencies and integration points
 4. Write analysis findings to `context.md` (append if --discuss created it)

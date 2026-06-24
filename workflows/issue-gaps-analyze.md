@@ -68,10 +68,9 @@ For each group:
   Merge keywords from all issues in group: title, description, location, affected_components.
   Deduplicate keywords.
 
-  Standard depth: grep keywords in source files → top 20 paths, read 10 lines around
-    top 5 matches.
-  Deep depth: standard grep + semantic Agent search (error handling, data flow, deps),
-    merge results.
+  Standard depth: maestro explore per group (keywords as prompt), fallback grep.
+  Deep depth: maestro explore multi-prompt + semantic Agent search (error handling,
+    data flow, deps), merge results.
 
   Build GROUP_CONTEXT: related files, key snippets (max 50 lines), dependency chain.
   Shared context benefits co-located issues — avoids redundant exploration.
