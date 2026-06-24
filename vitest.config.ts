@@ -7,6 +7,7 @@ export default defineConfig({
     // Many test files use `node:test` (Node.js built-in runner) instead of vitest
     // and must be excluded to avoid "No test suite found" errors.
     include: [
+      'src/ralph/__tests__/*.vitest.test.ts',
       'src/config/**/*.test.ts',
       'src/core/**/*.test.ts',
       'src/hooks/__tests__/preflight-*.test.ts',
