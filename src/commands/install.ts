@@ -561,7 +561,7 @@ async function forceInstall(
     });
   }
 
-  const hookLevel = (opts.hooks ?? prior?.hooks?.claude?.level ?? prior?.hookLevel ?? 'none') as HookLevel;
+  const hookLevel = (opts.hooks ?? prior?.hooks?.claude?.level ?? prior?.hookLevel ?? 'full') as HookLevel;
   const codexHookLevel = (opts.codexHooks ?? prior?.hooks?.codex?.level ?? 'none') as HookLevel;
   const agyHookLevel = (opts.agyHooks ?? prior?.hooks?.agy?.level ?? 'none') as HookLevel;
   const statuslineTheme = typeof opts.statusline === 'string'
@@ -685,8 +685,33 @@ async function forceInstall(
   console.error('');
   console.error(t.install.forceDone);
 
+  // Migrate hook toggles: ensure workflow-guard/prompt-guard default to enabled
+  // for pre-existing configs that never set them explicitly. Respects explicit false.
+  await migrateGuardToggles();
+
   // Warm up embedding model + build index (best-effort, non-blocking report)
   await warmupEmbedding();
+}
+
+async function migrateGuardToggles(): Promise<void> {
+  try {
+    const { loadConfig, saveConfig } = await import('../config/index.js');
+    const config = loadConfig();
+    const toggles = config.hooks?.toggles ?? {};
+    let changed = false;
+    for (const key of ['workflowGuard', 'promptGuard'] as const) {
+      if (!(key in toggles)) {
+        toggles[key] = true;
+        changed = true;
+      }
+    }
+    if (changed) {
+      config.hooks = { ...(config.hooks ?? { toggles: {}, external: [], plugins: [] }), toggles };
+      saveConfig(config);
+    }
+  } catch {
+    // Best-effort migration; don't fail install on config read/write issues.
+  }
 }
 
 async function warmupEmbedding(): Promise<void> {

@@ -16,7 +16,7 @@ const DEFAULT_CONFIG: MaestroConfig = {
     workflowsDir: 'workflows',
   },
   hooks: {
-    toggles: { telemetry: true, workflowGuard: false, promptGuard: false },
+    toggles: { telemetry: true, workflowGuard: true, promptGuard: true },
     external: [],
     plugins: [],
   },
