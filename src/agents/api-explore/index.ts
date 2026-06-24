@@ -1,6 +1,6 @@
 import { readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createClient, type LlmConfig } from './llm.js';
+import { createClient, type LlmConfig, type LlmFormat } from './llm.js';
 import { TOOL_SCHEMAS } from './tools.js';
 import { buildSystemPrompt } from './system-prompt.js';
 import { agentLoop } from './agent-loop.js';
@@ -10,6 +10,7 @@ function parseArgs(argv: string[]): { llmConfig: LlmConfig; cwd: string; maxTurn
   let model = '';
   let baseUrl = '';
   let apiKey = '';
+  let format = '';
   let cwd = process.cwd();
   let maxTurns = 0;
 
@@ -23,6 +24,9 @@ function parseArgs(argv: string[]): { llmConfig: LlmConfig; cwd: string; maxTurn
         break;
       case '--api-key':
         apiKey = argv[++i] ?? '';
+        break;
+      case '--format':
+        format = argv[++i] ?? '';
         break;
       case '--cwd':
         cwd = argv[++i] ?? process.cwd();
@@ -41,6 +45,7 @@ function parseArgs(argv: string[]): { llmConfig: LlmConfig; cwd: string; maxTurn
   apiKey = apiKey || fileConfig.apiKey || process.env.API_EXPLORE_API_KEY || process.env.OPENAI_API_KEY || '';
   maxTurns = maxTurns || fileConfig.maxTurns || 6;
   const extraBody = fileConfig.extraBody;
+  const resolvedFormat: LlmFormat = (format || fileConfig.format || 'openai') as LlmFormat;
 
   if (!model || !baseUrl || !apiKey) {
     // Try named endpoints as fallback
@@ -59,7 +64,7 @@ function parseArgs(argv: string[]): { llmConfig: LlmConfig; cwd: string; maxTurn
     process.exit(1);
   }
 
-  return { llmConfig: { model, baseUrl, apiKey, extraBody }, cwd: resolve(cwd), maxTurns };
+  return { llmConfig: { model, baseUrl, apiKey, format: resolvedFormat, extraBody }, cwd: resolve(cwd), maxTurns };
 }
 
 function readStdin(): Promise<string> {

@@ -32,6 +32,9 @@ export class ApiExploreAdapter extends StreamJsonAdapter {
     if (config.apiKey) {
       args.push('--api-key', config.apiKey);
     }
+    if (config.format) {
+      args.push('--format', config.format);
+    }
     if (config.workDir) {
       args.push('--cwd', config.workDir);
     }

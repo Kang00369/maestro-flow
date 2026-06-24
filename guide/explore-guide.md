@@ -45,6 +45,13 @@ EXPECTED: file:line evidence list"
       "model": "deepseek-chat",
       "maxTurns": 4
     },
+    "sonnet": {
+      "baseUrl": "https://api.anthropic.com",
+      "apiKey": "sk-ant-xxx",
+      "model": "claude-sonnet-4-20250514",
+      "format": "anthropic",
+      "maxTurns": 4
+    },
     "local": {
       "baseUrl": "http://localhost:11434/v1",
       "apiKey": "ollama",
@@ -62,12 +69,26 @@ EXPECTED: file:line evidence list"
 
 | 字段 | 说明 | 必填 |
 |------|------|------|
-| `baseUrl` | OpenAI 兼容 API 地址 | ✅ |
+| `baseUrl` | API 地址 | ✅ |
 | `apiKey` | API 密钥（每个端点可不同） | ✅ |
 | `model` | 模型名称 | ✅ |
+| `format` | API 格式：`"openai"`（默认）或 `"anthropic"` | ❌ |
 | `maxTurns` | 该端点最大搜索轮数（覆盖全局） | ❌ |
 | `extraBody` | 模型特定参数（如 `enable_thinking`、`temperature`） | ❌ |
 | `concurrency` | 该端点最大并发数（默认 1 = 串行） | ❌ |
+
+### API 格式（format）
+
+每个端点可指定 `format` 字段：
+
+| 值 | 说明 | 适用场景 |
+|------|------|----------|
+| `"openai"` | OpenAI Chat Completions 格式（默认） | vLLM、Ollama、SiliconFlow、DeepSeek、OpenRouter 等兼容端点 |
+| `"anthropic"` | Anthropic Messages API 格式 | Anthropic 官方 API（Claude 系列模型） |
+
+`"anthropic"` 格式自动处理：`x-api-key` 认证头、`tool_use`/`tool_result` 消息格式转换、usage 字段映射。
+
+遗留单端点配置同样支持顶层 `"format"` 字段。CLI 入口支持 `--format` 参数覆盖。
 
 ### 全局字段
 

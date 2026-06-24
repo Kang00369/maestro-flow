@@ -45,6 +45,13 @@ Config file: `~/.maestro/api-explore.json`
       "model": "deepseek-chat",
       "maxTurns": 4
     },
+    "sonnet": {
+      "baseUrl": "https://api.anthropic.com",
+      "apiKey": "sk-ant-xxx",
+      "model": "claude-sonnet-4-20250514",
+      "format": "anthropic",
+      "maxTurns": 4
+    },
     "local": {
       "baseUrl": "http://localhost:11434/v1",
       "apiKey": "ollama",
@@ -62,12 +69,26 @@ Config file: `~/.maestro/api-explore.json`
 
 | Field | Description | Required |
 |-------|-------------|----------|
-| `baseUrl` | OpenAI-compatible API URL | Yes |
+| `baseUrl` | API URL | Yes |
 | `apiKey` | API key (can differ per endpoint) | Yes |
 | `model` | Model name | Yes |
+| `format` | API format: `"openai"` (default) or `"anthropic"` | No |
 | `maxTurns` | Max search rounds for this endpoint (overrides global) | No |
 | `extraBody` | Model-specific params (e.g. `enable_thinking`, `temperature`) | No |
 | `concurrency` | Max concurrent jobs on this endpoint (default: 1 = serial) | No |
+
+### API Format
+
+Each endpoint can specify a `format` field:
+
+| Value | Description | Use With |
+|-------|-------------|----------|
+| `"openai"` | OpenAI Chat Completions format (default) | vLLM, Ollama, SiliconFlow, DeepSeek, OpenRouter, etc. |
+| `"anthropic"` | Anthropic Messages API format | Anthropic API (Claude models) |
+
+The `"anthropic"` format handles: `x-api-key` auth header, `tool_use`/`tool_result` message format conversion, and usage field mapping.
+
+Legacy single-endpoint configs also support the top-level `"format"` field. The CLI entry supports `--format` to override.
 
 ### Global Fields
 

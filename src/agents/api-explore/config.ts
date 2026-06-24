@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import type { LlmConfig } from './llm.js';
+import type { LlmConfig, LlmFormat } from './llm.js';
 
 const CLI_TOOLS_PATH = join(homedir(), '.maestro', 'cli-tools.json');
 
@@ -9,6 +9,8 @@ export interface EndpointConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  /** API format: 'openai' (default) or 'anthropic' */
+  format?: LlmFormat;
   extraBody?: Record<string, unknown>;
   /** Max concurrent jobs on this endpoint (default: 1 = serial) */
   concurrency?: number;
@@ -28,6 +30,8 @@ export interface ExploreConfig {
   baseUrl?: string;
   apiKey?: string;
   model?: string;
+  /** API format for legacy single-endpoint (default: 'openai') */
+  format?: LlmFormat;
   extraBody?: Record<string, unknown>;
   maxTurns?: number;
   concurrency?: number;
@@ -53,13 +57,15 @@ export function getDefaultEndpoint(config: ExploreConfig): LlmConfig | null {
   const baseUrl = config.baseUrl || process.env.API_EXPLORE_BASE_URL || '';
   const apiKey = config.apiKey || process.env.API_EXPLORE_API_KEY || process.env.OPENAI_API_KEY || '';
   if (!model || !baseUrl || !apiKey) return null;
-  return { model, baseUrl, apiKey, extraBody: config.extraBody };
+  const format: LlmFormat = (config.format ?? 'openai') as LlmFormat;
+  return { model, baseUrl, apiKey, format, extraBody: config.extraBody };
 }
 
 export function getNamedEndpoint(name: string, config: ExploreConfig): LlmConfig | null {
   const ep = config.endpoints?.[name];
   if (!ep || !ep.model || !ep.baseUrl || !ep.apiKey) return null;
-  return { model: ep.model, baseUrl: ep.baseUrl, apiKey: ep.apiKey, extraBody: ep.extraBody };
+  const format: LlmFormat = (ep.format ?? 'openai') as LlmFormat;
+  return { model: ep.model, baseUrl: ep.baseUrl, apiKey: ep.apiKey, format, extraBody: ep.extraBody };
 }
 
 export interface NamedEndpoint {
@@ -79,9 +85,10 @@ export function getAllEndpoints(config: ExploreConfig): NamedEndpoint[] {
   if (config.endpoints) {
     for (const [name, ep] of Object.entries(config.endpoints)) {
       if (!ep.model || !ep.baseUrl || !ep.apiKey) continue;
+      const fmt: LlmFormat = (ep.format ?? 'openai') as LlmFormat;
       results.push({
         name,
-        llmConfig: { model: ep.model, baseUrl: ep.baseUrl, apiKey: ep.apiKey, extraBody: ep.extraBody },
+        llmConfig: { model: ep.model, baseUrl: ep.baseUrl, apiKey: ep.apiKey, format: fmt, extraBody: ep.extraBody },
         maxTurns: ep.maxTurns,
       });
     }

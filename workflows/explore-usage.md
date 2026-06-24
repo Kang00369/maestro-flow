@@ -30,6 +30,8 @@ maestro explore "<PROMPT>" [more prompts...] [options]
 | `--no-save` | Skip session save | — |
 | `--json` | Output results as JSON | — |
 
+> **API Format**: Each endpoint supports `"format": "openai"` (default) or `"format": "anthropic"`. OpenAI-compatible endpoints (vLLM, Ollama, SiliconFlow, DeepSeek) use `openai`; Anthropic Messages API uses `anthropic`.
+
 **1 prompt = 1 agent**. Endpoint resolution: `--endpoint` > `--all` > first available.
 
 ## Prompt Template
@@ -104,12 +106,15 @@ File: `~/.maestro/api-explore.json`
 {
   "endpoints": {
     "qwen": { "baseUrl": "https://...", "apiKey": "sk-xxx", "model": "Qwen/Qwen3-8B" },
-    "deepseek": { "baseUrl": "https://...", "apiKey": "sk-yyy", "model": "deepseek-chat" }
+    "deepseek": { "baseUrl": "https://...", "apiKey": "sk-yyy", "model": "deepseek-chat" },
+    "sonnet": { "baseUrl": "https://api.anthropic.com", "apiKey": "sk-ant-...", "model": "claude-sonnet-4-20250514", "format": "anthropic" }
   },
   "maxTurns": 6,
   "concurrency": 4
 }
 ```
+
+`format` per endpoint: `"openai"` (default) for OpenAI-compatible APIs, `"anthropic"` for Anthropic Messages API.
 
 Proxy auto-inherited from `~/.maestro/cli-tools.json`. Legacy single-endpoint and env vars also supported.
 

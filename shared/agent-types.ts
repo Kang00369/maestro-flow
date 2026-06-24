@@ -31,6 +31,8 @@ export interface AgentConfig {
   approvalMode?: 'suggest' | 'auto';
   baseUrl?: string;
   apiKey?: string;
+  /** API format for api-explore: 'openai' (default) or 'anthropic' */
+  format?: 'openai' | 'anthropic';
   settingsFile?: string;
   /** Path to .env file for loading environment variables before spawn */
   envFile?: string;
