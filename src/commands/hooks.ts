@@ -71,7 +71,7 @@ export const HOOK_LEVELS: readonly HookLevel[] = ['none', 'minimal', 'standard',
 export const HOOK_LEVEL_DESCRIPTIONS: Record<HookLevel, string> = {
   none: 'No hooks',
   minimal: 'Statusline + spec-injector',
-  standard: '+ delegate-monitor + team/telemetry/coordinator(Stop) + session-context + skill-context + kg-sync + kg-auto-init + kg-context-injector + kg-unified-injector (opt-in)',
+  standard: '+ delegate-monitor + team/telemetry/coordinator(Stop) + session-context + skill-context + kg-sync + kg-auto-init + kg-context-injector + kg-unified-injector (opt-in) + search-cache-invalidator',
   full: '+ workflow-guard (PreToolUse) + prompt-guard (UserPromptSubmit)',
 };
 
@@ -91,6 +91,7 @@ export const HOOK_DEFS: Record<string, HookDef> = {
   'kg-context-injector': { event: 'PreToolUse', matcher: 'Agent', level: 'standard', requiresWorkspace: true },
   'kg-unified-injector': { event: 'UserPromptSubmit', level: 'standard', requiresWorkspace: true },
   'kg-unified-injector-agent': { event: 'PreToolUse', matcher: 'Agent', level: 'standard', requiresWorkspace: true },
+  'search-cache-invalidator': { event: 'PostToolUse', matcher: 'Write|Edit', level: 'standard', requiresWorkspace: true },
   'workflow-guard': { event: 'PreToolUse', matcher: 'Bash|Write|Edit', level: 'full', requiresWorkspace: true },
   'prompt-guard': { event: 'UserPromptSubmit', level: 'full', requiresWorkspace: false },
 };
@@ -1211,6 +1212,37 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (!bridgeData) return;
     bridgeData.session_id = sessionId;
     writeCoordBridge(sessionId, bridgeData);
+  },
+
+  'search-cache-invalidator': async () => {
+    const config = loadHooksConfig();
+    if (config.toggles['searchCacheInvalidator'] === false) return;
+
+    const raw = await readStdin();
+    const data = JSON.parse(raw);
+    const toolInput = data.tool_input ?? {};
+    const filePath: string = toolInput.file_path ?? '';
+    if (!filePath) return;
+
+    const normalized = filePath.replace(/\\/g, '/');
+    const isKnowledgeFile = /\.workflow\/(specs|knowhow|issues|domain|scratch)\//.test(normalized)
+      || normalized.endsWith('.workflow/project.md')
+      || normalized.endsWith('.workflow/roadmap.md');
+    if (!isKnowledgeFile) return;
+
+    const projectRoot = resolveWorkspace(data);
+    if (!projectRoot) return;
+
+    const { WikiIndexer } = await import('#maestro-dashboard/wiki/wiki-indexer.js');
+    const { loadWorkspaceConfig, resolveWorkspaceLinks } = await import('../config/index.js');
+    const workflowRoot = join(projectRoot, '.workflow');
+    const wsConfig = loadWorkspaceConfig(projectRoot);
+    const resolved = resolveWorkspaceLinks(projectRoot, wsConfig);
+    const linkedWorkspaces = resolved
+      .filter((lw: { valid: boolean }) => lw.valid)
+      .map((lw: { name: string; workflowRoot: string; share: Array<'spec' | 'knowhow' | 'domain' | 'codebase'> }) => ({ name: lw.name, workflowRoot: lw.workflowRoot, shareTypes: lw.share }));
+    const indexer = new WikiIndexer({ workflowRoot, linkedWorkspaces });
+    await indexer.rebuild();
   },
 };
 
