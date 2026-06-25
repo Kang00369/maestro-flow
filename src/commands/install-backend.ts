@@ -920,3 +920,88 @@ function legacyCleanup(manifest: Manifest, result: UninstallResult): void {
     result.mcpRemoved.claude = true;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Codex skill deduplication — disable .agents/ skills in codex config
+// ---------------------------------------------------------------------------
+
+/**
+ * Write `[[skills.config]]` entries to `~/.codex/config.toml` to disable
+ * .agents/ skills that duplicate the native codex skills.
+ * Returns the number of entries written.
+ */
+export function writeCodexSkillDedupeConfig(
+  scope: 'global' | 'project',
+  projectPath: string,
+): number {
+  const agentsSkillsDir = scope === 'global'
+    ? join(homedir(), '.agents', 'skills')
+    : join(projectPath, '.agents', 'skills');
+
+  if (!existsSync(agentsSkillsDir)) return 0;
+
+  const skillDirs = readdirSync(agentsSkillsDir, { withFileTypes: true })
+    .filter(e => e.isDirectory())
+    .map(e => e.name);
+
+  if (skillDirs.length === 0) return 0;
+
+  const fp = getCodexConfigPath(scope, projectPath);
+  let content = '';
+  if (existsSync(fp)) {
+    content = readFileSync(fp, 'utf-8');
+  }
+
+  // Remove existing maestro-managed dedupe block
+  const DEDUPE_START = '# maestro:dedupe-agents-start';
+  const DEDUPE_END = '# maestro:dedupe-agents-end';
+  const startIdx = content.indexOf(DEDUPE_START);
+  const endIdx = content.indexOf(DEDUPE_END);
+  if (startIdx !== -1 && endIdx !== -1) {
+    content = (content.slice(0, startIdx) + content.slice(endIdx + DEDUPE_END.length))
+      .replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  const entries = skillDirs.map(name => {
+    const skillPath = join(agentsSkillsDir, name, 'SKILL.md').replace(/\\/g, '/');
+    return `[[skills.config]]\npath = "${skillPath}"\nenabled = false`;
+  });
+
+  const block = [
+    '',
+    DEDUPE_START,
+    ...entries,
+    DEDUPE_END,
+  ].join('\n');
+
+  content = content ? content + '\n' + block + '\n' : block.trimStart() + '\n';
+
+  const dir = join(fp, '..');
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(fp, content, 'utf-8');
+
+  return skillDirs.length;
+}
+
+/**
+ * Remove the maestro-managed dedupe block from codex config.
+ */
+export function removeCodexSkillDedupeConfig(
+  scope: 'global' | 'project',
+  projectPath: string,
+): boolean {
+  const fp = getCodexConfigPath(scope, projectPath);
+  if (!existsSync(fp)) return false;
+
+  const content = readFileSync(fp, 'utf-8');
+  const DEDUPE_START = '# maestro:dedupe-agents-start';
+  const DEDUPE_END = '# maestro:dedupe-agents-end';
+  const startIdx = content.indexOf(DEDUPE_START);
+  const endIdx = content.indexOf(DEDUPE_END);
+  if (startIdx === -1 || endIdx === -1) return false;
+
+  const cleaned = (content.slice(0, startIdx) + content.slice(endIdx + DEDUPE_END.length))
+    .replace(/\n{3,}/g, '\n\n').trim();
+  writeFileSync(fp, cleaned + '\n', 'utf-8');
+  return true;
+}

@@ -112,7 +112,7 @@ export function GroupedHub({
       onExport();
     } else if (input === 'i' || input === 'I') {
       onImport();
-    } else if (key.escape) {
+    } else if (key.escape || key.leftArrow) {
       onExit();
     } else {
       const idx = parseNumberKey(input, flat.length);
@@ -245,6 +245,10 @@ export function buildGroupedHubItems(
     statuslineDetected: string | null;
     statuslineTheme?: string;
     backupClaudeMd: boolean; backupAll: boolean;
+    selectedPlatforms: string[];
+    selectedAddons: string[];
+    chineseEnabled: boolean;
+    addonDefs: Array<{ id: string; label: string; description: string; platform: string }>;
   },
 ): HubGroup[] {
   const hookSummary = (level: HookLevel, selCount?: number, totalCount?: number, isCustom?: boolean) => {
@@ -263,29 +267,34 @@ export function buildGroupedHubItems(
       ? t.install.backupClaudeMdLabel
       : '—';
 
-  return [
+  const platforms = new Set(summaries.selectedPlatforms);
+  const addons = new Set(summaries.selectedAddons);
+
+  const addonItems: HubItem[] = [
     {
-      id: 'core',
-      title: t.install.groupCore,
-      items: [
-        {
-          id: 'components',
-          label: t.install.hubLabelComponents,
-          enabled: enabled.components,
-          summary: `${summaries.componentCount} selected · ${summaries.fileCount} files`,
-          detail: t.install.hubDetailComponents.replace('{count}', String(summaries.componentCount)).replace('{files}', String(summaries.fileCount)),
-        },
-        {
-          id: 'backup',
-          label: t.install.hubLabelBackup,
-          enabled: enabled.backup,
-          summary: backupSummary,
-          detail: t.install.hubDetailBackup,
-        },
-      ],
+      id: 'chinese',
+      label: 'Chinese Response',
+      enabled: summaries.chineseEnabled,
+      summary: summaries.chineseEnabled ? 'all selected platforms' : '—',
     },
-    {
-      id: 'claude',
+    ...summaries.addonDefs
+      .filter(d => d.platform === 'shared' || platforms.has(d.platform))
+      .map(d => ({
+        id: d.id,
+        label: d.label,
+        enabled: addons.has(d.id),
+        summary: d.description,
+      })),
+  ];
+
+  const groups: HubGroup[] = [
+    { id: 'addons', title: t.install.groupAddons ?? 'Options', items: addonItems },
+  ];
+
+  // --- Claude Code (conditional) ---
+  if (platforms.has('claude')) {
+    groups.push({
+      id: 'claude-settings',
       title: t.install.groupClaude,
       items: [
         {
@@ -312,9 +321,13 @@ export function buildGroupedHubItems(
           detail: t.install.hubDetailStatusline.replace('{theme}', summaries.statuslineTheme || 'notion'),
         },
       ],
-    },
-    {
-      id: 'codex',
+    });
+  }
+
+  // --- Codex (conditional) ---
+  if (platforms.has('codex')) {
+    groups.push({
+      id: 'codex-settings',
       title: t.install.groupCodex,
       items: [
         {
@@ -332,26 +345,30 @@ export function buildGroupedHubItems(
           detail: t.install.hubDetailCodexMcp,
         },
       ],
-    },
-    {
-      id: 'other',
-      title: t.install.groupOther,
-      items: [
-        {
-          id: 'agyHooks',
-          label: t.install.hubLabelAgyHooks,
-          enabled: enabled.agyHooks,
-          summary: hookSummary(summaries.agyHookLevel, summaries.agyHookSelectedCount, summaries.agyHookTotalCount, summaries.agyHookIsCustom),
-          detail: t.install.hubDetailAgyHooks,
-        },
-        {
-          id: 'extraMcp',
-          label: t.install.hubLabelExtraMcp,
-          enabled: enabled.extraMcp,
-          summary: summaries.extraMcpTargetCount > 0 ? `${summaries.extraMcpTargetCount} targets` : '0 targets',
-          detail: t.install.hubDetailExtraMcp,
-        },
-      ],
-    },
-  ];
+    });
+  }
+
+  // --- Agy / Extra MCP (conditional) ---
+  const otherItems: HubItem[] = [];
+  if (platforms.has('agy')) {
+    otherItems.push({
+      id: 'agyHooks',
+      label: t.install.hubLabelAgyHooks,
+      enabled: enabled.agyHooks,
+      summary: hookSummary(summaries.agyHookLevel, summaries.agyHookSelectedCount, summaries.agyHookTotalCount, summaries.agyHookIsCustom),
+      detail: t.install.hubDetailAgyHooks,
+    });
+  }
+  otherItems.push({
+    id: 'extraMcp',
+    label: t.install.hubLabelExtraMcp,
+    enabled: enabled.extraMcp,
+    summary: summaries.extraMcpTargetCount > 0 ? `${summaries.extraMcpTargetCount} targets` : '0 targets',
+    detail: t.install.hubDetailExtraMcp,
+  });
+  if (otherItems.length > 0) {
+    groups.push({ id: 'other', title: t.install.groupOther, items: otherItems });
+  }
+
+  return groups;
 }

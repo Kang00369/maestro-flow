@@ -21,6 +21,8 @@ export interface CyberItemProps {
   highlighted: boolean;
   /** Short description of the component */
   description: string;
+  /** Whether this component is mandatory (always installed, cannot be deselected) */
+  mandatory?: boolean;
 }
 
 const LABEL_WIDTH = 18;
@@ -39,21 +41,34 @@ export function CyberItem({
   available,
   highlighted,
   description,
+  mandatory,
 }: CyberItemProps) {
-  const checkbox = selected ? SYM.checkOn : SYM.checkOff;
   const paddedLabel = padEnd(label, LABEL_WIDTH);
   const filesStr = `(${fileCount} files)`.padStart(FILE_COL_WIDTH);
 
-  // Determine color state
   if (!available) {
     return (
       <Box>
         <Text dimColor color={C.neutral}>
-          [{index}] {checkbox} {paddedLabel} {filesStr} [OFFLINE]
+          [{index}] {SYM.checkOff} {paddedLabel} {filesStr} [OFFLINE]
         </Text>
       </Box>
     );
   }
+
+  if (mandatory) {
+    return (
+      <Box>
+        <Text color={C.neutral}>    </Text>
+        <Text color={highlighted ? C.successBright : C.success}>{'◆'} </Text>
+        <Text color={highlighted ? C.successBright : C.success} bold={highlighted}>{paddedLabel}</Text>
+        <Text color={C.neutral}> {filesStr} </Text>
+        <Text color={C.neutral}>{description}</Text>
+      </Box>
+    );
+  }
+
+  const checkbox = selected ? SYM.checkOn : SYM.checkOff;
 
   if (selected && highlighted) {
     return (
@@ -91,7 +106,6 @@ export function CyberItem({
     );
   }
 
-  // Normal state
   return (
     <Box>
       <Text color={C.neutral}>[{index}] </Text>

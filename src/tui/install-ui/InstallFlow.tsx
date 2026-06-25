@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import Gradient from 'ink-gradient';
 import BigText from 'ink-big-text';
-import { C, SYM, Breadcrumb } from '../shared/index.js';
+import { C, SYM, SP, Breadcrumb, SectionHeader, wrapCursor, KeyHints } from '../shared/index.js';
 import { GroupedHub } from './GroupedHub.js';
 import { ComponentGrid } from './ComponentGrid.js';
 import { HooksConfig } from './HooksConfig.js';
@@ -42,14 +42,15 @@ export function InstallFlow({ pkgRoot, version, initialStep, initialMode, initia
   // Global input for config steps
   useInput((_input, key) => {
     if (s.step === 'executing' || s.step === 'complete') return;
+    if (s.step === 'platforms') return;
 
     if (s.step === 'components_config') {
-      if (key.escape) s.setStep(s.isSubcommand ? 'confirm' : 'hub');
+      if (key.escape || key.leftArrow) s.setStep(s.isSubcommand ? 'confirm' : 'hub');
       return;
     }
     if (CONFIG_STEPS.includes(s.step)) {
       if (key.return) s.returnFromConfig();
-      else if (key.escape) s.setStep(s.isSubcommand ? 'confirm' : 'hub');
+      else if (key.escape || key.leftArrow) s.setStep(s.isSubcommand ? 'confirm' : 'hub');
       return;
     }
   });
@@ -80,6 +81,7 @@ export function InstallFlow({ pkgRoot, version, initialStep, initialMode, initia
         { key: 'complete', label: t.install.stepDone },
       ]
     : [
+        { key: 'platforms', label: t.install.stepPlatforms ?? 'Platforms' },
         { key: 'hub', label: t.install.stepMenu },
         { key: 'confirm', label: t.install.stepConfirm },
         { key: 'executing', label: t.install.stepInstall },
@@ -126,6 +128,19 @@ export function InstallFlow({ pkgRoot, version, initialStep, initialMode, initia
           </Box>
         )}
 
+        {s.step === 'platforms' && (
+          <PlatformSelector
+            selectedPlatforms={s.selectedPlatforms}
+            onToggle={s.togglePlatform}
+            mode={s.mode}
+            onModeChange={s.setMode}
+            onNext={() => s.setStep('hub')}
+            onExit={() => exit()}
+            codexDedupeAgents={s.codexDedupeAgents}
+            onDedupeChange={s.setCodexDedupeAgents}
+          />
+        )}
+
         {s.step === 'hub' && (
           <>
             <GroupedHub
@@ -137,7 +152,7 @@ export function InstallFlow({ pkgRoot, version, initialStep, initialMode, initia
               onInstall={() => s.setStep('confirm')}
               onExport={s.handleExport}
               onImport={s.handleImport}
-              onExit={() => exit()}
+              onExit={() => s.isSubcommand ? exit() : s.setStep('platforms')}
               lastInstallDate={s.lastManifest?.installedAt?.split('T')[0]}
             />
             {s.profileMessage && (
@@ -233,6 +248,98 @@ export function InstallFlow({ pkgRoot, version, initialStep, initialMode, initia
           <InstallResult result={s.result} />
         )}
       </Box>
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PlatformSelector — first step: choose which platforms to install
+// ---------------------------------------------------------------------------
+
+const PLATFORM_DEFS = [
+  { id: 'claude', label: 'Claude Code', desc: 'Commands, skills, agents, hooks, MCP' },
+  { id: 'codex', label: 'Codex', desc: 'Agents, skills, hooks, MCP' },
+  { id: 'agy', label: 'Agy (Antigravity)', desc: 'Skills, agents, hooks (Gemini CLI)' },
+  { id: 'agents-standard', label: 'Open Standard', desc: '.agents/ format (portable)' },
+] as const;
+
+function PlatformSelector({
+  selectedPlatforms, onToggle, mode, onModeChange, onNext, onExit,
+  codexDedupeAgents, onDedupeChange,
+}: {
+  selectedPlatforms: Set<string>;
+  onToggle: (id: string) => void;
+  mode: 'global' | 'project';
+  onModeChange: (m: 'global' | 'project') => void;
+  onNext: () => void;
+  onExit: () => void;
+  codexDedupeAgents: boolean;
+  onDedupeChange: (v: boolean) => void;
+}) {
+  const showDedupe = selectedPlatforms.has('codex') && selectedPlatforms.has('agents-standard');
+  const totalItems = PLATFORM_DEFS.length + (showDedupe ? 1 : 0);
+  const [cursor, setCursor] = React.useState(0);
+
+  useInput((input, key) => {
+    if (key.upArrow) setCursor(i => wrapCursor(i, -1, totalItems));
+    else if (key.downArrow) setCursor(i => wrapCursor(i, 1, totalItems));
+    else if (input === ' ') {
+      if (cursor < PLATFORM_DEFS.length) {
+        onToggle(PLATFORM_DEFS[cursor].id);
+      } else if (showDedupe && cursor === PLATFORM_DEFS.length) {
+        onDedupeChange(!codexDedupeAgents);
+      }
+    } else if (key.return) onNext();
+    else if (key.escape) onExit();
+    else if (input === 'g' || input === 'G') onModeChange('global');
+    else if (input === 'p' || input === 'P') onModeChange('project');
+    else {
+      const n = parseInt(input, 10);
+      if (n >= 1 && n <= PLATFORM_DEFS.length) onToggle(PLATFORM_DEFS[n - 1].id);
+    }
+  });
+
+  return (
+    <Box flexDirection="column">
+      <Box gap={1}>
+        <Text bold color={C.primary}>{t.install.hubScope}</Text>
+        <Text color={mode === 'global' ? C.success : C.neutral} bold={mode === 'global'}>
+          {mode === 'global' ? SYM.radioOn : SYM.radioOff} {t.install.hubGlobal}
+        </Text>
+        <Text color={mode === 'project' ? C.success : C.neutral} bold={mode === 'project'}>
+          {mode === 'project' ? SYM.radioOn : SYM.radioOff} {t.install.hubProject}
+        </Text>
+        <Text dimColor>[g/p]</Text>
+      </Box>
+
+      <SectionHeader title={t.install.groupPlatforms ?? 'Platforms'} />
+      <Box flexDirection="column" marginTop={SP.sectionGap}>
+        {PLATFORM_DEFS.map((plat, i) => {
+          const sel = selectedPlatforms.has(plat.id);
+          const hl = i === cursor;
+          return (
+            <Box key={plat.id}>
+              <Text color={hl ? C.primary : C.neutral}>[{i + 1}] </Text>
+              <Text color={sel ? (hl ? C.successBright : C.success) : C.neutral}>{sel ? SYM.checkOn : SYM.checkOff} </Text>
+              <Text color={hl ? C.primary : undefined} bold={hl}>{plat.label.padEnd(22)}</Text>
+              <Text color={C.neutral}>{plat.desc}</Text>
+            </Box>
+          );
+        })}
+        {showDedupe && (
+          <Box marginTop={1}>
+            <Text color={cursor === PLATFORM_DEFS.length ? C.primary : C.neutral}>    </Text>
+            <Text color={codexDedupeAgents ? (cursor === PLATFORM_DEFS.length ? C.successBright : C.success) : C.neutral}>
+              {codexDedupeAgents ? SYM.checkOn : SYM.checkOff}{' '}
+            </Text>
+            <Text color={cursor === PLATFORM_DEFS.length ? C.primary : undefined} bold={cursor === PLATFORM_DEFS.length}>
+              {'Codex: disable .agents/ skills'.padEnd(22)}
+            </Text>
+            <Text color={C.neutral}>avoid duplicate skill discovery</Text>
+          </Box>
+        )}
+      </Box>
+      <KeyHints hints={`[Space/1-${PLATFORM_DEFS.length}] Toggle  [g/p] Scope  [Enter] Next  [Esc] Exit`} />
     </Box>
   );
 }

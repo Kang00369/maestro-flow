@@ -21,6 +21,8 @@ import {
   injectDocFile,
   createTargetBackup,
   uninstallManifest,
+  writeCodexSkillDedupeConfig,
+  removeCodexSkillDedupeConfig,
   type CopyStats,
 } from '../commands/install-backend.js';
 import {
@@ -286,6 +288,15 @@ export async function executeInstallPipeline(opts: ExecutorOptions): Promise<Ins
       }
     }
     progress('extraMcp', 'done', `${extraMcpRegistered.length} targets`);
+  }
+
+  // --- Codex skill deduplication ---
+  if (config.codexDedupeAgents) {
+    removeCodexSkillDedupeConfig(config.mode, config.projectPath);
+    const count = writeCodexSkillDedupeConfig(config.mode, config.projectPath);
+    if (count > 0) progress('manifest', 'active', `Codex dedupe: ${count} .agents/ skills disabled`);
+  } else {
+    removeCodexSkillDedupeConfig(config.mode, config.projectPath);
   }
 
   // --- CLI tools config ---

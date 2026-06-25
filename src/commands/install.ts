@@ -372,6 +372,7 @@ async function forceInstall(
     claudeHooksSelection: opts.claudeHooksSelection as import('../tui/install-ui/HooksConfig.js').HooksSelection,
     codexHooksSelection: opts.codexHooksSelection as import('../tui/install-ui/HooksConfig.js').HooksSelection,
     agyHooksSelection: opts.agyHooksSelection as import('../tui/install-ui/HooksConfig.js').HooksSelection,
+    codexDedupeAgents: toInstall.some(c => c.def.id.startsWith('codex-')) && toInstall.some(c => c.def.id.startsWith('agents-standard-')),
   };
 
   const result = await executeInstallPipeline({

@@ -43,7 +43,7 @@ function hookSummary(sel?: HooksSelection, fallbackLevel?: HookLevel): string {
 export function InstallConfirm({ config, onConfirm, onBack }: InstallConfirmProps) {
   useInput((_input, key) => {
     if (key.return) onConfirm();
-    if (key.escape) onBack();
+    if (key.escape || key.leftArrow) onBack();
   });
 
   const target = config.mode === 'global'
