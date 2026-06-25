@@ -628,6 +628,17 @@
       "next_commands": [],
       "flags": ["<intent> (意图描述)", "-y (跳过确认)", "--dry-run (仅显示推荐)", "--top N (显示前 N 候选)", "--list (列出候选池)"]
     },
+    "manage-drift-realign": {
+      "name": "manage-drift-realign",
+      "name_zh": "漂移对齐",
+      "description": "Detect and realign .workflow/ artifact drift against code reality after refactoring — git timeline + session history driven",
+      "description_zh": "检测重构后代码现实与 .workflow/ 文档产物的偏移，通过 git 时间线 + session 历史驱动的 4 路并行扫描器识别漂移，交互式对齐",
+      "workflow": "互补于 manage-knowledge-audit：audit 检查知识内部矛盾，drift-realign 检查代码↔文档偏离",
+      "workflow_zh": "9 Stage 流程：时间线重建 → 漂移评分 → 4 并行 scanner（roadmap/spec/codebase/artifact）→ 合并+冲突标记集成 → 交互分诊 → 备份+应用 → 报告。支持 maestro timeline CLI 独立复用",
+      "prev_commands": ["manage-knowledge-audit", "quality-sync"],
+      "next_commands": ["manage-codebase-rebuild", "quality-sync", "manage-knowledge-audit"],
+      "flags": ["--scope <roadmap|spec|codebase|state|issue|knowhow|project|all> (扫描范围，默认 all)", "--since <date|commit|HEAD~N> (分析起点)", "--depth <shallow|deep> (检测深度)", "--dry-run (预演)", "--report (仅报告)", "--auto-archive (自动归档)", "--interactive (逐项交互，默认)"]
+    },
     "manage-knowledge-audit": {
       "name": "manage-knowledge-audit",
       "name_zh": "知识审计",

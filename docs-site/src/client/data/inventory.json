@@ -581,6 +581,14 @@
       "allowedTools": ["Read", "Write", "Bash", "Glob", "Grep", "Agent", "AskUserQuestion"]
     },
     {
+      "name": "manage-drift-realign",
+      "file": ".claude/commands/manage-drift-realign.md",
+      "category": "manage",
+      "description": "Detect and realign .workflow/ artifact drift against code reality after refactoring — git timeline + session history driven",
+      "argumentHint": "--scope <roadmap|spec|codebase|state|issue|knowhow|project|all> [--since YYYY-MM-DD|commit|HEAD~N] [--depth shallow|deep] [--dry-run] [--report] [--auto-archive] [--interactive]",
+      "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Agent", "AskUserQuestion"]
+    },
+    {
       "name": "manage-knowledge-audit",
       "file": ".claude/commands/manage-knowledge-audit.md",
       "category": "manage",

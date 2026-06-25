@@ -152,6 +152,15 @@ const changelog: ChangelogEntry[] = [
     ],
   },
   {
+    version: '0.4.26',
+    date: '2026-06',
+    changes: [
+      { type: 'feat', text_en: 'commands: new manage-drift-realign — detect and realign .workflow/ artifact drift against code reality with 4 parallel scanners (roadmap/spec/codebase/artifact)', text_zh: 'commands: 新增 manage-drift-realign — 4 路并行 scanner 检测重构后 .workflow/ 产物与代码的偏移并交互式对齐' },
+      { type: 'feat', text_en: 'cli: new maestro timeline command — unified git + session activity timeline with platform breakdown and hot/cold path analysis', text_zh: 'cli: 新增 maestro timeline 命令 — git + session 统一活动时间线，支持平台分组和热/冷路径分析' },
+      { type: 'feat', text_en: 'codex: new manage-drift-realign skill with CSV-wave parallel scanner pattern', text_zh: 'codex: 新增 manage-drift-realign 技能，使用 CSV-wave 并行 scanner 模式' },
+    ],
+  },
+  {
     version: '0.4.25',
     date: '2026-06',
     changes: [
