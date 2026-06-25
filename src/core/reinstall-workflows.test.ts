@@ -110,16 +110,24 @@ describe('mergeNewDefaults', () => {
     expect(result).toContain('agents');
   });
 
-  it('should NOT add components with defaultSelected: false', () => {
+  it('should add full Claude/Codex defaults while keeping Agy/Open Standard opt-in', () => {
     const existing = ['workflows'];
     const result = mergeNewDefaults(existing);
 
-    // These have defaultSelected: false — should NOT be auto-added
-    expect(result).not.toContain('commands-odyssey');
-    expect(result).not.toContain('commands-learn');
-    expect(result).not.toContain('skills-extra-team');
-    expect(result).not.toContain('skills-scholar');
-    expect(result).not.toContain('skills-meta');
+    // These are full-power Claude/Codex defaults and should be auto-added.
+    expect(result).toContain('commands-odyssey');
+    expect(result).toContain('commands-learn');
+    expect(result).toContain('skills-extra-team');
+    expect(result).toContain('skills-scholar');
+    expect(result).toContain('skills-meta');
+
+    // These remain opt-in because they target Agy/Open Standard layouts.
+    expect(result).not.toContain('agy-context');
+    expect(result).not.toContain('agy-md-chinese');
+    expect(result).not.toContain('agy-skills');
+    expect(result).not.toContain('agy-agents');
+    expect(result).not.toContain('agents-standard-skills');
+    expect(result).not.toContain('agents-standard-agents');
   });
 
   it('should not duplicate IDs already in the list', () => {
