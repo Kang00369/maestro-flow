@@ -35,8 +35,8 @@ const commandLoaders: Record<string, () => Promise<(p: Command) => void>> = {
   cli:        async () => (await import('./commands/cli.js')).registerCliCommand,
   install:    async () => (await import('./commands/install.js')).registerInstallCommand,
   uninstall:  async () => (await import('./commands/uninstall.js')).registerUninstallCommand,
-  view:       async () => (p: Command) => { p.command('view').description('(deprecated) Dashboard frontend has been removed').action(() => { console.error('  Warning: `maestro view` has been removed. Dashboard frontend is no longer available.'); process.exit(0); }); },
-  stop:       async () => (p: Command) => { p.command('stop').description('(deprecated) Dashboard frontend has been removed').action(() => { console.error('  Warning: `maestro stop` has been removed. Dashboard frontend is no longer available.'); process.exit(0); }); },
+  view:       async () => (await import('./commands/view.js')).registerViewCommand,
+  stop:       async () => (await import('./commands/stop.js')).registerStopCommand,
 
   spec:       async () => (await import('./commands/spec.js')).registerSpecCommand,
   wiki:       async () => (await import('./commands/wiki.js')).registerWikiCommand,
