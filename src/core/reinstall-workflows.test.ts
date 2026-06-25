@@ -153,17 +153,24 @@ describe('mergeNewDefaults', () => {
     expect(result).toEqual(['workflows']);
   });
 
-  it('should NOT add components with defaultSelected: false', () => {
-    const existing = ['workflows'];
-    const known = COMPONENT_DEFS.map(d => d.id).filter(id => id !== 'skills-extra-team');
+  it('should add full Claude defaults while keeping Agy/Open Standard opt-in', () => {
+    const existing = ['workflows', 'commands'];
+    const newClaudeDefaults = new Set(['skills-extra-team', 'skills-scholar', 'skills-meta']);
+    const known = COMPONENT_DEFS.map(d => d.id).filter(id => !newClaudeDefaults.has(id));
     const result = mergeNewDefaults(existing, known);
 
-    // These have defaultSelected: false — should NOT be auto-added
-    expect(result).not.toContain('commands-odyssey');
-    expect(result).not.toContain('commands-learn');
-    expect(result).not.toContain('skills-extra-team');
-    expect(result).not.toContain('skills-scholar');
-    expect(result).not.toContain('skills-meta');
+    // Optional Claude bundles are part of the full-power default profile.
+    expect(result).toContain('skills-extra-team');
+    expect(result).toContain('skills-scholar');
+    expect(result).toContain('skills-meta');
+
+    // These remain opt-in because they target Agy/Open Standard layouts.
+    expect(result).not.toContain('agy-context');
+    expect(result).not.toContain('agy-md-chinese');
+    expect(result).not.toContain('agy-skills');
+    expect(result).not.toContain('agy-agents');
+    expect(result).not.toContain('agents-standard-skills');
+    expect(result).not.toContain('agents-standard-agents');
   });
 
   it('should not duplicate IDs already in the list', () => {
