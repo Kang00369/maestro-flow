@@ -200,3 +200,13 @@ When a task matches a specialized Maestro skill, invoke that skill instead of re
 Keep the main session focused on planning, review, and interaction. Delegate heavy work with `--async`; Maestro reports completion through the MCP channel and the `delegate-monitor` hook.
 
 Multi-agent write work must use worktrees. When multiple agents may write in parallel, including multiple Codex delegates, CSV Wave agent fanout, or team execution, each agent must work in an independent git worktree when the project is inside a git repository. Use paths such as `maestro delegate --cd <worktree>` or agent isolation settings such as `isolation: "worktree"` so parallel agents do not overwrite one another in the same working tree. Single-agent serial tasks are not subject to this rule.
+
+## Local Runtime Tools: prefer maestro file tools
+
+For reading and editing files, prefer the maestro MCP tools over the harness built-ins when available — they are more reliable across harness versions and do not depend on harness-internal "already read" tracking that can break `Edit` chains:
+
+- **Read**: use `mcp__maestro-tools__read_file` (param: `path`, supports `offset`/`limit`) or `mcp__maestro-tools__read_many_files` for batch reads / directory listing / regex content search
+- **Edit/Write**: use `mcp__maestro-tools__edit_file` / `mcp__maestro-tools__write_file` — they do not require a prior harness `Read` to succeed, so they avoid the "File has not been read yet" failure mode when the built-in `Read` is unavailable or unreliable
+- If a harness built-in tool reports a missing required parameter (e.g. `file_path is missing`) on the first try, switch to the maestro equivalent immediately rather than retrying
+
+The harness built-ins still have value for image/PDF/notebook reads and line-numbered output; use them when they work and the maestro tool lacks the capability. Default to maestro for plain-text file read/edit to keep `Read → Edit` chains reliable.
