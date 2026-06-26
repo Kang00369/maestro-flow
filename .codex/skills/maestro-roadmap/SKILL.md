@@ -35,7 +35,7 @@ $ARGUMENTS -- requirement/idea text or @file reference, plus optional flags.
 </context>
 
 <interview_protocol>
-Interview the user relentlessly until shared understanding is reached. Active only in interactive mode; skip when `-y/--yes`, `--revise`, `--review`, `-c`, or input is already specific (clear requirement + mode).
+Interview the user relentlessly until shared understanding is reached. Active only in interactive mode; skip ONLY when `-y/--yes`, `--revise`, `--review`, or `-c` is set. Text requirements always require at least scope + strategy confirmation — never auto-classify input as "specific enough" to skip.
 
 - One decision per turn via request_user_input with 2–4 options + a (Recommended) default. The user controls termination — keep interviewing until convergence; they can interrupt naturally at any time.
 - Search-first when uncertain: before asking, resolve via `state.json`, existing `roadmap.md`, `project.md`, `maestro load --type spec`, `maestro search`, `maestro explore` (preferred, fallback Glob/Grep/Read). Never ask what code or memory can verify; never bounce your own ambiguity back to the user — search first, then ask only what truly needs human judgment.
@@ -73,8 +73,8 @@ Wave 1: 3 analysis rows (parallel). Wave 2: 1 assembly row.
 2. **CSV is source of truth**: Master tasks.csv holds all state
 3. **Context propagation**: prev_context from master CSV, not memory
 4. **Discovery board append-only**: Never modify/delete discoveries.ndjson
-5. **Graceful degradation**: Wave 1 fails -> Wave 2 proceeds with seed input only. When degradation activates, flag downstream outputs as LOW CONFIDENCE.
-6. **Invariant violation = BLOCK** — violating any invariant above blocks the current operation.
+5. **Graceful degradation**: Wave 1 fails -> Wave 2 proceeds with seed input only. When degradation activates, flag downstream outputs as LOW CONFIDENCE. Record `degradation_event` in discoveries.ndjson. This is a defined degradation path, not a violation of invariant 6.
+6. **Invariant violation = BLOCK** — violating any invariant above blocks the current operation. Defined degradation paths (invariant 5) are not violations.
 7. **Requirement mapping completeness** — every Active requirement from project.md MUST be mapped to exactly one phase. No circular dependencies in phase ordering.
 8. **Artifact verification before completion** — .workflow/roadmap.md MUST exist with Milestone > Phase hierarchy and progress table. Artifact MUST be registered in state.json. If missing: DO NOT report completion.
 </invariants>
@@ -104,10 +104,13 @@ S_CSV_GEN:
   -> S_WAVE_1       DO: generate analysis CSV
 
 S_WAVE_1:
-  -> S_WAVE_2       DO: A_SPAWN_WAVE_1
+  -> S_WAVE_2       WHEN: 1+ completed    DO: A_SPAWN_WAVE_1. For failed analysis tasks: exclude from prev_context and append gap_note to W2 instruction listing missing angles.
+  -> S_WAVE_1       WHEN: all failed, retry available   DO: retry once
+  -> S_WAVE_2       WHEN: all failed, retry exhausted   DO: proceed with seed input only, flag LOW CONFIDENCE (invariant 5 degradation)
 
 S_WAVE_2:
-  -> S_AGGREGATE    DO: A_SPAWN_WAVE_2
+  -> S_AGGREGATE    WHEN: completed    DO: A_SPAWN_WAVE_2
+  -> ERROR          WHEN: failed       DO: abort "Roadmap generation failed"
 
 S_AGGREGATE:
   -> END            DO: A_AGGREGATE_RESULTS
@@ -178,7 +181,7 @@ Assembly agent produces roadmap.md with Milestone > Phase hierarchy (goal, depen
 2. Interactive refinement (max 3 rounds, skip if -y): Approve / Refine / Regenerate
 3. Generate context.md (summary + analysis findings + roadmap stats)
 4. Write .workflow/roadmap.md with Milestone > Phase hierarchy
-5. Update state.json milestones + current_milestone
+5. Update state.json milestones + current_milestone + register RDM artifact
 6. **Generate context-package.json** (schema `context-package/1.0`):
    ```jsonc
    {
@@ -194,7 +197,11 @@ Assembly agent produces roadmap.md with Milestone > Phase hierarchy (goal, depen
    }
    ```
    Register `context_package` path in RDM artifact entry so downstream `--from roadmap:ID` can resolve.
-7. Next-step routing: need analysis -> maestro-analyze; ready to plan -> maestro-plan; UI first -> maestro-impeccable build; need formal specs -> maestro-blueprint
+7. **Next-step suggestion** (suggest only, NEVER auto-execute): display the recommended next command. The user decides whether to proceed.
+   - Need analysis → `maestro-analyze`
+   - Ready to plan → `maestro-plan`
+   - UI first → `maestro-impeccable build`
+   - Need formal specs → `maestro-blueprint`
 
 </actions>
 
@@ -243,4 +250,3 @@ maestro ralph complete <idx> --status {STATUS} [--evidence {path}]
 ```
 Status verdicts: **DONE** (normal), **DONE_WITH_CONCERNS** (caveats; pass `--concerns`), **NEEDS_RETRY** (transient error), **BLOCKED** (hard blocker; pass `--reason`).
 </ralph_completion>
-</output>
