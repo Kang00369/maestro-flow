@@ -40,6 +40,8 @@ export interface InstallFlowConfig {
   codexHooksSelection?: HooksSelection;
   agyHooksSelection?: HooksSelection;
   codexDedupeAgents?: boolean;
+  installPluginClaude?: boolean;
+  installPluginCodex?: boolean;
 }
 
 // ---------------------------------------------------------------------------

@@ -74,6 +74,11 @@ export interface InstallProfile {
     claudeMd: boolean;
     all: boolean;
   };
+  plugin?: {
+    enabled: boolean;
+    claude: boolean;
+    codex: boolean;
+  };
 }
 
 function ensureProfileDir(): void {
@@ -231,6 +236,9 @@ export function manifestToProfile(manifest: Manifest): InstallProfile {
       targetIds: (manifest.mcp?.extras?.map(e => e.targetId) ?? []) as ExtraMcpTargetId[],
     },
     backup: { claudeMd: true, all: false },
+    plugin: manifest.plugin
+      ? { enabled: !!(manifest.plugin.claude || manifest.plugin.codex), claude: !!manifest.plugin.claude, codex: !!manifest.plugin.codex }
+      : undefined,
   };
 }
 
@@ -366,6 +374,9 @@ export function configToProfile(
     },
     extraMcp: { enabled: config.installExtraMcp, targetIds: config.extraMcpTargetIds },
     backup: { claudeMd: config.backupClaudeMd, all: config.backupAll },
+    plugin: (config.installPluginClaude || config.installPluginCodex)
+      ? { enabled: true, claude: !!config.installPluginClaude, codex: !!config.installPluginCodex }
+      : undefined,
   };
 }
 
@@ -402,6 +413,8 @@ export function profileToStateValues(profile: InstallProfile): ProfileApplyResul
       extraMcp: profile.extraMcp.enabled,
       statusline: profile.claude.statusline.enabled,
       backup: profile.backup.claudeMd || profile.backup.all,
+      pluginClaude: profile.plugin?.claude ?? false,
+      pluginCodex: profile.plugin?.codex ?? false,
     },
     selectedComponentIds: profile.components.selectedIds,
     claudeHooks: { basePreset: profile.claude.hooks.basePreset, selectedHooks: profile.claude.hooks.selectedHooks, isCustom: profile.claude.hooks.isCustom },

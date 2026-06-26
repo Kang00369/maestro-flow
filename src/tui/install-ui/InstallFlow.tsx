@@ -138,6 +138,9 @@ export function InstallFlow({ pkgRoot, version, initialStep, initialMode, initia
             onExit={() => exit()}
             codexDedupeAgents={s.codexDedupeAgents}
             onDedupeChange={s.setCodexDedupeAgents}
+            pluginClaude={s.enabledSteps.pluginClaude}
+            pluginCodex={s.enabledSteps.pluginCodex}
+            onPluginToggle={(id) => s.toggleStep(id)}
           />
         )}
 
@@ -263,9 +266,16 @@ const PLATFORM_DEFS = [
   { id: 'agents-standard', label: 'Open Standard', desc: '.agents/ format (portable)' },
 ] as const;
 
+interface FlatRow {
+  type: 'platform' | 'plugin' | 'dedupe';
+  id: string;
+  platIdx?: number;
+}
+
 function PlatformSelector({
   selectedPlatforms, onToggle, mode, onModeChange, onNext, onExit,
   codexDedupeAgents, onDedupeChange,
+  pluginClaude, pluginCodex, onPluginToggle,
 }: {
   selectedPlatforms: Set<string>;
   onToggle: (id: string) => void;
@@ -275,20 +285,40 @@ function PlatformSelector({
   onExit: () => void;
   codexDedupeAgents: boolean;
   onDedupeChange: (v: boolean) => void;
+  pluginClaude: boolean;
+  pluginCodex: boolean;
+  onPluginToggle: (id: string) => void;
 }) {
   const showDedupe = selectedPlatforms.has('codex') && selectedPlatforms.has('agents-standard');
-  const totalItems = PLATFORM_DEFS.length + (showDedupe ? 1 : 0);
+
+  const rows = React.useMemo(() => {
+    const r: FlatRow[] = [];
+    for (let i = 0; i < PLATFORM_DEFS.length; i++) {
+      const plat = PLATFORM_DEFS[i];
+      r.push({ type: 'platform', id: plat.id, platIdx: i });
+      if (plat.id === 'claude' && selectedPlatforms.has('claude')) {
+        r.push({ type: 'plugin', id: 'pluginClaude' });
+      }
+      if (plat.id === 'codex' && selectedPlatforms.has('codex')) {
+        r.push({ type: 'plugin', id: 'pluginCodex' });
+      }
+    }
+    if (showDedupe) r.push({ type: 'dedupe', id: 'dedupe' });
+    return r;
+  }, [selectedPlatforms, showDedupe]);
+
   const [cursor, setCursor] = React.useState(0);
+  const safeCursor = Math.min(cursor, rows.length - 1);
 
   useInput((input, key) => {
-    if (key.upArrow) setCursor(i => wrapCursor(i, -1, totalItems));
-    else if (key.downArrow) setCursor(i => wrapCursor(i, 1, totalItems));
+    if (key.upArrow) setCursor(i => wrapCursor(Math.min(i, rows.length - 1), -1, rows.length));
+    else if (key.downArrow) setCursor(i => wrapCursor(Math.min(i, rows.length - 1), 1, rows.length));
     else if (input === ' ') {
-      if (cursor < PLATFORM_DEFS.length) {
-        onToggle(PLATFORM_DEFS[cursor].id);
-      } else if (showDedupe && cursor === PLATFORM_DEFS.length) {
-        onDedupeChange(!codexDedupeAgents);
-      }
+      const row = rows[safeCursor];
+      if (!row) return;
+      if (row.type === 'platform') onToggle(row.id);
+      else if (row.type === 'plugin') onPluginToggle(row.id);
+      else if (row.type === 'dedupe') onDedupeChange(!codexDedupeAgents);
     } else if (key.return) onNext();
     else if (key.escape) onExit();
     else if (input === 'g' || input === 'G') onModeChange('global');
@@ -298,6 +328,8 @@ function PlatformSelector({
       if (n >= 1 && n <= PLATFORM_DEFS.length) onToggle(PLATFORM_DEFS[n - 1].id);
     }
   });
+
+  const isPlugin = (id: string) => id === 'pluginClaude' ? pluginClaude : pluginCodex;
 
   return (
     <Box flexDirection="column">
@@ -314,30 +346,46 @@ function PlatformSelector({
 
       <SectionHeader title={t.install.groupPlatforms ?? 'Platforms'} />
       <Box flexDirection="column" marginTop={SP.sectionGap}>
-        {PLATFORM_DEFS.map((plat, i) => {
-          const sel = selectedPlatforms.has(plat.id);
-          const hl = i === cursor;
+        {rows.map((row, idx) => {
+          const hl = idx === safeCursor;
+          if (row.type === 'platform') {
+            const plat = PLATFORM_DEFS[row.platIdx!];
+            const sel = selectedPlatforms.has(plat.id);
+            return (
+              <Box key={row.id}>
+                <Text color={hl ? C.primary : C.neutral}>[{row.platIdx! + 1}] </Text>
+                <Text color={sel ? (hl ? C.successBright : C.success) : C.neutral}>{sel ? SYM.checkOn : SYM.checkOff} </Text>
+                <Text color={hl ? C.primary : undefined} bold={hl}>{plat.label.padEnd(22)}</Text>
+                <Text color={C.neutral}>{plat.desc}</Text>
+              </Box>
+            );
+          }
+          if (row.type === 'plugin') {
+            const plugin = isPlugin(row.id);
+            return (
+              <Box key={row.id}>
+                <Text color={hl ? C.primary : C.neutral}>{'      '}</Text>
+                <Text color={!plugin ? (hl ? C.successBright : C.success) : C.neutral}>{!plugin ? SYM.radioOn : SYM.radioOff} </Text>
+                <Text color={hl ? C.primary : undefined}>Copy files  </Text>
+                <Text color={plugin ? (hl ? C.successBright : C.success) : C.neutral}>{plugin ? SYM.radioOn : SYM.radioOff} </Text>
+                <Text color={hl ? C.primary : undefined}>Native plugin</Text>
+              </Box>
+            );
+          }
+          // dedupe
           return (
-            <Box key={plat.id}>
-              <Text color={hl ? C.primary : C.neutral}>[{i + 1}] </Text>
-              <Text color={sel ? (hl ? C.successBright : C.success) : C.neutral}>{sel ? SYM.checkOn : SYM.checkOff} </Text>
-              <Text color={hl ? C.primary : undefined} bold={hl}>{plat.label.padEnd(22)}</Text>
-              <Text color={C.neutral}>{plat.desc}</Text>
+            <Box key={row.id} marginTop={1}>
+              <Text color={hl ? C.primary : C.neutral}>    </Text>
+              <Text color={codexDedupeAgents ? (hl ? C.successBright : C.success) : C.neutral}>
+                {codexDedupeAgents ? SYM.checkOn : SYM.checkOff}{' '}
+              </Text>
+              <Text color={hl ? C.primary : undefined} bold={hl}>
+                {'Codex: disable .agents/ skills'.padEnd(22)}
+              </Text>
+              <Text color={C.neutral}>avoid duplicate skill discovery</Text>
             </Box>
           );
         })}
-        {showDedupe && (
-          <Box marginTop={1}>
-            <Text color={cursor === PLATFORM_DEFS.length ? C.primary : C.neutral}>    </Text>
-            <Text color={codexDedupeAgents ? (cursor === PLATFORM_DEFS.length ? C.successBright : C.success) : C.neutral}>
-              {codexDedupeAgents ? SYM.checkOn : SYM.checkOff}{' '}
-            </Text>
-            <Text color={cursor === PLATFORM_DEFS.length ? C.primary : undefined} bold={cursor === PLATFORM_DEFS.length}>
-              {'Codex: disable .agents/ skills'.padEnd(22)}
-            </Text>
-            <Text color={C.neutral}>avoid duplicate skill discovery</Text>
-          </Box>
-        )}
       </Box>
       <KeyHints hints={`[Space/1-${PLATFORM_DEFS.length}] Toggle  [g/p] Scope  [Enter] Next  [Esc] Exit`} />
     </Box>

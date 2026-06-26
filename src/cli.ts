@@ -35,6 +35,7 @@ const commandLoaders: Record<string, () => Promise<(p: Command) => void>> = {
   cli:        async () => (await import('./commands/cli.js')).registerCliCommand,
   install:    async () => (await import('./commands/install.js')).registerInstallCommand,
   uninstall:  async () => (await import('./commands/uninstall.js')).registerUninstallCommand,
+  plugin:     async () => (await import('./commands/plugin.js')).registerPluginCommand,
   view:       async () => (await import('./commands/view.js')).registerViewCommand,
   stop:       async () => (await import('./commands/stop.js')).registerStopCommand,
 

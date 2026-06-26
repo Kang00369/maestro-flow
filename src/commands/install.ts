@@ -199,11 +199,12 @@ export function registerInstallCommand(program: Command): void {
     .option('--extra-mcp <targets>', 'Comma-separated extra MCP targets (cursor,qoder,trae,kiro,roo,vscode,gemini)')
     .option('--components <ids>', 'Comma-separated component IDs to install (with --force)')
     .option('--statusline [theme]', 'Install statusline with optional theme (with --force)')
+    .option('--plugin', 'Register as native plugin instead of file copy (with --force)')
     .option('--export [path]', 'Export current install config as profile JSON')
     .option('--import <path>', 'Import profile and install non-interactively')
     .option('--upgrade', 'With --import: merge new default-selected components (used by update)')
     .option('--load <path>', 'Load profile into interactive TUI (pre-fill state)')
-    .action(async (opts: { force?: boolean; global?: boolean; path?: string; hooks?: string; mcp?: boolean; codexHooks?: string; codexMcp?: boolean; agyHooks?: string; extraMcp?: string; components?: string; statusline?: boolean | string; export?: boolean | string; import?: string; upgrade?: boolean; load?: string }) => {
+    .action(async (opts: { force?: boolean; global?: boolean; path?: string; hooks?: string; mcp?: boolean; codexHooks?: string; codexMcp?: boolean; agyHooks?: string; extraMcp?: string; components?: string; statusline?: boolean | string; plugin?: boolean; export?: boolean | string; import?: string; upgrade?: boolean; load?: string }) => {
       const pkgRoot = getPackageRoot();
 
       // Validate package root
@@ -248,6 +249,7 @@ export function registerInstallCommand(program: Command): void {
           claudeHooksSelection: profile.claude.hooks.isCustom ? profile.claude.hooks : undefined,
           codexHooksSelection: profile.codex.hooks.isCustom ? profile.codex.hooks : undefined,
           agyHooksSelection: profile.agy.hooks.isCustom ? profile.agy.hooks : undefined,
+          plugin: profile.plugin?.enabled || undefined,
         });
         return;
       }
@@ -301,6 +303,7 @@ interface ForceInstallOpts {
   claudeHooksSelection?: { basePreset: string; selectedHooks: string[]; isCustom: boolean };
   codexHooksSelection?: { basePreset: string; selectedHooks: string[]; isCustom: boolean };
   agyHooksSelection?: { basePreset: string; selectedHooks: string[]; isCustom: boolean };
+  plugin?: boolean;
 }
 
 async function forceInstall(
@@ -327,9 +330,19 @@ async function forceInstall(
   const componentIds = opts.components
     ? migrateComponentIds(opts.components.split(','))
     : undefined;
-  const toInstall = componentIds
+  let toInstall = componentIds
     ? available.filter(c => componentIds.includes(c.def.id))
     : available;
+
+  // Plugin mode: skip file-copy components for platforms using native plugin
+  if (opts.plugin) {
+    toInstall = toInstall.filter(c => {
+      if (c.def.inject) return true; // keep inject components (CLAUDE.md, AGENTS.md)
+      if (c.def.platform === 'claude') return false;
+      if (c.def.platform === 'codex') return false;
+      return true;
+    });
+  }
 
   const hookLevel = (opts.hooks ?? 'none') as HookLevel;
   const codexHookLevel = (opts.codexHooks ?? 'none') as HookLevel;
@@ -373,6 +386,8 @@ async function forceInstall(
     codexHooksSelection: opts.codexHooksSelection as import('../tui/install-ui/HooksConfig.js').HooksSelection,
     agyHooksSelection: opts.agyHooksSelection as import('../tui/install-ui/HooksConfig.js').HooksSelection,
     codexDedupeAgents: toInstall.some(c => c.def.id.startsWith('codex-')) && toInstall.some(c => c.def.id.startsWith('agents-standard-')),
+    installPluginClaude: !!opts.plugin,
+    installPluginCodex: !!opts.plugin,
   };
 
   const result = await executeInstallPipeline({

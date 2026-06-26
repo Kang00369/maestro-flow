@@ -8,7 +8,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { HooksSelection } from './HooksConfig.js';
 import type { InstallFlowConfig } from './types.js';
 import type { InstallFlowResult } from './InstallExecution.js';
-import { scanComponents, countExistingTargetFiles, MCP_TOOLS, COMPONENT_DEFS, migrateComponentIds, type ExtraMcpTargetId } from '../../commands/install-backend.js';
+import { scanComponents, countExistingTargetFiles, MCP_TOOLS, COMPONENT_DEFS, migrateComponentIds, type ExtraMcpTargetId, type ComponentDef } from '../../commands/install-backend.js';
 import { detectStatusline, getHooksForLevel, getAllHookNames, type HookLevel } from '../../commands/hooks.js';
 import { findManifest, type Manifest } from '../../core/manifest.js';
 import { exportProfile, importProfile, listProfiles, configToProfile, profileToStateValues } from '../../core/install-profile.js';
@@ -78,6 +78,8 @@ export function useInstallFlowState(opts: UseInstallFlowStateOptions) {
     extraMcp: initialStepIds ? initialStepIds.includes('extraMcp') : prior.extraMcp,
     statusline: initialStepIds ? initialStepIds.includes('statusline') : prior.statusline,
     backup: initialStepIds ? initialStepIds.includes('backup') : true,
+    pluginClaude: initialStepIds ? initialStepIds.includes('pluginClaude') : false,
+    pluginCodex: initialStepIds ? initialStepIds.includes('pluginCodex') : false,
   });
 
   // --- Platform selection ---
@@ -146,12 +148,18 @@ export function useInstallFlowState(opts: UseInstallFlowStateOptions) {
   // --- Computed: selectedComponentIds from platforms + chinese + addons ---
   const selectedComponentIds = useMemo(() => {
     const ids = new Set<string>();
+    const skipFileCopy = (plat: string, def: ComponentDef) =>
+      !def.inject && (
+        (plat === 'claude' && enabledSteps.pluginClaude) ||
+        (plat === 'codex' && enabledSteps.pluginCodex)
+      );
     for (const def of COMPONENT_DEFS) {
       const plat = def.platform ?? 'shared';
       if (CHINESE_IDS.has(def.id)) continue;
       if (ADDON_IDS.has(def.id)) continue;
       if (plat === 'shared') { ids.add(def.id); continue; }
       if (selectedPlatforms.has(plat as Platform)) {
+        if (skipFileCopy(plat, def)) continue;
         ids.add(def.id);
       }
     }
@@ -170,11 +178,12 @@ export function useInstallFlowState(opts: UseInstallFlowStateOptions) {
       if (!def) continue;
       const plat = def.platform ?? 'shared';
       if (plat === 'shared' || selectedPlatforms.has(plat as Platform)) {
+        if (skipFileCopy(plat, def)) continue;
         ids.add(addon);
       }
     }
     return Array.from(ids);
-  }, [selectedPlatforms, chineseEnabled, selectedAddons, ADDON_IDS, CHINESE_IDS]);
+  }, [selectedPlatforms, chineseEnabled, selectedAddons, ADDON_IDS, CHINESE_IDS, enabledSteps.pluginClaude, enabledSteps.pluginCodex]);
 
   const applyComponentIds = useCallback((ids: string[]) => {
     const idSet = new Set(ids);
@@ -263,6 +272,8 @@ export function useInstallFlowState(opts: UseInstallFlowStateOptions) {
       extraMcp: prior.extraMcp,
       statusline: prior.statusline || !lastManifest,
       backup: true,
+      pluginClaude: false,
+      pluginCodex: false,
     });
     setClaudeHooksSelection(makeHooksSelection((lastManifest?.hooks?.claude?.level as HookLevel) || 'standard', 'claude'));
     setCodexHooksSelection(makeHooksSelection((lastManifest?.hooks?.codex?.level as HookLevel) || 'standard', 'codex'));
@@ -309,6 +320,8 @@ export function useInstallFlowState(opts: UseInstallFlowStateOptions) {
     backupAll: enabledSteps.backup && backupAll,
     claudeHooksSelection, codexHooksSelection, agyHooksSelection,
     codexDedupeAgents: selectedPlatforms.has('codex' as any) && selectedPlatforms.has('agents-standard' as any) && codexDedupeAgents,
+    installPluginClaude: enabledSteps.pluginClaude,
+    installPluginCodex: enabledSteps.pluginCodex,
   }), [mode, projectPath, enabledSteps, hookLevel, selectedComponents.length,
     fileCount, mcpTools, mcpEnabled, selectedComponentIds, mcpProjectRoot,
     codexHookLevel, codexMcpEnabled, codexMcpTools, codexMcpProjectRoot,

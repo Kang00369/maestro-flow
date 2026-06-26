@@ -6,6 +6,7 @@
 import { join, dirname, resolve, relative, basename, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -875,6 +876,25 @@ export function uninstallManifest(
       if (removeExtraMcpServerAt(extra.configPath, spec.format)) {
         result.mcpRemoved.extras.push(extra.targetId);
       }
+    }
+  }
+
+  // --- Plugin unregistration ---
+  if (manifest.plugin?.claude || manifest.plugin?.codex) {
+    const isWin = process.platform === 'win32';
+    const runCli = (cmd: string, args: string[]) => {
+      try {
+        execFileSync(isWin ? 'cmd' : cmd, isWin ? ['/c', cmd, ...args] : args,
+          { encoding: 'utf-8', timeout: 30_000, stdio: 'pipe' });
+      } catch { /* ignore CLI errors */ }
+    };
+    if (manifest.plugin.claude) {
+      runCli('claude', ['plugin', 'uninstall', 'maestro-flow']);
+      runCli('claude', ['plugin', 'marketplace', 'remove', 'maestro-flow-bridge']);
+    }
+    if (manifest.plugin.codex) {
+      runCli('codex', ['plugin', 'remove', 'maestro-flow']);
+      runCli('codex', ['plugin', 'marketplace', 'remove', 'maestro-flow-bridge']);
     }
   }
 

@@ -69,7 +69,7 @@ export interface InstallResult {
 
 export type StepName =
   | 'backup' | 'cleanup' | 'components' | 'hooks' | 'statusline'
-  | 'mcp' | 'codexHooks' | 'codexMcp' | 'agyHooks' | 'extraMcp' | 'manifest';
+  | 'mcp' | 'codexHooks' | 'codexMcp' | 'agyHooks' | 'extraMcp' | 'plugin' | 'manifest';
 
 export type ProgressCallback = (step: StepName, status: 'active' | 'done' | 'error', detail: string) => void;
 
@@ -297,6 +297,30 @@ export async function executeInstallPipeline(opts: ExecutorOptions): Promise<Ins
     if (count > 0) progress('manifest', 'active', `Codex dedupe: ${count} .agents/ skills disabled`);
   } else {
     removeCodexSkillDedupeConfig(config.mode, config.projectPath);
+  }
+
+  // --- Plugin registration ---
+  if (config.installPluginClaude || config.installPluginCodex) {
+    if (cancelled()) throw new CancelledError();
+    progress('plugin', 'active', 'Registering native plugin...');
+    try {
+      const { installPlugin } = await import('./plugin-bridge.js');
+      const pluginResult = installPlugin(pkgRoot, version, {
+        claude: !!config.installPluginClaude,
+        codex: !!config.installPluginCodex,
+      });
+      const parts: string[] = [];
+      if (pluginResult.claude.success) parts.push(`Claude: ${pluginResult.claude.detail}`);
+      if (pluginResult.codex.success) parts.push(`Codex: ${pluginResult.codex.detail}`);
+      manifest.plugin = {
+        claude: pluginResult.claude.success,
+        codex: pluginResult.codex.success,
+      };
+      progress('plugin', 'done', parts.join('; ') || 'no platforms available');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      progress('plugin', 'error', msg);
+    }
   }
 
   // --- CLI tools config ---

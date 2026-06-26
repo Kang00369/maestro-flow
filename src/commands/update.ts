@@ -213,6 +213,28 @@ async function reinstallWorkflows(version: string): Promise<void> {
   } catch { /* ignore */ }
 }
 
+/**
+ * Re-register native plugin if any manifest has plugin.claude or plugin.codex.
+ * Calls the NEW binary's `maestro plugin install` so it picks up new skills.
+ */
+async function reinstallPlugin(): Promise<void> {
+  const manifests = getAllManifests();
+  const hasPlugin = manifests.some(m => m.plugin?.claude || m.plugin?.codex);
+  if (!hasPlugin) return;
+
+  console.error('');
+  console.error('  Re-registering native plugin...');
+
+  try {
+    const args: string[] = ['plugin', 'install'];
+    await spawnAsync('maestro', args);
+    console.error('  [+] Plugin re-registered');
+  } catch (err) {
+    console.error(`  [x] Plugin re-registration failed: ${err instanceof Error ? err.message : err}`);
+    console.error('      Run `maestro plugin install` manually.');
+  }
+}
+
 function spawnAsync(cmd: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { stdio: 'inherit', shell: true });
@@ -445,6 +467,9 @@ export function registerUpdateCommand(program: Command): void {
 
       // --- Post-update: reinstall workflow components ---
       await reinstallWorkflows(latest.version);
+
+      // --- Post-update: re-register native plugin if previously installed ---
+      await reinstallPlugin();
 
       // --- Post-update: apply version-keyed notices via new binary ---
       // (runs the new binary so its notice registry is the source of truth)
