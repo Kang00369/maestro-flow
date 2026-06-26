@@ -85,18 +85,47 @@ $ARGUMENTS — issue description and optional flags.
 | `maestro load --type spec --category debug --keyword "<symptom>"` | 已知 issue/workaround |
 | `Glob(".workflow/scratch/*-debug-odyssey-*")` | 相关 odyssey 会话 |
 
-### Knowledge Persistence（S_RECORD → understanding.md §9）
+### Knowledge Persistence (S_RECORD → understanding.md §9)
 
-| 分类 | 后续建议命令 |
-|------|-------------|
-| 反复根因模式 | `/spec-add debug "..."` |
-| 非显而易见 workaround | `/spec-add learning "..."` |
-| 架构边界违反 | `/spec-add arch "..."` |
-| 可复用泛化 pattern | `/spec-add coding "..."` |
+S_RECORD writes actionable learnings to **understanding.md §9**, structured by category:
+
+| Category | Content to Write | Suggested Follow-up |
+|----------|-----------------|---------------------|
+| Recurring root cause pattern | Root cause type + trigger conditions + fix approach + detection method | `/spec-add debug "..."` |
+| Non-obvious workaround | Problem description + workaround steps + why the obvious fix doesn't work | `/spec-add learning "..."` |
+| Architecture boundary violation | Violation description + correct boundary + verification method | `/spec-add arch "..."` |
+| Reusable generalization pattern | Pattern signature + risk description + fix template + applicable scope | `/spec-add coding "..."` |
+
+**Two-step model:** During execution, write to output files (temporary). After completion, user persists permanent knowledge via next_step_routing commands.
 </context>
 
+<invariants>
+1. **Evidence append-only** — evidence.ndjson is the single source of truth for all findings; never delete or overwrite entries
+2. **Session is state** — session.json holds current_state, phase_goals, progress_metrics; always update before advancing
+3. **Phase goal tracking** — each phase MUST mark its goal done (or failed) before transition; skipping silently is forbidden
+4. **Auto-commit per phase** — code changes + understanding.md committed after each phase; session.json/evidence.ndjson excluded from commits
+5. **Zero silent drops** — every finding must have an action (fix/issue/decision); "noted for later" is not an action
+</invariants>
+
 <self_iteration>
-适用阶段: S_ARCHAEOLOGY, S_EXPLORE, S_DIAGNOSE, S_GENERALIZE
+**Quality Gate — auto-evaluate after each analytical phase (progress-aware):**
+
+| Dimension | Sufficient | Insufficient |
+|-----------|-----------|-------------|
+| Coverage | All known related files/modules analyzed | Missed targets discoverable via grep/git log |
+| Depth | ≥80% findings have file:line evidence | Most findings lack specifics |
+| Actionability | Each conclusion has concrete next action | "Consider reviewing" without action |
+
+**Progress-aware iteration (replaces fixed 3-round cap):**
+- Phase complete → evaluate 3 dimensions + check `progress_metrics`
+- Any insufficient AND `stale_count < 3` → re-enter with expansion strategy (must pass directions_tried dedup)
+- Follow Stall Escalation Ladder: stale_count 0 = normal | 1 = switch perspective/tool | 2 = structural pivot | 3 = human escalation or INCONCLUSIVE
+
+**Expansion strategies:** `scope_widen` | `perspective_shift` | `tool_switch` | `structural_pivot`
+**Exit:** all sufficient → advance | `stale_count >= 3` → log gaps, advance
+**Log:** `evidence.ndjson {"phase":"self-iteration"}` + `session.json.self_iteration_log[]` + `directions_tried[]`
+
+Applicable stages: S_ARCHAEOLOGY, S_EXPLORE, S_DIAGNOSE, S_GENERALIZE
 </self_iteration>
 
 <state_machine>
@@ -197,20 +226,25 @@ Increment `diagnosis_retries`. < 3: broaden via `maestro delegate --role analyze
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-debug({slug}): CONFIRM — 修复验证"`
 
 ### A_GENERALIZE
-按 base A_GENERALIZE 执行。Pattern 来源: root cause + fix。统计写入 `session.json.generalization_stats`。Mark G4 done.
+Pattern source: root cause + fix. 3-layer extraction (syntax/semantic/structural) → 4 parallel Agents (syntax grep, semantic scan, structural match, historical grep) → cross-layer dedup (multi-layer hits → boost confidence | single-layer → `needs_review` | historically fixed → `regression_risk`) → iterative deepening (module ≥3 hits → targeted deep scan, max 1 round). Write `session.json.generalization_stats`. Update §7. Mark G4 done.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-debug({slug}): GENERALIZE — 泛化扫描完成"`
 
 ### A_DISCOVER
-按 base A_DISCOVER 执行。Mark G5 done.
+1. **Triage** each scan hit with ±10 lines context → classify as `bug` / `risk` / `safe`
+2. **Route:** bug + fix_template → immediate fix → back to S_FIX | bug + no template → create issue | risk → add guard if possible | safe → skip. **Normal**: AskUserQuestion | **`-y`**: auto-fix bugs with fix_template, create issue for rest
+3. **Cross-phase loop tracking:** `cross_phase_loops++`. At `loops >= max_loops` → MUST record per-item reasons (blanket "historical legacy" forbidden)
+4. Append evidence (phase: "discovery" + "decision"). Update §8.
+Mark G5 done.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-debug({slug}): DISCOVER — 发现分类完成"`
 
 ### A_RECORD
-1. Finalize `understanding.md` §9，按 Knowledge Persistence 表分类记录
-2. Mark G6 done. Pending decisions: Normal → AskUserQuestion | `-y` → skip (show deferred count)
-3. 其余按 base A_RECORD 执行
-4. **Completion summary**:
+1. Finalize `understanding.md` §9 — write learnings structured by Knowledge Persistence table categories. For each category, write: pattern/finding description + trigger conditions + fix approach + detection method.
+2. Mark G6 done. Pending decisions: **Normal** → AskUserQuestion per item | **`-y`** → skip, show deferred count
+3. **Goal audit:** check all `phase_goals[*].completion_confirmed`. All confirmed → `phase_goals_all_done = true`. Incomplete: **Normal** → AskUserQuestion | **`-y`** → auto accept
+4. Set `current_state = "COMPLETED"`
+5. **Completion summary**:
 ```
 --- DEBUG ODYSSEY COMPLETE ---
 Issue:      {issue}

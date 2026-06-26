@@ -66,17 +66,52 @@ $ARGUMENTS — target and optional flags.
 ### Pre-load
 Specs: `maestro load --type spec --category review`。其余按 base Pre-load。
 
-### Knowledge Persistence
-| 分类 | 后续建议命令 |
-|------|-------------|
-| 跨维度反复 pattern | `$spec-add review "..."` |
-| 安全发现 | `$spec-add debug "..."` |
-| 架构违反 pattern | `$spec-add arch "..."` |
-| 可复用泛化 pattern | `$spec-add coding "..."` |
+### Knowledge Persistence (S_RECORD → understanding.md §8)
+
+S_RECORD writes actionable learnings to **understanding.md §8**, structured by category:
+
+| Category | Content to Write | Suggested Follow-up |
+|----------|-----------------|---------------------|
+| Cross-dimension recurring pattern | Pattern description + affected dimensions + suggested coding standard | `$spec-add review "..."` |
+| Security finding | Vulnerability type + trigger conditions + fix approach | `$spec-add debug "..."` |
+| Architecture violation pattern | Violation description + correct boundary + verification method | `$spec-add arch "..."` |
+| Reusable generalization pattern | Pattern signature + risk description + fix template | `$spec-add coding "..."` |
+
+**Two-step model:** During execution, write to output files (temporary). After completion, user persists permanent knowledge via next_step_routing commands.
 </context>
 
+<invariants>
+1. **Evidence append-only** — evidence.ndjson is the single source of truth for all findings; never delete or overwrite entries
+2. **Session is state** — session.json holds current_state, phase_goals, progress_metrics; always update before advancing
+3. **Phase goal tracking** — each phase MUST mark its goal done (or failed) before transition; skipping silently is forbidden
+4. **Auto-commit per phase** — code changes + understanding.md committed after each phase; session.json/evidence.ndjson excluded from commits
+5. **Zero silent drops** — every finding must have an action (fix/issue/decision); "noted for later" is not an action
+</invariants>
+
 <self_iteration>
-适用阶段: S_ARCHAEOLOGY, S_EXPLORE, S_REVIEW, S_FIX, S_GENERALIZE
+**Quality Gate — auto-evaluate after each analytical phase (progress-aware):**
+
+| Dimension | Sufficient | Insufficient |
+|-----------|-----------|-------------|
+| Coverage | All known related files/modules analyzed | Missed targets discoverable via grep/git log |
+| Depth | ≥80% findings have file:line evidence | Most findings lack specifics |
+| Actionability | Each conclusion has concrete next action | "Consider reviewing" without action |
+
+**Progress-aware iteration (replaces fixed 3-round cap):**
+- Phase complete → evaluate 3 dimensions + check `progress_metrics`
+- Any insufficient AND `stale_count < 3` → re-enter with expansion strategy (must pass directions_tried dedup)
+- Follow Stall Escalation Ladder: stale_count 0 = normal | 1 = switch perspective/tool | 2 = structural pivot | 3 = human escalation or INCONCLUSIVE
+
+**Expansion strategies:**
+- `scope_widen`: more directories, deeper git log, additional delegate angles
+- `perspective_shift`: different CLI tool, reverse trace, manual reading
+- `tool_switch`: switch to unused analysis tool
+- `structural_pivot`: redefine problem framework, decompose sub-problems
+
+**Exit:** all sufficient → advance | `stale_count >= 3` → log gaps, advance
+**Log:** `evidence.ndjson {"phase":"self-iteration"}` + `session.json.self_iteration_log[]` + `directions_tried[]`
+
+Applicable stages: S_ARCHAEOLOGY, S_EXPLORE, S_REVIEW, S_FIX, S_GENERALIZE
 </self_iteration>
 
 <csv_schema>
@@ -203,15 +238,33 @@ spawn_agents_on_csv({ csv_path: "tasks.csv", id_column: "id",
   max_concurrency: 4, max_runtime_seconds: 600,
   output_csv_path: "wave-3-results.csv", output_schema: SHARED_OUTPUT_SCHEMA })
 ```
-Pattern 来源: findings (severity >= medium). Mark G4.
+Pattern source: findings (severity >= medium).
+
+**Cross-layer dedup:** multi-layer hits → boost confidence | single-layer → `needs_review` | historically fixed → `regression_risk`
+**Iterative deepening:** module with ≥3 hits → targeted deep scan (max 1 round)
+**Persist:** understanding.md §6 generalization section + `session.json.generalization_stats`
+
+Mark G4.
 📌 `"odyssey-review({slug}): GENERALIZE — 泛化扫描完成"`
 
 ### A_DISCOVER
-按 base A_DISCOVER 执行。Mark G5.
+1. **Triage** each scan hit with ±10 lines context → classify as `bug` / `risk` / `safe`
+2. **Route:**
+   - bug + fix_template directly applicable → **immediate fix** → back to S_FIX
+   - bug + needs cross-module decision or no fix_template → create issue (with fix suggestion + impact analysis)
+   - risk → evaluate if guard can be added directly; if yes → fix; if no → create issue
+   - safe → skip
+   **Normal**: request_user_input for routing. **`-y`**: auto-fix bugs with fix_template, create issue for rest
+3. **Cross-phase loop tracking:** `cross_phase_loops++`. At `loops >= max_loops` → MUST record per-item reasons (blanket "historical legacy" is forbidden)
+4. Append evidence (phase: "discovery" + "decision"). Update understanding.md §7.
+Mark G5.
 📌 `"odyssey-review({slug}): DISCOVER — 发现分类完成"`
 
 ### A_RECORD
-Write learnings to §8 按 Knowledge Persistence 表分类。其余按 base A_RECORD。Mark G6.
+1. Finalize understanding.md §8 — write learnings structured by Knowledge Persistence table categories. For each category, write: pattern description + affected dimensions/context + fix approach + detection method.
+2. Mark G6 done. Pending decisions: **Normal** → request_user_input per item | **`-y`** → skip, show deferred count
+3. **Goal audit:** check all `phase_goals[*].completion_confirmed`. All confirmed → `phase_goals_all_done = true`. Incomplete: **Normal** → request_user_input (accept/reject/skip each) | **`-y`** → auto accept
+4. Set `current_state = "COMPLETED"`
 
 ```
 --- REVIEW-TEST-FIX ODYSSEY COMPLETE ---

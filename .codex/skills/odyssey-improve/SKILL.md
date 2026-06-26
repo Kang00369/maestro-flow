@@ -141,7 +141,39 @@ id,title,description,task_type,dimension,deps,wave,status,findings,evidence,erro
 | 3 | Generalization (syntax-grep, semantic-scan, structural-match, historical-grep) | 4 agents |
 </csv_schema>
 
-Self-iteration 适用阶段: S_SURVEY, S_AUDIT, S_DIAGNOSE, S_GENERALIZE
+<invariants>
+1. **Evidence append-only** — evidence.ndjson is the single source of truth for all findings; never delete or overwrite entries
+2. **Session is state** — session.json holds current_state, phase_goals, progress_metrics; always update before advancing
+3. **Phase goal tracking** — each phase MUST mark its goal done (or failed) before transition; skipping silently is forbidden
+4. **Auto-commit per phase** — code changes + understanding.md committed after each phase; session.json/evidence.ndjson excluded from commits
+5. **Zero silent drops** — every finding must have an action (fix/issue/decision); "noted for later" is not an action
+</invariants>
+
+<self_iteration>
+**Quality Gate — auto-evaluate after each analytical phase (progress-aware):**
+
+| Dimension | Sufficient | Insufficient |
+|-----------|-----------|-------------|
+| Coverage | All known related files/modules analyzed | Missed targets discoverable via grep/git log |
+| Depth | ≥80% findings have file:line evidence | Most findings lack specifics |
+| Actionability | Each conclusion has concrete next action | "Consider reviewing" without action |
+
+**Progress-aware iteration (replaces fixed 3-round cap):**
+- Phase complete → evaluate 3 dimensions + check `progress_metrics`
+- Any insufficient AND `stale_count < 3` → re-enter with expansion strategy (must pass directions_tried dedup)
+- Follow Stall Escalation Ladder: stale_count 0 = normal | 1 = switch perspective/tool | 2 = structural pivot | 3 = human escalation or INCONCLUSIVE
+
+**Expansion strategies:**
+- `scope_widen`: more directories, deeper git log, additional delegate angles
+- `perspective_shift`: different CLI tool, reverse trace, manual reading
+- `tool_switch`: switch to unused analysis tool
+- `structural_pivot`: redefine problem framework, decompose sub-problems
+
+**Exit:** all sufficient → advance | `stale_count >= 3` → log gaps, advance
+**Log:** `evidence.ndjson {"phase":"self-iteration"}` + `session.json.self_iteration_log[]` + `directions_tried[]`
+
+Applicable stages: S_SURVEY, S_AUDIT, S_DIAGNOSE, S_GENERALIZE
+</self_iteration>
 
 <state_machine>
 
@@ -277,9 +309,17 @@ Skip if `--skip-fix`. Implement improvements for diagnosed root causes.
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-improve({slug}): VERIFY — 改进验证"`
 
 ### A_GENERALIZE
-Skip if `--skip-generalize`. Pattern 来源: diagnoses + fixes。
+Skip if `--skip-generalize`. Pattern source: diagnoses + fixes.
 
-按 base A_GENERALIZE 执行（`source` 值为 `diagnosis`）。
+**3-layer pattern extraction** (source = `diagnosis`):
+
+| Layer | Method | Example |
+|-------|--------|---------|
+| Syntax | Regex → Grep | Missing error handling, unchecked returns, resource leaks |
+| Semantic | Agent understands anti-pattern → scan | Incomplete validation, missing retry logic |
+| Structural | File/module structure similarity | Same module pattern missing same safeguard |
+
+Write `session.json.patterns[]`.
 
 **Wave 3 — 4-agent scan (spawn_agents_on_csv):**
 
@@ -292,21 +332,34 @@ Append Wave 3 rows to `tasks.csv`:
 ```
 `spawn_agents_on_csv({ csv_path:"tasks.csv", max_concurrency:4, max_runtime_seconds:300, output_csv_path:"wave-3-results.csv", output_schema:SHARED_OUTPUT_SCHEMA })`
 
-Cross-layer dedup → iterative deepening → quality gate 均按 base 执行。Update §6. Mark G5 done.
+**Cross-layer dedup:** multi-layer hits → boost confidence | single-layer → `needs_review` | historically fixed → `regression_risk`
+**Iterative deepening:** module with ≥3 hits → targeted deep scan (max 1 round)
+**Persist:** understanding.md §6 generalization section + `session.json.generalization_stats`
+
+Update §6. Mark G5 done.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-improve({slug}): GENERALIZE — 泛化扫描"`
 
 ### A_DISCOVER
-按 base A_DISCOVER 执行。Mark G6 done.
+1. **Triage** each scan hit with ±10 lines context → classify as `bug` / `risk` / `safe`
+2. **Route:**
+   - bug + fix_template directly applicable → **immediate fix** → back to S_FIX
+   - bug + needs cross-module decision or no fix_template → create issue (with fix suggestion + impact analysis)
+   - risk → evaluate if guard can be added directly; if yes → fix; if no → create issue
+   - safe → skip
+   **Normal**: request_user_input for routing. **`-y`**: auto-fix bugs with fix_template, create issue for rest
+3. **Cross-phase loop tracking:** `cross_phase_loops++`. At `loops >= max_loops` → MUST record per-item reasons (blanket "historical legacy" is forbidden)
+4. Append evidence (phase: "discovery" + "decision"). Update understanding.md §7.
+Mark G6 done.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-improve({slug}): DISCOVER — 发现分类"`
 
 ### A_RECORD
-1. **understanding.md §8**: Improvement metrics — before/after comparison table from baseline_metrics vs current
-2. **understanding.md §9**: Engineering learnings — 按 Knowledge Persistence 表分类记录（临时），completion summary 列出建议的 `/spec-add` 命令
-3. Mark G7 done. Pending decisions: **Normal** → request_user_input. **`-y`** → skip, show deferred count.
-4. 其余按 base A_RECORD 执行。
-5. `current_state = "COMPLETED"`. Emit completion summary: Target, Dimensions, Findings (C/H/M/L), Diagnosed count, Fix count + verified, Metrics (improved/regressed), Patterns (count + layer distribution), Scan hits (cross-layer), Issues created, Decisions (resolved/pending/deferred), Learnings count, Self-iter rounds, Cross-loops used, Goals (done/total/skipped).
+1. **understanding.md §8**: Improvement metrics — before/after comparison table from baseline_metrics vs current measurements
+2. **understanding.md §9**: Engineering learnings — write structured by Knowledge Persistence table categories. For each category, write: bottleneck/vulnerability type + fix approach + measurement method + detection strategy.
+3. Mark G7 done. Pending decisions: **Normal** → request_user_input per item | **`-y`** → skip, show deferred count
+4. **Goal audit:** check all `phase_goals[*].completion_confirmed`. All confirmed → `phase_goals_all_done = true`. Incomplete: **Normal** → request_user_input (accept/reject/skip each) | **`-y`** → auto accept
+5. Set `current_state = "COMPLETED"`. Emit completion summary: Target, Dimensions, Findings (C/H/M/L), Diagnosed count, Fix count + verified, Metrics (improved/regressed), Patterns (count + layer distribution), Scan hits (cross-layer), Issues created, Decisions (resolved/pending/deferred), Learnings count, Self-iter rounds, Cross-loops used, Goals (done/total/skipped).
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-improve({slug}): RECORD — 指标总结与知识沉淀"`
 

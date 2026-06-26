@@ -64,17 +64,40 @@ $ARGUMENTS — target and optional flags.
 ### Pre-load
 Specs: `maestro load --type spec --category review`。其余按 base Pre-load。
 
-### Knowledge Persistence
-| 分类 | 后续建议命令 |
-|------|-------------|
-| 跨维度反复 pattern | `/spec-add review "..."` |
-| 安全发现 | `/spec-add debug "..."` |
-| 架构违反 pattern | `/spec-add arch "..."` |
-| 可复用泛化 pattern | `/spec-add coding "..."` |
+### Knowledge Persistence (S_RECORD → understanding.md §8)
+
+S_RECORD writes actionable learnings to **understanding.md §8**, structured by category:
+
+| Category | Content to Write | Suggested Follow-up |
+|----------|-----------------|---------------------|
+| Cross-dimension recurring pattern | Pattern description + affected dimensions + suggested coding standard | `/spec-add review "..."` |
+| Security finding | Vulnerability type + trigger conditions + fix approach | `/spec-add debug "..."` |
+| Architecture violation pattern | Violation description + correct boundary + verification method | `/spec-add arch "..."` |
+| Reusable generalization pattern | Pattern signature + risk description + fix template | `/spec-add coding "..."` |
+
+**Two-step model:** During execution, write to output files (temporary). After completion, user persists permanent knowledge via next_step_routing commands.
 </context>
 
+<invariants>
+1. **Evidence append-only** — evidence.ndjson is the single source of truth; never delete or overwrite
+2. **Session is state** — session.json holds current_state, phase_goals, progress_metrics; always update before advancing
+3. **Phase goal tracking** — each phase MUST mark its goal done (or failed) before transition
+4. **Auto-commit per phase** — code changes + understanding.md committed; session.json/evidence.ndjson excluded
+5. **Zero silent drops** — every finding must have an action (fix/issue/decision)
+</invariants>
+
 <self_iteration>
-适用阶段: S_ARCHAEOLOGY, S_EXPLORE, S_REVIEW, S_FIX, S_GENERALIZE
+**Quality Gate — auto-evaluate after each analytical phase (progress-aware):**
+
+| Dimension | Sufficient | Insufficient |
+|-----------|-----------|-------------|
+| Coverage | All known related files/modules analyzed | Missed targets discoverable via grep/git log |
+| Depth | ≥80% findings have file:line evidence | Most findings lack specifics |
+| Actionability | Each conclusion has concrete next action | "Consider reviewing" without action |
+
+**Progress-aware iteration:** evaluate 3 dimensions + progress_metrics → insufficient + stale_count < 3 → re-enter with expansion strategy (scope_widen/perspective_shift/tool_switch/structural_pivot, must pass directions_tried dedup) → stale_count >= 3 → log gaps, advance
+
+Applicable stages: S_ARCHAEOLOGY, S_EXPLORE, S_REVIEW, S_FIX, S_GENERALIZE
 </self_iteration>
 
 <state_machine>
@@ -138,15 +161,21 @@ Update confirmation + remaining_actionable + §5.
 📌 `"odyssey-review({slug}): CONFIRM — 零遗留验证"`
 
 ### A_GENERALIZE
-按 base A_GENERALIZE 执行。Pattern 来源: findings (severity >= medium)。Mark G4.
+Pattern source: findings (severity >= medium). 3-layer extraction (syntax/semantic/structural) → 4 parallel Agents → cross-layer dedup (multi-layer → boost | single-layer → `needs_review` | historically fixed → `regression_risk`) → iterative deepening (module ≥3 hits → deep scan, max 1 round). Persist: understanding.md §6 + `session.json.generalization_stats`. Mark G4.
 📌 `"odyssey-review({slug}): GENERALIZE — 泛化扫描完成"`
 
 ### A_DISCOVER
-按 base A_DISCOVER 执行。Mark G5.
+1. **Triage** each scan hit with ±10 lines context → classify `bug` / `risk` / `safe`
+2. **Route:** bug + fix_template → immediate fix → S_FIX | bug + no template → create issue | risk → add guard if possible | safe → skip. **Normal**: AskUserQuestion | **`-y`**: auto-fix with template, create issue for rest
+3. `cross_phase_loops++`. At `loops >= max_loops` → MUST record per-item reasons. Update §7.
+Mark G5.
 📌 `"odyssey-review({slug}): DISCOVER — 发现分类完成"`
 
 ### A_RECORD
-Write learnings to §8 按 Knowledge Persistence 表分类。其余按 base A_RECORD。Mark G6.
+1. Finalize understanding.md §8 — write learnings structured by Knowledge Persistence table. For each category: pattern description + context + fix approach + detection method.
+2. Mark G6 done. Pending decisions: **Normal** → AskUserQuestion | **`-y`** → skip, show deferred count
+3. **Goal audit:** all `phase_goals[*].completion_confirmed` → `phase_goals_all_done = true`. Incomplete: **Normal** → AskUserQuestion | **`-y`** → auto accept
+4. Set `current_state = "COMPLETED"`
 
 ```
 --- REVIEW-TEST-FIX ODYSSEY COMPLETE ---
