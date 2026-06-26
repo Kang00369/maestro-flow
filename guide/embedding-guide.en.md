@@ -97,7 +97,92 @@ maestro embedding status
 
 ---
 
-## Configuration Parameters
+## External API Configuration
+
+In addition to the local ONNX model, Maestro supports fetching embedding vectors via external APIs. When the config file `~/.maestro/api-embedding.json` exists, API mode is automatically enabled and local model loading is skipped.
+
+### Config File
+
+Create `~/.maestro/api-embedding.json`:
+
+```json
+{
+  "baseUrl": "https://api.siliconflow.cn/v1",
+  "apiKey": "sk-your-api-key",
+  "model": "BAAI/bge-m3",
+  "dimensions": 1024,
+  "batchSize": 64
+}
+```
+
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `baseUrl` | ✅ | — | OpenAI-compatible API endpoint (must support `/embeddings`) |
+| `apiKey` | ✅ | — | API key |
+| `model` | ✅ | — | Model name (e.g., `BAAI/bge-m3`, `text-embedding-3-small`) |
+| `dimensions` | ❌ | — | Vector dimensions (some APIs support specifying output dimensions) |
+| `batchSize` | ❌ | `100` | Maximum texts per API request |
+
+### Compatible API Services
+
+Any service supporting the OpenAI `/v1/embeddings` interface format works:
+
+| Service | baseUrl | Recommended Model |
+|---------|---------|-------------------|
+| OpenAI | `https://api.openai.com/v1` | `text-embedding-3-small` |
+| SiliconFlow | `https://api.siliconflow.cn/v1` | `BAAI/bge-m3` |
+| Alibaba DashScope | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `text-embedding-v3` |
+| Local Ollama | `http://localhost:11434/v1` | `nomic-embed-text` |
+
+### Verify Configuration
+
+```bash
+# Check API mode status
+maestro embedding status
+
+# API mode output example:
+# Mode: API (external)
+# Endpoint: https://api.siliconflow.cn/v1
+# Model: BAAI/bge-m3
+# Dimensions: 1024
+# Batch size: 64
+# Active model: BAAI/bge-m3
+
+# Test API connectivity
+maestro embedding warmup
+
+# Output:
+# Warming up API embedding (BAAI/bge-m3)...
+# API embedding ready (234ms)
+```
+
+### Switching Modes
+
+| Action | Method |
+|--------|--------|
+| Switch to API mode | Create `~/.maestro/api-embedding.json` |
+| Switch to local mode | Delete or rename `~/.maestro/api-embedding.json` |
+| Switch models | Modify the `model` field in the config file |
+
+> **Note**: After switching models, the first search triggers a full index rebuild (different models produce incompatible vectors). Subsequent searches use incremental updates.
+
+### Proxy Configuration
+
+API mode automatically reads proxy settings with this priority:
+
+1. Environment variables `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`
+2. `proxy` config in `~/.maestro/cli-tools.json`
+
+### Fault Tolerance
+
+- **Auto-retry**: 429/5xx errors auto-retry up to 2 times (exponential backoff: 1s→2s→4s)
+- **Parallel requests**: Up to 4 concurrent batches, accelerating large index builds
+- **Graceful fallback**: When API is unreachable, falls back to the last successfully built index (rather than disabling embedding entirely)
+- **Atomic writes**: Index files use temp+rename to prevent corruption from interrupted writes
+
+---
+
+## Local Model Configuration
 
 ### Device Configuration
 
@@ -283,11 +368,11 @@ maestro search-daemon status
 
 ### E5 Model Prefixes
 
-E5 models require specific prefixes:
+Local E5 models require specific prefixes:
 - Query: `query: <text>`
 - Document: `passage: <text>`
 
-The system automatically adds these prefixes, no manual handling needed.
+The system automatically adds these prefixes in local mode. In API mode, no prefixes are added — the API service handles this.
 
 ### Cosine Similarity
 

@@ -97,7 +97,92 @@ maestro embedding status
 
 ---
 
-## 配置参数
+## 外部 API 配置
+
+除本地 ONNX 模型外，Maestro 支持通过外部 API 获取 embedding 向量。配置文件 `~/.maestro/api-embedding.json` 存在时自动启用 API 模式，跳过本地模型加载。
+
+### 配置文件
+
+创建 `~/.maestro/api-embedding.json`：
+
+```json
+{
+  "baseUrl": "https://api.siliconflow.cn/v1",
+  "apiKey": "sk-your-api-key",
+  "model": "BAAI/bge-m3",
+  "dimensions": 1024,
+  "batchSize": 64
+}
+```
+
+| 字段 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `baseUrl` | ✅ | — | OpenAI 兼容的 API 端点（需支持 `/embeddings`） |
+| `apiKey` | ✅ | — | API 密钥 |
+| `model` | ✅ | — | 模型名称（如 `BAAI/bge-m3`、`text-embedding-3-small`） |
+| `dimensions` | ❌ | — | 向量维度（部分 API 支持指定输出维度） |
+| `batchSize` | ❌ | `100` | 每次 API 请求的最大文本数 |
+
+### 兼容的 API 服务
+
+任何支持 OpenAI `/v1/embeddings` 接口格式的服务均可使用：
+
+| 服务 | baseUrl | 推荐模型 |
+|------|---------|----------|
+| OpenAI | `https://api.openai.com/v1` | `text-embedding-3-small` |
+| SiliconFlow | `https://api.siliconflow.cn/v1` | `BAAI/bge-m3` |
+| 阿里云百炼 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `text-embedding-v3` |
+| 本地 Ollama | `http://localhost:11434/v1` | `nomic-embed-text` |
+
+### 验证配置
+
+```bash
+# 检查 API 模式状态
+maestro embedding status
+
+# API 模式输出示例：
+# Mode: API (external)
+# Endpoint: https://api.siliconflow.cn/v1
+# Model: BAAI/bge-m3
+# Dimensions: 1024
+# Batch size: 64
+# Active model: BAAI/bge-m3
+
+# 测试 API 连通性
+maestro embedding warmup
+
+# 输出：
+# Warming up API embedding (BAAI/bge-m3)...
+# API embedding ready (234ms)
+```
+
+### 切换模式
+
+| 操作 | 方法 |
+|------|------|
+| 切换到 API 模式 | 创建 `~/.maestro/api-embedding.json` |
+| 切换回本地模式 | 删除或重命名 `~/.maestro/api-embedding.json` |
+| 切换模型 | 修改配置文件中的 `model` 字段 |
+
+> **注意**：切换模型后首次搜索会触发全量索引重建（模型不同，向量不兼容），后续搜索使用增量更新。
+
+### 代理配置
+
+API 模式自动读取代理设置，优先级：
+
+1. 环境变量 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`
+2. `~/.maestro/cli-tools.json` 中的 `proxy` 配置
+
+### 容错机制
+
+- **自动重试**：429/5xx 错误自动重试 2 次（指数退避 1s→2s→4s）
+- **并行请求**：多批次并发上限 4，加速大量文档的索引构建
+- **降级回退**：API 不可达时自动使用上一次成功构建的索引（而非完全禁用 embedding）
+- **原子写入**：索引文件使用 temp+rename 防止写入中断导致损坏
+
+---
+
+## 本地模型配置
 
 ### 设备配置
 
@@ -283,11 +368,11 @@ maestro search-daemon status
 
 ### E5 模型前缀
 
-E5 模型要求特定前缀：
+本地 E5 模型要求特定前缀：
 - 查询：`query: <text>`
 - 文档：`passage: <text>`
 
-系统自动添加此前缀，无需手动处理。
+本地模式下系统自动添加此前缀。API 模式下不添加前缀，由 API 服务端处理。
 
 ### 余弦相似度
 
