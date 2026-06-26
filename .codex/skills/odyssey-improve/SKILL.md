@@ -4,7 +4,7 @@ description: "Long-running codebase improvement cycle — multi-dimensional audi
 argument-hint: '"<target>" [--dimensions <list>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c] [--heartbeat]'
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
-<base>@~/.maestro/workflows/odyssey-base.md</base>
+<base>@~/.maestro/workflows/odyssey-base-codex.md</base>
 
 <purpose>
 Deep codebase improvement: survey → 6-dimension audit → diagnose → fix → verify → generalize → discover → persist.
@@ -279,18 +279,9 @@ Skip if `--skip-fix`. Implement improvements for diagnosed root causes.
 ### A_GENERALIZE
 Skip if `--skip-generalize`. Pattern 来源: diagnoses + fixes。
 
-**Step 1 — Multi-layer pattern extraction:**
+按 base A_GENERALIZE 执行（`source` 值为 `diagnosis`）。
 
-| Layer | Method | Example |
-|-------|--------|---------|
-| Syntax | Regex patterns (direct Grep) | Missing `await`, unclosed resources, `catch {}` empty |
-| Semantic | Agent anti-pattern scan | Unvalidated input, missing error boundary, no timeout |
-| Structural | Architecture-level similarity | Same import structure, identical anti-pattern |
-| Historical | Git log for pattern introduction | When pattern was introduced, if ever fixed |
-
-Write `session.json.patterns[]`: `[{id, source_diagnosis, layer, signature, description, risk, fix_template}]`
-
-**Step 2 — 4-agent scan (spawn_agents_on_csv, Wave 3):**
+**Wave 3 — 4-agent scan (spawn_agents_on_csv):**
 
 Append Wave 3 rows to `tasks.csv`:
 ```csv
@@ -301,13 +292,7 @@ Append Wave 3 rows to `tasks.csv`:
 ```
 `spawn_agents_on_csv({ csv_path:"tasks.csv", max_concurrency:4, max_runtime_seconds:300, output_csv_path:"wave-3-results.csv", output_schema:SHARED_OUTPUT_SCHEMA })`
 
-**Step 3 — Cross-layer dedup**: same file:line multi-layer → boost confidence | single-layer → `needs_review` | historical fixed → `regression_risk`
-
-**Step 4 — Iterative deepening**: module ≥3 hits → targeted deep scan (max 1 round).
-
-**Step 5 — Quality Gate** (self-iteration).
-
-**Step 6:** Write `generalization_stats`: `{patterns_extracted, total_hits, cross_layer_confirmed, regression_risks, by_layer, deepening_triggered}`. Update §6. Mark G5 done.
+Cross-layer dedup → iterative deepening → quality gate 均按 base 执行。Update §6. Mark G5 done.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-improve({slug}): GENERALIZE — 泛化扫描"`
 
@@ -344,7 +329,7 @@ Append Wave 3 rows to `tasks.csv`:
 | A_FIX improvement confirmation | request_user_input | auto-proceed, `deferred` |
 | A_DIAGNOSE ambiguity | request_user_input | best-effort, `deferred` |
 | A_ESCALATE 3-strike | request_user_input 3-way | auto INCONCLUSIVE |
-| A_DISCOVER hit routing | request_user_input | auto create issue, `deferred` |
+| A_DISCOVER hit routing | request_user_input | auto-fix 有 fix_template 的，其余 create issue |
 | A_DISCOVER ambiguous items | request_user_input | all `deferred` |
 | A_RECORD pending decisions | request_user_input | skip, show deferred count |
 | A_RECORD goal audit | request_user_input | auto accept |

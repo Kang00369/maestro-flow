@@ -4,7 +4,7 @@ description: "Long-running debug cycle — archaeology, diagnosis, fix, confirma
 argument-hint: "<issue> [--skip-fix] [--skip-generalize] [--auto] [-y] [-c] [--heartbeat]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
-<base>@~/.maestro/workflows/odyssey-base.md</base>
+<base>@~/.maestro/workflows/odyssey-base-codex.md</base>
 
 <purpose>
 Closed-loop deep debugging: archaeology → explore → diagnose → fix & confirm → generalize → discover siblings → persist.
@@ -49,9 +49,9 @@ $ARGUMENTS — issue description and optional flags.
 **session.json unique fields:**
 ```json
 { "issue": "", "diagnosis_retries": 0, "root_cause": null, "confirmation": null,
-  "patterns": [], "generalization_stats": null, "cross_phase_loops": 0, "max_loops": 5 }
+  "patterns": [], "generalization_stats": null }
 ```
-共有字段（`progress_metrics`, `directions_tried` 等）见 base。
+共有字段（`cross_phase_loops`, `max_loops`, `progress_metrics`, `directions_tried` 等）见 base。
 
 **evidence.ndjson phases:** `archaeology|explore|diagnosis|discovery|decision|self-iteration`
 - `archaeology`: `sha`, `author`, `date`, `message`, `relevance`
@@ -149,8 +149,8 @@ S_EXPLORE     → S_DIAGNOSE    : A_EXPLORE complete
 S_DIAGNOSE → S_FIX          : root cause confirmed, !skip_fix
 S_DIAGNOSE → S_GENERALIZE   : root cause confirmed, skip_fix, !skip_generalize
 S_DIAGNOSE → S_RECORD       : root cause confirmed, skip_fix, skip_generalize
-S_DIAGNOSE → S_DIAGNOSE     : all hypotheses failed, retries < 3 → A_ESCALATE_DIAGNOSIS
-S_DIAGNOSE → S_RECORD       : retries >= 3 → mark INCONCLUSIVE
+S_DIAGNOSE → S_DIAGNOSE     : all hypotheses failed, diagnosis_retries < 3 → A_ESCALATE_DIAGNOSIS
+S_DIAGNOSE → S_RECORD       : diagnosis_retries >= 3 → mark INCONCLUSIVE
 
 S_FIX     → S_CONFIRM       : fix implemented
 S_CONFIRM → S_GENERALIZE    : confirmed, !skip_generalize
@@ -246,19 +246,9 @@ Increment `diagnosis_retries`. < 3: broaden via `maestro delegate --role analyze
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-debug({slug}): CONFIRM — 修复验证"`
 
 ### A_GENERALIZE
-Skip if `--skip-generalize`. Pattern 来源: root cause + fix。
+Skip if `--skip-generalize`. Pattern 来源: root cause + fix。按 base A_GENERALIZE 执行。
 
-**Step 1 — Multi-layer pattern extraction:**
-
-| Layer | Method | Example |
-|-------|--------|---------|
-| Syntax | Regex patterns (direct Grep) | `eval(`, missing `await`, unclosed resource |
-| Semantic | Anti-pattern description (Agent scan) | Unhandled async errors, unvalidated input |
-| Structural | Architecture-level similarity | Same import structure, missing override |
-
-Write `session.json.patterns[]`: `[{id, source, layer, signature, description, risk, fix_template}]`
-
-**Step 2 — 4-agent scan (spawn_agents_on_csv, Wave 2):**
+**Wave 2 — 4-agent scan (spawn_agents_on_csv):**
 
 Append Wave 2 rows to `tasks.csv`:
 ```csv
@@ -275,13 +265,7 @@ spawn_agents_on_csv({ csv_path:"tasks.csv", id_column:"id",
   output_csv_path:"wave-2-results.csv", output_schema: SHARED_OUTPUT_SCHEMA })
 ```
 
-**Step 3 — Cross-layer dedup**: same file:line multi-layer → boost confidence | single-layer → `needs_review` | historical fixed → `regression_risk`
-
-**Step 4 — Iterative deepening**: module ≥3 hits → targeted deep scan (max 1 round).
-
-**Step 5 — Quality Gate** (self-iteration).
-
-**Step 6:** Write `session.json.generalization_stats`: `{patterns_extracted, total_hits, cross_layer_confirmed, regression_risks, by_layer, deepening_triggered}`. Update §7. Mark G4 done.
+Update §7. Mark G4 done.
 
 📌 **Auto-commit**: `git add understanding.md && git commit -m "odyssey-debug({slug}): GENERALIZE — 泛化扫描完成"`
 
@@ -340,7 +324,7 @@ Goals:      {done}/{total} confirmed ({skipped} skipped)
 | A_DIAGNOSE ambiguity | request_user_input | `deferred`, best-effort continue |
 | A_ESCALATE 3-strike | request_user_input 3-way | auto INCONCLUSIVE |
 | A_FIX direction | request_user_input | auto proceed with suggested fix |
-| A_DISCOVER bug triage | request_user_input | auto create issue |
+| A_DISCOVER bug triage | request_user_input | auto-fix 有 fix_template 的，其余 create issue |
 | A_DISCOVER ambiguous | request_user_input batch | all `deferred` |
 | A_RECORD decisions | request_user_input per-item | skip, show deferred count |
 | A_RECORD goal audit | request_user_input 3-way | auto accept current state |
@@ -355,12 +339,13 @@ Goals:      {done}/{total} confirmed ({skipped} skipped)
 | E001 | error | No issue and no session to resume | Provide issue or use -c |
 | W001 | warning | No relevant git history | Proceed with limited context |
 | W002 | warning | All hypotheses inconclusive after 3 retries | INCONCLUSIVE |
-| W005 | warning | Pending decisions unresolved | Filter evidence.ndjson phase=decision |
+| E002 | error | Target path not found | Check path |
+| W005 | warning | Pending decisions unresolved at S_RECORD | Filter evidence.ndjson phase=decision |
 | W006 | warning | CLI exploration skipped (no tools) | Proceed without explore.json |
 </error_codes>
 
 <success_criteria>
-- [ ] Session created with 4 output files, prior knowledge searched
+- [ ] Session created with session.json + evidence.ndjson + understanding.md; explore.json created at S_EXPLORE (if CLI tools available)
 - [ ] Git archaeology + CLI change review → evidence phase=archaeology
 - [ ] CLI exploration → explore.json + evidence phase=explore
 - [ ] Hypotheses tested, root cause declared with evidence refs

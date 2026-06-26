@@ -5,7 +5,7 @@ argument-hint: '"<target>" [--dimensions <list>] [--skip-fix] [--skip-generalize
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
-<base>@~/.maestro/workflows/odyssey-base.md</base>
+<base>@~/.maestro/workflows/odyssey-base-codex.md</base>
 
 <purpose>
 Deep UI polish cycle: survey → 6-dimension audit → divergent creative exploration →
@@ -56,7 +56,7 @@ $ARGUMENTS — target and optional flags.
 
 **Output — 3 files:** `session.json` (state + audit/diverge results + patterns + phase_goals) | `evidence.ndjson` (phases: survey, audit, diverge, fix, discovery, decision, self-iteration) | `understanding.md` (8-section narrative)
 
-**session.json unique fields:** `target`, `dimensions`, `audit_result` {dimensions_audited, finding_count, severity_distribution}, `diverge_result` {improvements_proposed, creative_ideas}, `patterns[]` {id, source_finding, layer, signature, description, risk, fix_template, confidence}, `confirmation` {test_result, cli_review, overall}, `generalization_stats` {patterns_extracted, total_hits, cross_layer_confirmed, regression_risks, by_layer, deepening_triggered}
+**session.json unique fields:** `target`, `dimensions`, `audit_result` {dimensions_audited, finding_count, severity_distribution}, `diverge_result` {improvements_proposed, creative_ideas}, `patterns[]` (schema 见 base, `source` 值为 `finding`), `confirmation` {test_result, cli_review, overall}, `generalization_stats` (schema 见 base)
 
 **phase_goals[]:**
 | ID | Goal | Phase | skip_when |
@@ -250,17 +250,9 @@ Skip if `--skip-fix`.
 ### A_GENERALIZE
 Skip if `--skip-generalize`. Pattern 来源: audit findings + diverge ideas (severity >= medium OR impact = high)。
 
-**Step 1 — Multi-layer pattern extraction:**
+按 base A_GENERALIZE 执行（`source` 值为 `finding`）。
 
-| Layer | Method | Example |
-|-------|--------|---------|
-| Syntax | Regex patterns (direct Grep) | Missing `focus-visible`, hardcoded colors, `!important` |
-| Semantic | Agent anti-pattern scan | Missing hover state on interactive element, no empty state |
-| Structural | File/module similarity | Same component structure missing accessibility attrs |
-
-Write `session.json.patterns[]`: `[{id, source_finding, layer, signature, description, risk, fix_template}]`
-
-**Step 2 — 4-agent scan (spawn_agents_on_csv, Wave 4):**
+**Wave 4 — 4-agent scan (spawn_agents_on_csv):**
 
 Append Wave 4 rows to `tasks.csv`:
 ```csv
@@ -271,13 +263,7 @@ Append Wave 4 rows to `tasks.csv`:
 ```
 `spawn_agents_on_csv({ csv_path:"tasks.csv", max_concurrency:4, max_runtime_seconds:600, output_csv_path:"wave-4-results.csv", output_schema:SHARED_OUTPUT_SCHEMA })`
 
-**Step 3 — Cross-layer dedup**: Multi-layer hit → boost confidence. Single → `needs_review`. Historical fix → `regression_risk`.
-
-**Step 4 — Iterative deepening**: module ≥3 hits → targeted deep scan. Max 1 round.
-
-**Step 5 — Quality Gate** (self-iteration).
-
-**Step 6:** Write `generalization_stats`. Update §6. Mark G5 done.
+Cross-layer dedup → iterative deepening → quality gate 均按 base 执行。Update §6. Mark G5 done.
 📌 `git commit -m "odyssey-ui({slug}): GENERALIZE — 泛化扫描"`
 
 ### A_DISCOVER
@@ -325,7 +311,7 @@ Learnings: {N} entries | Self-iter: {N} rounds | Goals: {done}/{total} ({skipped
 | Decision Point | Normal | `-y` |
 |----------------|--------|------|
 | A_FIX improvement confirmation | request_user_input | auto-proceed, `deferred` |
-| A_DISCOVER hit routing | request_user_input | auto create issue, `deferred` |
+| A_DISCOVER hit routing | request_user_input | auto-fix 有 fix_template 的，其余 create issue |
 | A_DISCOVER ambiguous items | request_user_input | all `deferred` |
 | A_RECORD pending decisions | request_user_input | skip, show deferred count |
 | A_RECORD goal audit | request_user_input | auto accept |

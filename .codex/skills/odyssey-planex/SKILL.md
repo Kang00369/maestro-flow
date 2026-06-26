@@ -5,7 +5,7 @@ argument-hint: "<requirement> [--max-iterations N] [--skip-generalize] [--auto] 
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
-<base>@~/.maestro/workflows/odyssey-base.md</base>
+<base>@~/.maestro/workflows/odyssey-base-codex.md</base>
 
 <purpose>
 Requirement-to-delivery closed loop: parse requirement → define acceptance criteria →
@@ -89,7 +89,7 @@ SESSION_DIR/
   ],
   "current_iteration": 0,
   "patterns": [
-    {"id":"P1","source":"AC1 fix","layer":"syntax|semantic|structural","signature":"","description":"","risk":"","fix_template":""}
+    {"id":"P1","source":"AC1 fix","layer":"syntax|semantic|structural","signature":"","description":"","risk":"","fix_template":"","confidence":"high|medium|low"}
   ],
   "generalization_stats": {"patterns_extracted":0,"total_hits":0,"cross_layer_confirmed":0,"by_layer":{"syntax":0,"semantic":0,"structural":0},"deepening_triggered":false},
   "phase_goals": [],
@@ -525,7 +525,7 @@ Pattern 来源: implementation patterns。Mark G5 done.
 | S_EXECUTE task blocked (3 retries) | request_user_input: continue or stop | auto continue, log blocked |
 | S_VERIFY manual criterion | request_user_input | `deferred` |
 | S_VERIFY max iteration reached | request_user_input | auto accept, `deferred` |
-| S_DISCOVER classification routing | request_user_input | auto create issue, `deferred` |
+| S_DISCOVER classification routing | request_user_input | auto-fix 有 fix_template 的，其余 create issue |
 | S_DISCOVER ambiguous items | request_user_input | all `deferred` |
 | S_RECORD decision list | request_user_input | skip |
 | S_RECORD goal audit | request_user_input | auto accept |

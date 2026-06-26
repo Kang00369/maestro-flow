@@ -4,7 +4,7 @@ description: "Deep review + fix cycle — archaeology, exploration, multi-dimens
 argument-hint: "<target> [--dimensions <list>] [--fix-threshold critical|high|medium|low|all] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c] [--heartbeat]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
-<base>@~/.maestro/workflows/odyssey-base.md</base>
+<base>@~/.maestro/workflows/odyssey-base-codex.md</base>
 
 <purpose>
 Deep code review with exhaustive fix: archaeology → explore → multi-dimensional review →
@@ -247,7 +247,7 @@ Goals:  {done}/{total} ({skipped} skipped)
 | S_FIX tier candidates | request_user_input | auto-fix, `deferred` |
 | S_FIX re-review new | request_user_input | auto-append |
 | S_CONFIRM needs_rework | Display → S_FIX | auto proceed |
-| S_DISCOVER bug routing | request_user_input | auto issue, `deferred` |
+| S_DISCOVER bug routing | request_user_input | auto-fix 有 fix_template 的，其余 create issue |
 | S_DISCOVER ambiguous | request_user_input | all `deferred` |
 | S_RECORD decisions | request_user_input | skip |
 | S_RECORD goal audit | request_user_input | auto accept |
