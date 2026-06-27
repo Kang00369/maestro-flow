@@ -304,6 +304,9 @@ const commandModules = import.meta.glob('/.claude/commands/*.md', { query: '?raw
 const claudeSkillModules = import.meta.glob('/.claude/skills/*/SKILL.md', { query: '?raw', import: 'default' });
 const codexSkillModules = import.meta.glob('/.codex/skills/*/SKILL.md', { query: '?raw', import: 'default' });
 const guideModules = import.meta.glob('/src/content/docs/guides/*.md', { query: '?raw', import: 'default' });
+// English guide source — bilingual sibling directory. Preferred over legacy
+// `guides/{file_en}` .en.md siblings (which are rarely present on disk).
+const guideModulesEn = import.meta.glob('/src/content/docs/en/guides/*.md', { query: '?raw', import: 'default' });
 
 /**
  * Normalize allowedTools — frontmatter may be a string or an array
@@ -514,16 +517,24 @@ export async function loadGuide(slug: string, locale: string = 'zh-CN'): Promise
   const entry = guideRegistry.find(g => g.slug === slug);
   if (!entry) return null;
 
-  // Determine which file to load
   const isEn = locale === 'en';
-  const targetFile = isEn && entry.file_en ? entry.file_en : entry.file;
 
-  const modulePath = `/src/content/docs/guides/${targetFile}`;
-  const loader = guideModules[modulePath] || guideModules[modulePath.replace(/^\//, '')];
-
-  // If English file not found, fall back to Chinese
-  const fallbackPath = `/src/content/docs/guides/${entry.file}`;
-  const finalLoader = loader || guideModules[fallbackPath] || guideModules[fallbackPath.replace(/^\//, '')];
+  // Locale-aware fallback chain:
+  //   en: en/guides/{file}  →  guides/{file_en}  →  guides/{file} (zh)
+  //   zh: guides/{file}
+  let finalLoader: (() => Promise<unknown>) | undefined;
+  if (isEn) {
+    const enPath = `/src/content/docs/en/guides/${entry.file}`;
+    finalLoader = guideModulesEn[enPath] || guideModulesEn[enPath.replace(/^\//, '')];
+    if (!finalLoader && entry.file_en) {
+      const enSiblingPath = `/src/content/docs/guides/${entry.file_en}`;
+      finalLoader = guideModules[enSiblingPath] || guideModules[enSiblingPath.replace(/^\//, '')];
+    }
+  }
+  if (!finalLoader) {
+    const zhPath = `/src/content/docs/guides/${entry.file}`;
+    finalLoader = guideModules[zhPath] || guideModules[zhPath.replace(/^\//, '')];
+  }
 
   if (!finalLoader) return null;
 

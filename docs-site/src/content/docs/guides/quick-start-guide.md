@@ -25,6 +25,24 @@ maestro hooks install --level standard
 
 安装后即可在 Claude Code 中使用 `/maestro-*` 系列斜杠命令和 `maestro` 终端命令。
 
+### 可选技能包（按需安装）
+
+`maestro install` 交互界面中，以下 3 个技能包默认不选中，按需勾选。每个技能在文档站都有单独介绍页（Team / Scholar / Meta 分类下可查），完整说明见[安装指南](/guides/install)。
+
+**skills-extra-team（16 个团队协作技能）**：team-arch-opt、team-brainstorm、team-designer、team-frontend、team-frontend-debug、team-interactive-craft、team-issue、team-motion-design、team-perf-opt、team-planex、team-roadmap-dev、team-ui-polish、team-uidesign、team-ultra-analyze、team-ux-improve、team-visual-a11y
+
+**skills-scholar（10 个学术技能）**：scholar-ideation、scholar-writing、scholar-experiment、scholar-citation-verify、scholar-anti-ai-writing、scholar-latex-organizer、scholar-review、scholar-rebuttal-pro、scholar-thesis-docx、scholar-publish
+
+**skills-meta（5 个元技能）**：skill-generator、skill-simplify、skill-tuning、prompt-generator、delegation-check
+
+```bash
+# 安装组包后，逐个启用/禁用单个技能
+maestro install toggle --type skill --list
+maestro install toggle --type skill --enable scholar-writing
+```
+
+> 9 个内置团队技能（team-coordinate、team-executor、team-lifecycle-v4、team-quality-assurance、team-review、team-swarm、team-tech-debt、team-testing、team-adversarial-swarm）随核心组件自动安装，无需单独选择。
+
 ---
 
 ## 2. 项目初始化

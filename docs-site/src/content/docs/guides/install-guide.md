@@ -51,11 +51,59 @@ maestro install
 
 ### 可选技能包
 
-| 分组 | 包含技能 | 说明 |
-|------|----------|------|
-| **skills-extra-team** | team-arch-opt, team-brainstorm, team-designer, team-frontend, team-issue, team-planex 等 | 团队协作相关技能 |
-| **skills-scholar** | scholar-anti-ai-writing, scholar-citation-verify, scholar-experiment, scholar-ideation 等 | 学术研究技能 |
-| **skills-meta** | meta-workflow, meta-analysis 等 | 元技能和工作流编排 |
+以下 3 个技能包默认不选中（`defaultSelected: false`），按需勾选安装。安装后可经 `maestro install toggle` 逐个启用/禁用（见下文[逐个启用/禁用技能](#逐个启用禁用技能install-toggle)）。
+
+#### skills-extra-team（16 个额外团队技能）
+
+团队协作增强技能，覆盖架构、前端、调试、动效、性能、UX、无障碍等场景：
+
+| 技能 | 说明 |
+|------|------|
+| team-arch-opt | 架构优化 |
+| team-brainstorm | 多角色头脑风暴 |
+| team-designer | 团队技能脚手架 |
+| team-frontend | 前端开发 |
+| team-frontend-debug | 前端调试（Chrome DevTools） |
+| team-interactive-craft | 交互组件打磨 |
+| team-issue | 问题闭环 |
+| team-motion-design | 动效设计 |
+| team-perf-opt | 性能优化 |
+| team-planex | 规划执行 |
+| team-roadmap-dev | 路线图开发 |
+| team-ui-polish | UI 打磨 |
+| team-uidesign | 设计令牌审计 |
+| team-ultra-analyze | 深度协作分析 |
+| team-ux-improve | UX 改进 |
+| team-visual-a11y | 视觉无障碍 QA |
+
+#### skills-scholar（10 个学术技能）
+
+学术写作与研究的端到端技能链：
+
+| 技能 | 说明 |
+|------|------|
+| scholar-ideation | 研究选题 |
+| scholar-writing | 论文写作（端到端） |
+| scholar-experiment | 实验分析 |
+| scholar-citation-verify | 引文核验 |
+| scholar-anti-ai-writing | 去 AI 痕迹 |
+| scholar-latex-organizer | LaTeX 整理 |
+| scholar-review | 论文评审 |
+| scholar-rebuttal-pro | 审稿回复 Pro |
+| scholar-thesis-docx | 学位论文排版 |
+| scholar-publish | 投稿准备 |
+
+#### skills-meta（5 个元技能）
+
+技能与提示词的工程化工具：
+
+| 技能 | 说明 |
+|------|------|
+| skill-generator | 技能生成器 |
+| skill-simplify | 技能精简 |
+| skill-tuning | 技能调优 |
+| prompt-generator | 提示词生成器 |
+| delegation-check | 委托契约检查 |
 
 ### 内置团队技能（始终安装）
 
@@ -70,6 +118,30 @@ maestro install
 - team-swarm
 - team-tech-debt
 - team-testing
+
+### 逐个启用/禁用技能（install toggle）
+
+技能包按组安装后，可用 `maestro install toggle` 对单个技能、命令或 agent 精细控制：
+
+```bash
+# 交互式 TUI — 勾选/取消单个项目
+maestro install toggle
+
+# 列出所有项目及状态（✓ 启用 / ✗ 禁用 / · 未安装）
+maestro install toggle --list
+
+# 按类型过滤
+maestro install toggle --type skill --list
+
+# 非交互式启用/禁用（逗号分隔）
+maestro install toggle --type skill --enable team-planex,scholar-writing
+maestro install toggle --type skill --disable team-arch-opt
+
+# 项目级安装作用域
+maestro install toggle --path ./my-project --list
+```
+
+`--type` 取值：`command`、`skill`、`agent`。状态写入 manifest，支持增量更新与跨项目隔离。
 
 ---
 
