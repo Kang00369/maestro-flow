@@ -191,8 +191,10 @@ export async function handleMcpTool(
 
     switch (toolName) {
       case 'maestro_kg_search': {
-        // Try hybrid search first (FTS5 + vector) when embedding index exists
+        // Try hybrid search first (FTS5 + vector) when embedding index file exists on disk
         try {
+          const embPath = resolve(projectPath, '.workflow', 'kg', 'code-embedding-index.bin');
+          if (!existsSync(embPath)) throw null; // fast skip — no disk I/O for index loading
           const embIdx = await mg.getCodeEmbeddingIndex();
           if (embIdx && embIdx.nodeIds.length > 0) {
             const hybridResults = await mg.searchHybrid(safeStr(input.query, ''), {
@@ -205,7 +207,14 @@ export async function handleMcpTool(
                 definition: r.node.definition.substring(0, 300),
                 filePath: r.node.filePath, startLine: r.node.startLine, score: r.score,
               })),
-              summary: { total: hybridResults.length, hybridSearch: true },
+              summary: {
+                codeSymbols: hybridResults.filter(r => r.node.sourceType === 'codegraph').length,
+                domainTerms: hybridResults.filter(r => r.node.sourceType === 'domain').length,
+                specRules: hybridResults.filter(r => r.node.sourceType === 'spec').length,
+                knowhowDocs: hybridResults.filter(r => r.node.sourceType === 'knowhow').length,
+                total: hybridResults.length,
+                hybridSearch: true,
+              },
             };
             break;
           }

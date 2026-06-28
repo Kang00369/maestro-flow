@@ -117,15 +117,18 @@ export async function buildCodeEmbeddingIndex(
 
   let vectors: Float32Array[];
 
-  const modelMatch = existing && existing.modelId === activeModel;
-  if (modelMatch && existing!.nodeIds.length > 0 && existing!.contentHashes) {
+  const canIncremental = existing && existing.modelId === activeModel
+    && existing.nodeIds.length > 0 && existing.contentHashes;
+  if (canIncremental) {
+    const ex = existing!;
+    const exHashes = ex.contentHashes!;
     // Incremental: compare content hashes, only re-embed changed/new nodes
     const existingHashMap = new Map<string, { hash: string; vector: Float32Array }>();
-    for (let i = 0; i < existing!.nodeIds.length; i++) {
-      if (existing!.contentHashes[i]) {
-        existingHashMap.set(existing!.nodeIds[i], {
-          hash: existing!.contentHashes[i],
-          vector: existing!.vectors[i],
+    for (let i = 0; i < ex.nodeIds.length; i++) {
+      if (exHashes[i]) {
+        existingHashMap.set(ex.nodeIds[i], {
+          hash: exHashes[i],
+          vector: ex.vectors[i],
         });
       }
     }
