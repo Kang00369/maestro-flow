@@ -17,11 +17,11 @@ CLI-delegated variant of maestro-ralph. Same chain-building logic — but this c
 
 Session: `.workflow/.maestro/ralph-cli-{YYYYMMDD-HHmmss}/status.json`
 
-**Shared with ralph**: chain building (A_RESOLVE_PHASE → A_INFER_POSITION → A_BUILD_STEPS), session schema, decomposition (A_DECOMPOSE_TASKS). See `/maestro-ralph` for full specification.
+Chain building（A_RESOLVE_PHASE → A_INFER_POSITION → A_BUILD_STEPS）、session schema、decomposition（A_DECOMPOSE_TASKS）与 ralph 共用。
 </purpose>
 
 <context>
-$ARGUMENTS — same as ralph plus CLI-specific flags.
+$ARGUMENTS — intent text, flags, or keywords.
 
 **Parse:**
 ```
@@ -46,7 +46,11 @@ Remaining      → intent (amend_mode 时为 change_request)
 </context>
 
 <invariants>
-All ralph invariants (1-16) apply. Additionally:
+All ralph invariants (1-16) apply, with the following overrides:
+- **Invariant 1 CLI 语义**: ralph-cli 不直接调用 `Skill()` 执行 step 内容；执行由 delegate 端 cli-execute 完成
+- **Invariant 2 覆盖**: ralph-cli 不调用 `Skill("maestro-ralph-execute")`；invariant 17-21 替代 handoff 机制，ralph-cli 持有完整循环
+
+Additionally:
 
 17. **ralph-cli owns the loop** — compose → delegate → analyze → decide 全部在本命令内完成；ralph-cli-execute 只是被委托端的执行包装器
 18. **Delegate via cli-execute** — delegate prompt 首行为 cli-execute 调用，格式由目标工具决定（见 Invocation Notation）
@@ -57,19 +61,19 @@ All ralph invariants (1-16) apply. Additionally:
 
 <state_machine>
 
-Ralph's chain-building states apply (S_PARSE_ROUTE through S_CREATE_SESSION). Execution loop states replace S_DISPATCH:
+Chain-building states（S_PARSE_ROUTE through S_CREATE_SESSION）+ 执行循环 states（替代 S_DISPATCH）：
 
 <states>
 S_PARSE_ROUTE   — 解析参数、路由入口
 S_STATUS        — 显示 session 进度
 S_CONTINUE      — 恢复执行
-S_RESOLVE_PHASE — (ralph shared)
-S_INFER         — (ralph shared)
-S_RESOLVE_SCOPE — (ralph shared)
-S_QUALITY_MODE  — (ralph shared)
-S_PLANNING_MODE — (ralph shared)
-S_DECOMPOSE     — (ralph shared)
-S_BUILD_CHAIN   — (ralph shared)
+S_RESOLVE_PHASE — (共用)
+S_INFER         — (共用)
+S_RESOLVE_SCOPE — (共用)
+S_QUALITY_MODE  — (共用)
+S_PLANNING_MODE — (共用)
+S_DECOMPOSE     — (共用)
+S_BUILD_CHAIN   — (共用)
 S_CREATE_SESSION — 写 status.json
 S_CONFIRM       — 用户确认
 
@@ -177,14 +181,18 @@ S_APPLY_VERDICT:
   → S_STEP_LOCATE   WHEN: post-analyze-scope                DO: A_APPLY_SCOPE_VERDICT
   → S_STEP_LOCATE   WHEN: verdict == "fix"                  DO: A_APPLY_FIX
   → S_STEP_LOCATE   WHEN: verdict == "escalate"             DO: A_APPLY_ESCALATE
-  → S_STEP_LOCATE   WHEN: post-milestone + next milestone   DO: A_ADVANCE_MILESTONE
-  → END             WHEN: post-milestone + no next milestone
+  → S_STEP_LOCATE   WHEN: post-milestone + standard + next milestone   DO: A_ADVANCE_MILESTONE
+  → END             WHEN: post-milestone + standard + no next milestone
+  → END             WHEN: post-milestone + adhoc                       DO: mark completed (adhoc self-contained, set current_milestone = null)
   → END             WHEN: post-debug-escalate                DO: A_PAUSE_ESCALATE
   → END             WHEN: post-reground + drifted + confidence >= 60  DO: A_REGROUND_HALT
   → S_STEP_LOCATE   WHEN: post-reground + aligned           DO: A_APPLY_PROCEED
+  → S_STEP_LOCATE   WHEN: post-reground + drifted + confidence < 60  DO: A_APPLY_PROCEED (标 LOW CONFIDENCE)
   GUARD: retry_count >= max_retries → force escalate
   GUARD: confidence_score < 60 AND proceed → override to fix
+  GUARD: confidence_score > 95 AND fix AND retry > 0 → suggest proceed
   GUARD: auto_confirm → skip user prompt, apply adjusted verdict
+  GUARD: not auto_confirm → AskUserQuestion with override options
   GUARD: post-reground + drifted + confidence >= 60 → A_REGROUND_HALT（auto_confirm 不跳过）
 
 S_HANDLE_FAIL:
@@ -201,9 +209,7 @@ S_SESSION_DONE:
 
 <actions>
 
-### A_CREATE_SESSION (override)
-
-Same as ralph A_CREATE_SESSION with:
+### A_CREATE_SESSION
 1. `session_id` format: `ralph-cli-{YYYYMMDD-HHmmss}`
 2. Additional fields: `execution_mode: "cli-delegate"`, `cli_tool: "<selected>"``
 3. Each step: `delegate_exec_id: null`, `cli_output_summary: null`, `artifacts_produced: []`
@@ -211,7 +217,6 @@ Same as ralph A_CREATE_SESSION with:
 
 ### A_RESOLVE_ARGS
 
-Same as ralph-execute A_RESOLVE_ARGS:
 - Placeholder substitution: `{phase}`, `{milestone}`, `{intent}`
 - `--from` auto-injection for phase-level artifact chaining
 - Goal context injection (goal_ref → goal_snippet)
@@ -243,11 +248,39 @@ Same as ralph-execute A_RESOLVE_ARGS:
 
 | cli_tool | 首行格式 |
 |----------|---------|
-| claude | `/maestro-ralph-cli-execute {step.skill} {resolved_args} --session {session_id}` |
-| codex | `$maestro-ralph-cli-execute {step.skill} {resolved_args} --session {session_id}` |
-| opencode, agy | `/maestro-ralph-cli-execute {step.skill} {resolved_args} --session {session_id}` |
+| claude | `/maestro-ralph-cli-execute --session {session_id}` |
+| codex | `$maestro-ralph-cli-execute --session {session_id}` |
+| opencode, agy | `/maestro-ralph-cli-execute --session {session_id}` |
 
-**Skill-adapted prompt** — 根据目标 skill 类型选择性注入 step_context 中的内容：
+**`<execution_context>` 块格式** — 首行调用后紧跟，cli-execute 解析此块获取 session 上下文：
+
+```xml
+<execution_context>
+  <intent>{session.intent}</intent>
+  <phase>{session.phase}</phase>
+  <milestone>{session.milestone}</milestone>
+  <boundary_contract>
+    <in_scope>{boundary_contract.in_scope}</in_scope>
+    <out_of_scope>{boundary_contract.out_of_scope}</out_of_scope>
+    <definition_of_done>{boundary_contract.definition_of_done}</definition_of_done>
+  </boundary_contract>
+  <execution_criteria>{session.execution_criteria}</execution_criteria>
+  <active_goals>{task_decomposition WHERE status != "superseded"}</active_goals>
+  <prior_step_context>
+    {最近 5 个已完成 step 的 completion_summary + completion_caveats}
+  </prior_step_context>
+  <accumulated_signals>
+    {聚合所有已完成 step 的 caveats + deferred}
+  </accumulated_signals>
+  <stage_context>
+    {Skill-adapted 注入，见下表；仅在有实际内容时加入}
+  </stage_context>
+</execution_context>
+```
+
+session_anchor 由 `maestro ralph next` 注入，`<execution_context>` 注入 prior artifacts 摘要，两者不重复。
+
+**Skill-adapted `<stage_context>`** — 根据目标 skill 类型选择性注入：
 
 | 目标 skill 类型 | 注入重点 |
 |----------------|---------|
@@ -287,18 +320,21 @@ On callback (re-invocation finds running step with delegate_exec_id):
 2. `Bash("maestro delegate output {exec_id}")` — get full output
 3. Parse `---RESULT---` / `---END---` block:
    ```
-   STATUS  → completion_status
-   SUMMARY → completion_summary
+   STATUS    → completion_status
+   SUMMARY   → completion_summary (→ --summary)
    ARTIFACTS → artifacts_produced (split by comma)
-   DECISIONS → completion_decisions
-   CAVEATS → completion_caveats
-   DEFERRED → completion_deferred
-   SIGNALS → parse key=value pairs → update session.context
+   EVIDENCE  → completion_evidence (→ --evidence)
+   DECISIONS → completion_decisions (→ --decisions)
+   CAVEATS   → completion_caveats (→ --caveats)；DONE_WITH_CONCERNS 时同时映射为 --concerns
+   DEFERRED  → completion_deferred (→ --deferred)
+   SIGNALS   → parse key=value pairs → update session.context
    ```
 4. If no `---RESULT---` block found → fallback: STATUS=DONE_WITH_CONCERNS, SUMMARY from last 200 chars of output
 5. Write parsed data to step in status.json
 
 ### A_MARK_COMPLETE
+
+**RESULT→complete 映射：** `STATUS→--status`、`SUMMARY→--summary`、`EVIDENCE→--evidence`、`DECISIONS→--decisions`、`CAVEATS→--caveats`（DONE_WITH_CONCERNS 时同时作 `--concerns`）、`DEFERRED→--deferred`。SIGNALS 写入 `status.json.context`，不传给 complete。
 
 1. `Bash("maestro ralph complete {index} --status {STATUS} --summary \"{SUMMARY}\" [--evidence ...] [--decisions ...] [--caveats ...] [--deferred ...]")`
 2. Apply SIGNALS to `session.context`
@@ -307,7 +343,7 @@ On callback (re-invocation finds running step with delegate_exec_id):
 
 ### A_SHOW_STATUS
 
-Same as ralph A_SHOW_STATUS: find latest ralph-cli session, display steps + sub-goals progress.
+Find latest ralph-cli session, display steps + sub-goals progress.
 
 ### A_POST_ANALYZE_DRIFT
 
@@ -352,19 +388,57 @@ Same as ralph A_SHOW_STATUS: find latest ralph-cli session, display steps + sub-
 
 ### A_DELEGATE_EVALUATE
 
-Same as ralph: delegate `--to {session.cli_tool} --mode analysis` with quality gate verdict parsing. Runs inline (run_in_background, STOP, callback resume in same loop). Confidence adjustment + decision log to `decisions.ndjson`.
+Inline 评估质量门（非 handoff）。Runs `run_in_background` → STOP → callback resume in same loop。
+
+1. Resolve artifact dir: `.workflow/scratch/{artifact.path}/` with fallback glob
+2. Parse decision metadata: `{ decision, retry_count, max_retries }`
+3. Map result files:
+
+   | Decision | Files |
+   |----------|-------|
+   | post-execute | verification.json |
+   | post-business-test | .tests/auto-test/report.json |
+   | post-review | review.json |
+   | post-test | uat.md, .tests/test-results.json |
+   | post-frontend-verify | e2e-results.json |
+
+4. Execute delegate (run_in_background, STOP, wait for callback):
+   ```
+   maestro delegate "PURPOSE: 评估 {decision} 质量门结果
+   TASK: 读取结果 | 分析状态 | 评估严重性 | 给出建议
+   EXPECTED: ---VERDICT--- STATUS(PASS|FAIL|PARTIAL|BLOCKED)/REASON/GAP_SUMMARY/CONFIDENCE(high|medium|low)/CONFIDENCE_SCORE(0-100)/WEAKEST_DIMENSION ---END---
+   CONSTRAINTS: 只评估 | 置信度<60% 倾向 fix | retry {n}/{max} 达上限必须 escalate"
+   --to {session.cli_tool} --mode analysis
+   ```
+5. On callback: parse `---VERDICT---` block — STATUS must match strict enum `PASS|FAIL|PARTIAL|BLOCKED`; any other value → parse failure. If parse fails → fallback STATUS="fix", BUT MUST set `parse_failed: true` and `confidence_score: 0` in decision log (invariant 13). Subsequent steps inherit LOW CONFIDENCE flag.
+6. Confidence adjustment: <60 + proceed → fix; >95 + fix + retry>0 → suggest proceed
+7. **Decision log**: Append to `{session_dir}/decisions.ndjson`:
+   ```json
+   { "id": "DEC-{timestamp}", "timestamp": "{ISO}", "source": "ralph-cli",
+     "node_id": "{step.decision}", "type": "quality-gate",
+     "verdict": "{adjusted_verdict}", "confidence_score": {N},
+     "parse_failed": false,
+     "close_call": {N>=50 && N<=70}, "summary": "{REASON}" }
+   ```
 
 ### A_GOAL_AUDIT_EVALUATE
 
-Same as ralph: audit unmet sub-goals against evidence artifacts + done_when criteria. Delegate `--to {session.cli_tool} --mode analysis`. Verdict: `all_met` / `has_unmet`.
+审计未完成子目标，判定 met / unmet。Delegate `--to {session.cli_tool} --mode analysis`。
+
+追加 `{session_dir}/decisions.ndjson`：`{ "type": "goal-gate", "unmet_count": N, "unmet_ids": [...] }`。
+GUARD: `retry_count >= max_retries AND still unmet → A_APPLY_ESCALATE`。
+Verdict routing: `all_met` + `INTENT_ALIGNED=true` → A_APPLY_GOAL_DONE；`all_met` + `INTENT_ALIGNED=false` → A_REGROUND_HALT；`has_unmet` → A_APPLY_GOAL_FIX。
 
 ### A_SCOPE_EVALUATE
 
-Same as ralph: read `conclusions.json.scope_verdict` from macro analyze artifact. Write to `session.scope_verdict` + `session.analyze_macro_id`.
+Read `conclusions.json.scope_verdict` from macro analyze artifact. Write to `session.scope_verdict` + `session.analyze_macro_id`. Append `{session_dir}/decisions.ndjson`：`{ "type": "scope-gate", "verdict": "{scope_verdict}", "analyze_macro_id": "{ANL_ID}" }`。
 
 ### A_REGROUND_EVALUATE
 
-Same as ralph: intent fidelity check against accumulated execution. Delegate `--to {session.cli_tool} --mode analysis`. Verdict: `aligned` / `drifted` + `confidence_score`.
+意图保真检查（delegate prompt 含 intent + boundary + completed_steps + done_goals + accumulated_deferred + goal_changelog）。Delegate `--to {session.cli_tool} --mode analysis`。
+
+Append `{session_dir}/decisions.ndjson`：`{ "type": "reground-gate", "verdict": "{aligned|drifted}", "confidence_score": {N}, "drift_description": "...", "corrective_action": "..." }`。
+Verdict routing: `aligned` → A_APPLY_PROCEED；`drifted` + `confidence >= 60` → A_REGROUND_HALT；`drifted` + `confidence < 60` → A_APPLY_PROCEED（标 LOW CONFIDENCE）。
 
 ### A_STRUCTURAL_EVALUATE
 
@@ -373,23 +447,23 @@ Same as ralph: intent fidelity check against accumulated execution. Delegate `--
 
 ### A_APPLY_PROCEED / A_APPLY_FIX / A_APPLY_ESCALATE
 
-Same as ralph: mark decision completed / insert fix-loop steps / insert debug-escalate.
+Mark decision completed / insert fix-loop steps / insert debug-escalate.
 
 ### A_APPLY_SCOPE_VERDICT
 
-Same as ralph: reshape downstream chain based on `scope_verdict` (large+wants_roadmap → keep roadmap; medium/small → collapse to standalone plan).
+Reshape downstream chain based on `scope_verdict`（large+wants_roadmap → keep roadmap；medium/small → collapse to standalone plan）。
 
 ### A_APPLY_GOAL_FIX / A_APPLY_GOAL_DONE
 
-Same as ralph: insert scoped mini-loops for unmet sub-goals / mark all goals done + `task_decomposition_all_done=true`.
+Insert scoped mini-loops for unmet sub-goals / mark all goals done + `task_decomposition_all_done=true`.
 
 ### A_ADVANCE_MILESTONE
 
-Same as ralph: update session milestone/phase, insert full lifecycle steps for next milestone, reindex.
+Update session milestone/phase, insert full lifecycle steps for next milestone, reindex.
 
 ### A_REGROUND_HALT
 
-Same as ralph: set `session.status = "paused"`, display drift warning. auto_confirm 不跳过.
+Set `session.status = "paused"`, display drift warning. auto_confirm 不跳过.
 
 ### A_PAUSE_ESCALATE
 
@@ -397,11 +471,13 @@ Set session paused, display "请人工介入", suggest `/maestro-ralph-cli conti
 
 ### A_AMEND_GOAL
 
-Same as ralph (deferred_reading: `ralph-amend-goal.md`): 5 步流程（快照→解析→mini grill→确认→应用）。RISK_LEVEL=high 时 auto_confirm 无效。
+5 步流程（快照→解析→mini grill→确认→应用），deferred_reading: `ralph-amend-goal.md`。RISK_LEVEL=high 时 auto_confirm 无效。
 
 ### A_RETRY / A_PAUSE_SESSION / A_COMPLETE_SESSION
 
-Same as ralph equivalents.
+- **A_RETRY**: `maestro ralph retry {index}` — CLI 清空 `delegate_exec_id`，设 `step.retried = true`、`step.status = "pending"`，清 `active_step_index`；ralph-cli 回到 S_STEP_RESOLVE 重新 compose→delegate
+- **A_PAUSE_SESSION**: 由 `ralph complete N --status BLOCKED --reason "..."` 触发，CLI 写 `session.status = "paused"`
+- **A_COMPLETE_SESSION**: 校验所有 step `completion_confirmed == true` + `task_decomposition_all_done == true`（若存在），通过后写 `session.status = "completed"`
 
 </actions>
 
@@ -417,9 +493,15 @@ Same as ralph equivalents.
 | plan | write | `planning-breakdown-task-steps` |
 | execute | write | `development-implement-feature` |
 | review, business-test | analysis | `analysis-review-code-quality` |
-| test, test-gen | write | — |
+| test, test-gen, frontend-verify | write | — |
 | grill, brainstorm | write | — |
-| debug | write | `analysis-diagnose-bug-root-cause` |
+| debug, quality-debug | write | `analysis-diagnose-bug-root-cause` |
+| blueprint | write | `planning-design-component-spec` |
+| init, spec-setup | write | — |
+| milestone-audit | analysis | `analysis-review-code-quality` |
+| milestone-complete | write | — |
+
+Fix-loop 插入的 step 按此表分配 `delegate_mode` + `delegate_rule`。
 
 All delegation uses `--to {session.cli_tool}` (not `--role`). The `cli_tool` is resolved from session context.
 
@@ -437,31 +519,99 @@ All delegation uses `--to {session.cli_tool}` (not `--role`). The `cli_tool` is 
 | test | `tst` |
 | debug | `dbg` |
 
-### Session Schema (extends ralph)
-
-Ralph session schema 全量字段（`boundary_contract`, `execution_criteria`, `task_decomposition`, `task_decomposition_all_done`, `goal_changelog`, `scope_verdict`, `wants_roadmap`, `analyze_macro_id`, `blueprint_id` 等）均适用。CLI 新增字段：
+### Session Schema
 
 ```json
 {
+  "session_id": "ralph-cli-{YYYYMMDD-HHmmss}",
+  "source": "ralph", "status": "running",
   "execution_mode": "cli-delegate",
   "cli_tool": "claude",
+  "ralph_protocol_version": "2",
+  "active_step_index": null,
+  "intent": "", "lifecycle_position": "",
+  "phase": null, "phase_is_new": false,
+  "milestone": "",
+  "auto_mode": false,
+  "decomposition_owner": "ralph",
+
+  "quality_mode": "standard",
+  "planning_mode": "independent",
+  "scope_verdict": null,
+  "wants_roadmap": false,
+  "analyze_macro_id": null,
+  "blueprint_id": null,
+  "passed_gates": [],
+  "context": { "issue_id": null, "scratch_dir": null, "plan_dir": null,
+    "analysis_dir": null, "brainstorm_dir": null, "blueprint_dir": null },
   "steps": [{
+    "index": 0,
+    "skill": "",
+    "args": "",
+    "stage": "",
+    "scope": null,
+    "decision": null,
+    "retry_count": 0,
+    "max_retries": 2,
+    "command_scope": "global|project|missing|null",
+    "command_path": "<absolute path resolved by `maestro ralph skills --platform claude --json --quiet`> | null",
+    "milestone_id": null,
+    "source_artifact_ref": null,
+    "status": "pending|running|completed|skipped|failed",
+    "goal_ref": null,
+    "completion_confirmed": false,
+    "completion_status": null,
+    "completion_evidence": null,
+    "completion_summary": null,
+    "completion_decisions": null,
+    "completion_caveats": null,
+    "completion_deferred": null,
+    "completed_at": null,
+    "deferred_reads": [],
+    "load": null,           // { loaded_at, required_files[], deferred_files[], resolve_version } — 由 ralph next (cli-execute 端) 写入
     "delegate_exec_id": null,
     "delegate_mode": "write|analysis",
     "delegate_rule": null,
     "cli_output_summary": null,
-    "artifacts_produced": []
-  }]
+    "artifacts_produced": [],
+    "drift_score": null,
+    "drift_correction": null
+  }],
+  "waves": [], "current_step": 0,
+
+  "boundary_contract": {
+    "in_scope": [], "out_of_scope": [], "constraints": [], "definition_of_done": ""
+  },
+  "execution_criteria": [],
+  "task_decomposition": [
+    { "id": "G1", "goal": "", "boundary": "", "done_when": "",
+      "evidence": "", "lifecycle": [], "status": "pending|done|superseded",
+      "completion_confirmed": false, "completed_at": null,
+      "superseded_by": null, "superseded_at": null, "origin": null }
+  ],
+  "task_decomposition_all_done": false,
+
+  "goal_changelog": [
+    { "id": "CHG-001", "timestamp": "{ISO}",
+      "change_type": "modify|add|remove|boundary",
+      "reason": "",
+      "impact_assessment": { "risk_level": "low|medium|high",
+        "invalidated_steps": [], "new_steps_inserted": 0 },
+      "before": { "goals": [{"id":"G1","goal":"...","done_when":"..."}] },
+      "after":  { "goals": [{"id":"G1v2","goal":"...","done_when":"..."}] } }
+  ]
 }
 ```
 
+新增字段可选，缺省=旧行为；既有字段名不删不改。
+
 ### Fix-Loop Templates
 
-Same as ralph. All fix-loop templates (post-execute / post-business-test / post-review / post-test / post-frontend-verify / post-goal-audit) apply unchanged. Each inserted step is delegated through the same compose → delegate → analyze cycle.
+6 套 fix-loop templates（post-execute / post-business-test / post-review / post-test / post-frontend-verify / post-goal-audit）。Each inserted step is delegated through the same compose → delegate → analyze cycle.
 
 ### Error Codes
 
-Ralph error codes E001–E006, W001–W004 all apply. CLI-specific additions:
+E001–E006, W001–W004 适用。CLI 新增：
 
 | Code | Severity | Description | Recovery |
 |------|----------|-------------|----------|
@@ -471,10 +621,10 @@ Ralph error codes E001–E006, W001–W004 all apply. CLI-specific additions:
 
 ### Success Criteria
 
-All ralph success criteria apply. Additionally:
+Ralph success criteria 适用。CLI 新增：
 
 - [ ] ralph-cli owns full loop: compose → delegate → STOP → callback → parse → complete → next
-- [ ] Delegation prompt 首行为 cli-execute 调用（格式由 cli_tool 决定），后接 `<execution_context>`
+- [ ] Delegation prompt 首行为 cli-execute 调用（`--session {session_id}`，格式由 cli_tool 决定），后接 `<execution_context>`
 - [ ] A_PARSE_RESULT extracts STATUS/SUMMARY/ARTIFACTS/DECISIONS/CAVEATS/DEFERRED/SIGNALS from ---RESULT--- block
 - [ ] SIGNALS parsed as key=value pairs and applied to session.context
 - [ ] Decision evaluation runs inline (no handoff to another command)
@@ -494,9 +644,20 @@ All ralph success criteria apply. Additionally:
 - [ ] A_REGROUND_HALT 漂移熔断（auto_confirm 不跳过）
 - [ ] A_PAUSE_ESCALATE 达到 max_retries 时暂停
 - [ ] A_APPLY_SCOPE_VERDICT 三路径重塑（large+roadmap / medium-small / unknown）
-- [ ] Fix-loop templates（6 套）通过 compose-delegate cycle 执行
+- [ ] Fix-loop templates（6 套）通过 compose-delegate cycle 执行；插入 step 按 Stage Mapping 表分配 delegate_mode + delegate_rule
 - [ ] re-grounding 3-step 插入规则（build rule 5.5）
 - [ ] spec-setup 预检（build rule 0.5）
+- [ ] Invariant 2（Skill handoff）在 ralph-cli 中被覆盖，由 invariant 17-21 替代
+- [ ] execution_context 块含 intent + phase + boundary_contract + execution_criteria + active_goals + prior_step_context（滑动窗口 5 step）+ accumulated_signals
+- [ ] execution_context 中 boundary_contract 不截断；superseded 目标仅一行标注
+- [ ] A_DELEGATE_EVALUATE 解析 `---VERDICT---` 块，parse 失败 → fallback fix + parse_failed: true + confidence_score: 0
+- [ ] decisions.ndjson 追加：quality-gate / goal-gate / scope-gate / reground-gate 各有完整格式
+- [ ] `completion_summary` 在 STATUS=DONE/DONE_WITH_CONCERNS 时为 MUST（--summary 参数非空）
+- [ ] RESULT 的 EVIDENCE 字段映射到 --evidence；CAVEATS 在 DONE_WITH_CONCERNS 时同时映射 --concerns
+- [ ] post-milestone adhoc 分支：mark completed + set current_milestone = null
+- [ ] post-reground + drifted + confidence < 60 → A_APPLY_PROCEED (LOW CONFIDENCE)
+- [ ] 旧目标标 superseded（superseded_by + superseded_at），新目标 origin: "CHG-xxx"
+- [ ] goal_changelog 含完整 before/after + impact_assessment
 
 </appendix>
 </output>
