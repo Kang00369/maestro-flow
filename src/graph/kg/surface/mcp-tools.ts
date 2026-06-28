@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 // ---------------------------------------------------------------------------
-// MCP Tool Schema 定义 (9 个工具)
+// MCP Tool Schema 定义 (10 个工具)
 // ---------------------------------------------------------------------------
 
 export interface McpToolDef {
@@ -127,6 +127,11 @@ export const KG_MCP_TOOLS: McpToolDef[] = [
     description: 'Index status: node/edge/file counts, DB size, last update',
     inputSchema: { type: 'object', properties: {} },
   },
+  {
+    name: 'maestro_kg_build_embeddings',
+    description: 'Build or rebuild code embedding index for semantic search',
+    inputSchema: { type: 'object', properties: {} },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -186,6 +191,27 @@ export async function handleMcpTool(
 
     switch (toolName) {
       case 'maestro_kg_search': {
+        // Try hybrid search first (FTS5 + vector) when embedding index exists
+        try {
+          const embIdx = await mg.getCodeEmbeddingIndex();
+          if (embIdx && embIdx.nodeIds.length > 0) {
+            const hybridResults = await mg.searchHybrid(safeStr(input.query, ''), {
+              sourceTypes: input.sourceTypes as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+              limit: safeInt(input.limit, 20, 100),
+            });
+            result = {
+              results: hybridResults.map(r => ({
+                id: r.node.id, kind: r.node.kind, name: r.node.name, sourceType: r.node.sourceType,
+                definition: r.node.definition.substring(0, 300),
+                filePath: r.node.filePath, startLine: r.node.startLine, score: r.score,
+              })),
+              summary: { total: hybridResults.length, hybridSearch: true },
+            };
+            break;
+          }
+        } catch { /* fallback to FTS5 only */ }
+
+        // Fallback: FTS5 only (original behavior)
         const searchOutput = mg.searchUnified(safeStr(input.query, ''), {
           sourceTypes: input.sourceTypes as any, // eslint-disable-line @typescript-eslint/no-explicit-any
           limit: safeInt(input.limit, 20, 100),
@@ -275,6 +301,19 @@ export async function handleMcpTool(
 
       case 'maestro_kg_status': {
         result = mg.getStats();
+        break;
+      }
+
+      case 'maestro_kg_build_embeddings': {
+        const startTime = Date.now();
+        const index = await mg.buildCodeEmbeddings();
+        result = {
+          status: 'completed',
+          nodeCount: index.nodeIds.length,
+          dimension: index.dimension,
+          modelId: index.modelId,
+          buildTimeMs: Date.now() - startTime,
+        };
         break;
       }
 

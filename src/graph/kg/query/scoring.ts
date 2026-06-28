@@ -73,7 +73,61 @@ export function extractSearchTerms(query: string): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// 4. 多信号评分
+// 4. 代码查询扩展 (缩写 ↔ 全称同义词)
+// ---------------------------------------------------------------------------
+
+const CODE_SYNONYMS: ReadonlyMap<string, readonly string[]> = new Map([
+  ['auth', ['authentication', 'authorization']],
+  ['authentication', ['auth']],
+  ['authorization', ['auth']],
+  ['db', ['database']],
+  ['database', ['db']],
+  ['config', ['configuration']],
+  ['configuration', ['config']],
+  ['btn', ['button']],
+  ['button', ['btn']],
+  ['msg', ['message']],
+  ['message', ['msg']],
+  ['req', ['request']],
+  ['request', ['req']],
+  ['res', ['response']],
+  ['response', ['res']],
+  ['err', ['error']],
+  ['error', ['err']],
+  ['fn', ['function']],
+  ['cb', ['callback']],
+  ['callback', ['cb']],
+  ['ctx', ['context']],
+  ['context', ['ctx']],
+  ['env', ['environment']],
+  ['environment', ['env']],
+  ['param', ['parameter']],
+  ['parameter', ['param']],
+  ['init', ['initialize', 'initialization']],
+  ['initialize', ['init']],
+]);
+
+/**
+ * 代码查询扩展 — 基于 extractSearchTerms 分词 + 缩写同义词映射
+ * 返回包含原始 term 和同义词的扩展查询字符串
+ */
+export function expandCodeQuery(query: string): string {
+  const terms = extractSearchTerms(query);
+  const expanded = new Set(terms);
+
+  for (const term of terms) {
+    const lower = term.toLowerCase();
+    const synonyms = CODE_SYNONYMS.get(lower);
+    if (synonyms) {
+      for (const syn of synonyms) expanded.add(syn);
+    }
+  }
+
+  return [...expanded].join(' ');
+}
+
+// ---------------------------------------------------------------------------
+// 5. 多信号评分
 // ---------------------------------------------------------------------------
 
 export function kindBonus(kind: UnifiedNodeKind): number {
@@ -156,7 +210,7 @@ export function nameMatchBonus(name: string, query: string): number {
 }
 
 // ---------------------------------------------------------------------------
-// 5. 综合评分
+// 6. 综合评分
 // ---------------------------------------------------------------------------
 
 export interface ScoredResult {
