@@ -63,6 +63,7 @@ S_LOCATE        — 定位 session + 找下一个 pending step   PERSIST: —
 S_RESOLVE_ARGS  — 解析占位符 + 丰富参数                  PERSIST: step.args (enriched)
 S_LOAD_CONTEXT  — 加载前序产出 + 发现                    PERSIST: —
 S_EXECUTE       — 执行当前 step                          PERSIST: step.status = "running", session.current_step
+S_POST_ANALYZE  — 产物 vs 目标偏离分析                    PERSIST: step.drift_score, step.drift_correction
 S_POST_EXEC     — 标记完成 + 传播上下文                   PERSIST: step.completion_*, step.status, session.context
 S_HANDLE_FAIL   — 处理失败                               PERSIST: step.status, session.status
 S_COMPLETE      — 所有 step 完成                         PERSIST: session.status = "completed"
@@ -84,9 +85,14 @@ S_LOAD_CONTEXT:
 
 S_EXECUTE:
   → END             WHEN: step.decision != null              DO: A_EXEC_DECISION
-  → S_POST_EXEC     WHEN: step.decision == null + ralph complete invoked with DONE|DONE_WITH_CONCERNS  DO: A_EXEC_STEP
+  → S_POST_ANALYZE  WHEN: step.decision == null + execution succeeded (DONE|DONE_WITH_CONCERNS)  DO: A_EXEC_STEP
   → S_HANDLE_FAIL   WHEN: step.decision == null + ralph next exit=1 OR ralph complete with NEEDS_RETRY|BLOCKED  DO: A_EXEC_STEP
   → S_HANDLE_FAIL   WHEN: step.decision == null + ralph next exit=3 (concurrency conflict)  DO: A_HANDLE_CONCURRENCY
+
+S_POST_ANALYZE:
+  → S_POST_EXEC     WHEN: drift_score == ALIGNED|MINOR_DRIFT   DO: A_POST_ANALYZE_DRIFT
+  → S_EXECUTE       WHEN: drift_score == MAJOR_DRIFT + not retried  DO: A_POST_ANALYZE_DRIFT (re-execute with correction)
+  → S_POST_EXEC     WHEN: drift_score == MAJOR_DRIFT + retried     DO: A_POST_ANALYZE_DRIFT (proceed with caveats)
 
 S_POST_EXEC:
   → S_LOCATE        DO: Bash("maestro ralph complete ...") + Skill("maestro-ralph-execute")
@@ -273,6 +279,49 @@ Write enriched args + source_artifact_ref back to status.json.
 6. **Propagate context signals** — 按 4c checklist 将关键信号写入 `status.json.context`
 
 完成后 S_LOCATE 触发 `Skill({ skill: "maestro-ralph-execute" })` 自调用。
+
+### A_POST_ANALYZE_DRIFT
+
+执行完成后、调 ralph complete 前，分析产物与目标的偏离程度并自动修正。
+
+**1. 收集对照基准:**
+
+| 基准来源 | 取值 |
+|---------|------|
+| `step.goal_ref` → goal.done_when | 子目标的完成条件 |
+| `session.boundary_contract.definition_of_done` | 全局验收标准 |
+| `session.execution_criteria` | 执行准则 |
+| `session.intent` | 原始意图 |
+
+**2. 读产物摘要:**
+
+从 A_EXTRACT_STEP_SIGNALS (step 4a) 已提取的 summary + decisions + artifacts 构建产物画像。
+
+**3. 对比评分:**
+
+| 维度 | 检查 |
+|------|------|
+| 覆盖度 | 产物是否覆盖了 goal.done_when 的每个条件 |
+| 方向性 | decisions 是否与 intent 和 boundary 一致 |
+| 完整性 | 预期产物类型是否齐全（如 plan 阶段应有 TASK-*.json） |
+
+**drift_score:**
+- `ALIGNED` — 全部维度通过
+- `MINOR_DRIFT` — 覆盖度/完整性有小缺口，不影响后续
+- `MAJOR_DRIFT` — 方向性偏离或关键产物缺失
+
+**4. 修正动作:**
+
+| drift_score | 动作 |
+|-------------|------|
+| ALIGNED | 正常进入 S_POST_EXEC |
+| MINOR_DRIFT | 将偏离项追加到 completion_caveats，正常 complete |
+| MAJOR_DRIFT + 未重试 | 将偏离分析写入 `step.drift_correction`，回到 S_EXECUTE 重跑（A_LOAD_STEP_CONTEXT 自动加载 drift_correction 作为修正上下文） |
+| MAJOR_DRIFT + 已重试 | 将偏离项写入 caveats + concerns，以 DONE_WITH_CONCERNS complete，由后续 decision node 裁决 |
+
+**5. 写入:**
+- `step.drift_score` — ALIGNED / MINOR_DRIFT / MAJOR_DRIFT
+- `step.drift_correction` — MAJOR_DRIFT 时的偏离描述 + 修正指引（供重跑时注入）
 
 ### A_HANDLE_CONCURRENCY
 
