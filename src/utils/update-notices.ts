@@ -453,3 +453,16 @@ registerNotice({
   ],
   actions: [],
 });
+
+registerNotice({
+  version: '0.5.43',
+  title: 'KG 代码嵌入引擎 + MCP 语义搜索工具 + zvec 向量存储',
+  highlights: [
+    '新增代码嵌入模块：结构化文本提取 + 向量索引 + 混合搜索（BM25F + 向量）',
+    '新增 MCP 工具 maestro_wiki_search / maestro_code_semantic_search',
+    '集成 zvec 向量存储后端：多分块嵌入 + 并行索引 + GPU 加速',
+    'ralph CLI 委托架构重构 + S_POST_ANALYZE 产物偏离自动修正',
+    '修复 skill/command 238 个执行歧义问题',
+  ],
+  actions: [],
+});
