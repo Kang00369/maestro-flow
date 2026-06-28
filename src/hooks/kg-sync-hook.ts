@@ -56,6 +56,8 @@ export async function evaluateKgSync(
       kgSyncGuard.markDone(sessionId);
       if (filesChanged > 0) {
         invalidateSearchIndex(resolve(projectPath, '.workflow')).catch(() => {});
+        // Best-effort code embedding rebuild after sync
+        try { await mg.buildCodeEmbeddings(); } catch { /* best-effort */ }
       }
       return { synced: true, filesChanged, durationMs: Date.now() - start };
     } finally {
