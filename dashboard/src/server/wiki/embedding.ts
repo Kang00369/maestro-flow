@@ -23,6 +23,7 @@ export interface EmbeddingIndex {
   docIds: string[];
   vectors: Float32Array[];
   contentHashes?: string[];
+  chunkDocIds?: string[];  // parallel to docIds — maps each vector slot to its parent document ID
   builtAt: number;
   deviceUsed?: string;
   buildTimeMs?: number;
@@ -572,6 +573,7 @@ export function saveEmbeddingIndex(index: EmbeddingIndex, dir: string): void {
     deviceUsed: index.deviceUsed,
     buildTimeMs: index.buildTimeMs,
     contentHashes: index.contentHashes,
+    chunkDocIds: index.chunkDocIds,
   });
   const metaBytes = Buffer.from(metaJson, 'utf-8');
 
@@ -673,6 +675,7 @@ function loadFromBinary(filePath: string): EmbeddingIndex {
     docIds,
     vectors,
     contentHashes: meta.contentHashes,
+    chunkDocIds: meta.chunkDocIds,
     builtAt: meta.builtAt,
     deviceUsed: meta.deviceUsed,
     buildTimeMs: meta.buildTimeMs,
@@ -735,17 +738,94 @@ export interface DocForEmbedding {
 }
 
 export function hashDocContent(d: DocForEmbedding): string {
-  const text = [d.title, d.summary, d.tags.join(','), d.body?.slice(0, 500) ?? ''].join('|');
+  const text = [d.title, d.summary, d.tags.join(','), d.body ?? ''].join('|');
   return createHash('md5').update(text).digest('hex');
 }
 
+/**
+ * Extract meaningful content from a markdown body: first paragraph + heading lines,
+ * up to `maxLen` characters.
+ */
+function extractMeaningfulContent(body: string, maxLen: number): string {
+  const lines = body.split('\n');
+  const parts: string[] = [];
+  let len = 0;
+  let firstParaDone = false;
+
+  for (const line of lines) {
+    if (len >= maxLen) break;
+    const trimmed = line.trim();
+    // Always include heading lines
+    if (/^#{1,3}\s/.test(trimmed)) {
+      parts.push(trimmed);
+      len += trimmed.length + 1;
+      continue;
+    }
+    // Include non-empty lines until we hit the first blank line (first paragraph)
+    if (!firstParaDone) {
+      if (trimmed === '') {
+        if (parts.length > 0) firstParaDone = true;
+        continue;
+      }
+      parts.push(trimmed);
+      len += trimmed.length + 1;
+    }
+  }
+
+  const result = parts.join('\n');
+  return result.length > maxLen ? result.slice(0, maxLen) : result;
+}
+
 function docToText(d: DocForEmbedding): string {
-  const parts = [d.title];
-  if (d.summary) parts.push(d.summary);
-  if (d.tags.length > 0) parts.push(d.tags.join(' '));
-  if (d.body) parts.push(d.body.slice(0, 500));
-  const text = parts.join('. ');
+  const parts = [`title: ${d.title}`];
+  if (d.summary) parts.push(`summary: ${d.summary}`);
+  if (d.tags.length > 0) parts.push(`tags: ${d.tags.join(', ')}`);
+  if (d.body) {
+    const body = d.body.length > 500 ? extractMeaningfulContent(d.body, 450) : d.body;
+    parts.push(`content: ${body}`);
+  }
+  parts.push(`title: ${d.title}`);
+  const text = parts.join('\n');
   return isApiMode() ? text : 'passage: ' + text;
+}
+
+/**
+ * Split a document into multiple chunks for embedding.
+ * Short docs (<500 chars body) produce a single chunk.
+ * Long docs are split by markdown heading regex /^#{1,3}\s/m, max 5 chunks.
+ * Each chunk inherits title+summary as context prefix.
+ */
+export function splitDocToChunks(d: DocForEmbedding): Array<{ chunkId: string; text: string }> {
+  const contextPrefix: string[] = [`title: ${d.title}`];
+  if (d.summary) contextPrefix.push(`summary: ${d.summary}`);
+  if (d.tags.length > 0) contextPrefix.push(`tags: ${d.tags.join(', ')}`);
+  const prefix = contextPrefix.join('\n');
+
+  // Short or empty body — single chunk using docToText
+  if (!d.body || d.body.length < 500) {
+    return [{ chunkId: `${d.id}#0`, text: docToText(d) }];
+  }
+
+  // Split body by markdown headings
+  const sections = d.body.split(/^(?=#{1,3}\s)/m).filter(s => s.trim().length > 0);
+
+  // If splitting produced only one section, single chunk
+  if (sections.length <= 1) {
+    return [{ chunkId: `${d.id}#0`, text: docToText(d) }];
+  }
+
+  // Cap at 5 chunks
+  const capped = sections.slice(0, 5);
+  const apiMode = isApiMode();
+
+  return capped.map((section, i) => {
+    const parts = [prefix, `content: ${section.trim()}`, `title: ${d.title}`];
+    const text = parts.join('\n');
+    return {
+      chunkId: `${d.id}#${i}`,
+      text: apiMode ? text : 'passage: ' + text,
+    };
+  });
 }
 
 export async function buildEmbeddingIndex(
@@ -758,52 +838,140 @@ export async function buildEmbeddingIndex(
   const t0 = Date.now();
 
   const currentHashes = precomputedHashes ?? docs.map(hashDocContent);
+
+  // Split all docs into chunks (1:N doc-to-chunk mapping)
+  const allChunkIds: string[] = [];
+  const allChunkDocIds: string[] = [];
+  const allChunkTexts: string[] = [];
+  // Track which doc index each chunk group belongs to (for incremental rebuild)
+  const docChunkRanges: Array<{ docIndex: number; startSlot: number; count: number }> = [];
+
+  for (let i = 0; i < docs.length; i++) {
+    const chunks = splitDocToChunks(docs[i]);
+    const startSlot = allChunkIds.length;
+    for (const chunk of chunks) {
+      allChunkIds.push(chunk.chunkId);
+      allChunkDocIds.push(docs[i].id);
+      allChunkTexts.push(chunk.text);
+    }
+    docChunkRanges.push({ docIndex: i, startSlot, count: chunks.length });
+  }
+
   let vectors: Float32Array[];
 
   const activeModel = getModelId();
   // Model changed → discard all cached vectors, force full rebuild
   const modelMatch = existingIndex && existingIndex.modelId === activeModel;
   if (modelMatch && existingIndex!.docIds.length > 0) {
-    // Incremental: reuse vectors only for docs with matching content hash
-    const existingMap = new Map<string, { vector: Float32Array; hash: string }>();
-    for (let i = 0; i < existingIndex!.docIds.length; i++) {
-      existingMap.set(existingIndex!.docIds[i], {
-        vector: existingIndex!.vectors[i],
-        hash: existingIndex!.contentHashes?.[i] ?? '',
-      });
-    }
-
-    const changedDocs: { index: number; doc: DocForEmbedding }[] = [];
-    vectors = new Array(docs.length);
-
-    for (let i = 0; i < docs.length; i++) {
-      const cached = existingMap.get(docs[i].id);
-      if (cached && cached.hash && cached.hash === currentHashes[i]) {
-        vectors[i] = cached.vector;
-      } else {
-        changedDocs.push({ index: i, doc: docs[i] });
+    // Build existing chunk cache: chunkId → { vector, parentDocId }
+    const existingChunkMap = new Map<string, Float32Array>();
+    const existingDocHashes = new Map<string, string>();
+    // Reconstruct per-doc hashes from existing index
+    if (existingIndex!.chunkDocIds && existingIndex!.contentHashes) {
+      for (let i = 0; i < existingIndex!.docIds.length; i++) {
+        existingChunkMap.set(existingIndex!.docIds[i], existingIndex!.vectors[i]);
+      }
+      // contentHashes are per-doc; find unique doc→hash mapping
+      const seen = new Set<string>();
+      for (let i = 0; i < existingIndex!.chunkDocIds.length; i++) {
+        const parentId = existingIndex!.chunkDocIds[i];
+        if (!seen.has(parentId) && existingIndex!.contentHashes[i] !== undefined) {
+          // contentHashes in chunk-based index: stored per-doc in the order of docChunkRanges
+          seen.add(parentId);
+        }
+      }
+    } else {
+      // Legacy index without chunkDocIds — docIds are direct doc IDs
+      for (let i = 0; i < existingIndex!.docIds.length; i++) {
+        existingChunkMap.set(existingIndex!.docIds[i], existingIndex!.vectors[i]);
+        if (existingIndex!.contentHashes?.[i]) {
+          existingDocHashes.set(existingIndex!.docIds[i], existingIndex!.contentHashes[i]);
+        }
       }
     }
 
-    if (changedDocs.length > 0) {
-      const texts = changedDocs.map(nd => docToText(nd.doc));
+    // Determine which docs changed (hash comparison at doc level)
+    // Rebuild per-doc hash from existing contentHashes
+    const existingPerDocHash = new Map<string, string>();
+    if (existingIndex!.contentHashes) {
+      if (existingIndex!.chunkDocIds) {
+        // Chunk-based: contentHashes[i] corresponds to the doc that produced chunk i
+        // Each doc's hash is stored on its first chunk
+        const docSeen = new Set<string>();
+        for (let i = 0; i < existingIndex!.chunkDocIds.length; i++) {
+          const pid = existingIndex!.chunkDocIds[i];
+          if (!docSeen.has(pid)) {
+            docSeen.add(pid);
+            existingPerDocHash.set(pid, existingIndex!.contentHashes[i] ?? '');
+          }
+        }
+      } else {
+        // Legacy: docIds are 1:1 with docs
+        for (let i = 0; i < existingIndex!.docIds.length; i++) {
+          existingPerDocHash.set(existingIndex!.docIds[i], existingIndex!.contentHashes[i] ?? '');
+        }
+      }
+    }
+
+    vectors = new Array(allChunkIds.length);
+    const chunksToEmbed: Array<{ slot: number; text: string }> = [];
+
+    for (const range of docChunkRanges) {
+      const docId = docs[range.docIndex].id;
+      const cachedHash = existingPerDocHash.get(docId);
+      const currentHash = currentHashes[range.docIndex];
+
+      if (cachedHash && cachedHash === currentHash) {
+        // Doc unchanged — try to reuse cached chunk vectors
+        let allReused = true;
+        for (let s = range.startSlot; s < range.startSlot + range.count; s++) {
+          const cachedVec = existingChunkMap.get(allChunkIds[s]);
+          if (cachedVec) {
+            vectors[s] = cachedVec;
+          } else {
+            allReused = false;
+            break;
+          }
+        }
+        if (!allReused) {
+          // Chunk structure changed (e.g., headings added/removed) — re-embed all chunks
+          for (let s = range.startSlot; s < range.startSlot + range.count; s++) {
+            chunksToEmbed.push({ slot: s, text: allChunkTexts[s] });
+          }
+        }
+      } else {
+        // Doc changed — re-embed all its chunks
+        for (let s = range.startSlot; s < range.startSlot + range.count; s++) {
+          chunksToEmbed.push({ slot: s, text: allChunkTexts[s] });
+        }
+      }
+    }
+
+    if (chunksToEmbed.length > 0) {
+      const texts = chunksToEmbed.map(c => c.text);
       const newVectors = await embedTexts(texts);
-      for (let j = 0; j < changedDocs.length; j++) {
-        vectors[changedDocs[j].index] = newVectors[j];
+      for (let j = 0; j < chunksToEmbed.length; j++) {
+        vectors[chunksToEmbed[j].slot] = newVectors[j];
       }
     }
   } else {
     // Full rebuild
-    const texts = docs.map(docToText);
-    vectors = await embedTexts(texts);
+    vectors = await embedTexts(allChunkTexts);
   }
+
+  // Build per-chunk contentHashes (each chunk gets its parent doc's hash)
+  const chunkContentHashes = allChunkDocIds.map((parentId, i) => {
+    const range = docChunkRanges.find(r => docs[r.docIndex].id === parentId);
+    return range ? currentHashes[range.docIndex] : currentHashes[0];
+  });
 
   return {
     modelId: activeModel,
     dimension: vectors[0]?.length ?? 384,
-    docIds: docs.map(d => d.id),
+    docIds: allChunkIds,
     vectors,
-    contentHashes: currentHashes,
+    contentHashes: chunkContentHashes,
+    chunkDocIds: allChunkDocIds,
     builtAt: Date.now(),
     deviceUsed: apiMode ? 'api' : `${config!.device}/${config!.dtype}`,
     buildTimeMs: Date.now() - t0,

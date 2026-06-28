@@ -374,7 +374,26 @@ export class WikiIndexer {
       try {
         const { embedQuery, vectorSearch, mergeHybrid } = await import('./embedding.js');
         const qVec = await embedQuery(query);
-        const vecResults = vectorSearch(qVec, embIdx, limit * 2);
+        const rawVecResults = vectorSearch(qVec, embIdx, limit * 2);
+
+        // Deduplicate chunk results back to parent docId (keep highest score per doc)
+        let vecResults = rawVecResults;
+        if (embIdx.chunkDocIds) {
+          const chunkToParent = new Map<string, string>();
+          for (let i = 0; i < embIdx.docIds.length; i++) {
+            chunkToParent.set(embIdx.docIds[i], embIdx.chunkDocIds[i]);
+          }
+          const bestPerDoc = new Map<string, { docId: string; score: number }>();
+          for (const r of rawVecResults) {
+            const parentId = chunkToParent.get(r.docId) ?? r.docId;
+            const existing = bestPerDoc.get(parentId);
+            if (!existing || r.score > existing.score) {
+              bestPerDoc.set(parentId, { docId: parentId, score: r.score });
+            }
+          }
+          vecResults = Array.from(bestPerDoc.values());
+        }
+
         const merged = mergeHybrid(bm25Results, vecResults, limit * 3);
         let out: Array<{ entry: WikiEntry; score: number }> = [];
         for (const r of merged) {
@@ -454,13 +473,30 @@ export class WikiIndexer {
       const currentHashes = modelMatch ? docs.map(hashDocContent) : undefined;
 
       if (currentHashes && cached) {
+        // Build per-doc hash map from cached index (handles both chunk-based and legacy formats)
         const cachedHashMap = new Map<string, string>();
         if (cached.contentHashes) {
-          for (let i = 0; i < cached.docIds.length; i++) {
-            cachedHashMap.set(cached.docIds[i], cached.contentHashes[i] ?? '');
+          if (cached.chunkDocIds) {
+            // Chunk-based index: extract per-doc hash from first chunk of each doc
+            const docSeen = new Set<string>();
+            for (let i = 0; i < cached.chunkDocIds.length; i++) {
+              const pid = cached.chunkDocIds[i];
+              if (!docSeen.has(pid)) {
+                docSeen.add(pid);
+                cachedHashMap.set(pid, cached.contentHashes[i] ?? '');
+              }
+            }
+          } else {
+            // Legacy: docIds are 1:1 with docs
+            for (let i = 0; i < cached.docIds.length; i++) {
+              cachedHashMap.set(cached.docIds[i], cached.contentHashes[i] ?? '');
+            }
           }
         }
-        const unchanged = cached.docIds.length === docs.length
+        const cachedDocCount = cached.chunkDocIds
+          ? new Set(cached.chunkDocIds).size
+          : cached.docIds.length;
+        const unchanged = cachedDocCount === docs.length
           && cachedHashMap.size > 0
           && docs.every((d, i) => cachedHashMap.get(d.id) === currentHashes[i]);
         if (unchanged) return cached;
