@@ -30,7 +30,8 @@ $manage-knowhow "prune --before 2026-01-01 --type tip --dry-run"
 - `--type <session|tip|template|recipe|reference|decision>` — Filter by knowhow type
 - `--confirm` — Skip delete confirmation prompt
 - `--before <date>` / `--after <date>` — Date filters for prune
-- `--dry-run` — Preview prune without deleting
+- `--dry-run` — Preview prune without deleting (default for prune — use `--execute` to actually delete)
+- `--execute` — Required to actually perform prune deletions (prune defaults to dry-run)
 </context>
 
 <execution>
@@ -60,7 +61,7 @@ Default to `list` if no arguments. Parse first token as subcommand.
 
 **delete `<id|file>`**: Require confirmation (or `--confirm` flag). MEMORY.md cannot be deleted (E004). Remove entry file (WikiIndexer auto-updates `.workflow/wiki-index.json` on next access).
 
-**prune**: Requires at least one filter (`--tag`, `--type`, `--before`, `--after`). Workflow store only. `--dry-run` previews without deleting.
+**prune**: Requires at least one filter (`--tag`, `--type`, `--before`, `--after`). Workflow store only. Prune defaults to dry-run (preview only) — always display the list of entries that would be deleted first. To actually delete, user must pass `--execute`. When `--execute` is used, prompt for confirmation via `request_user_input` before proceeding (unless `--confirm` is also passed).
 
 ### Step 4: Integrity Check
 

@@ -145,22 +145,24 @@ $codify-to-knowhow ".workflow/reference_style/my-style-v1"
 2. **Idempotent Writes**: Same-slug file exists = skip, never overwrite
 3. **Closed Tags**: All entries use `<spec-entry>` / `<knowhow-entry>` closed-tag format
 4. **Upstream Generates Manifest**: This skill only writes, never extracts knowledge
-5. **CLI First, File Fallback**: Prefer `maestro spec add` CLI; fall back to direct file append on failure
-6. **Ref Bridge**: Spec entries reference knowhow files via `ref` attribute
+5. **CLI First, File Fallback**: Prefer `maestro spec add` CLI with `--ref` param; fall back to direct file append on failure (with confirmation log)
+6. **Ref Bridge**: Spec entries reference knowhow files via `ref` attribute — both CLI path (`--ref` flag) and fallback path (`ref` attr in `<spec-entry>`) carry the ref
 </invariants>
 
 <execution>
 
 ### Step 1: Parse Package Path
 
-**Parse from `$ARGUMENTS`**:
+**Parse first positional from `$ARGUMENTS` and assign to `package_path`**:
 
 | Variable | Source | Default |
 |----------|--------|---------|
-| `package_path` | positional (required) | ERROR if missing |
+| `package_path` | first positional from $ARGUMENTS (required) | ERROR if missing |
 
 ```bash
-package_path="${PACKAGE_PATH}"
+# Parse first positional argument from $ARGUMENTS
+package_path="$(echo "$ARGUMENTS" | awk '{print $1}')"
+test -n "$package_path" || { echo "ERROR: package_path is required as first positional argument"; exit 1; }
 
 # Validate directory exists
 test -d "$package_path" || { echo "ERROR: Package path not found: $package_path"; exit 1; }
@@ -313,10 +315,12 @@ ${spec.body}
 
   // Prefer CLI, fallback to direct append
   const descFlag = spec.description ? ` --description "${spec.description}"` : '';
-  const cliResult = Bash(`maestro spec add ${spec.category} "${spec.title}" "${spec.body}" --keywords "${spec.keywords}"${descFlag} 2>/dev/null`);
+  const refFlag = spec.ref ? ` --ref "${spec.ref}"` : '';
+  const cliResult = Bash(`maestro spec add ${spec.category} "${spec.title}" "${spec.body}" --keywords "${spec.keywords}"${descFlag}${refFlag} 2>/dev/null`);
 
   if (cliResult.exitCode !== 0) {
-    // Fallback: direct file append
+    // Fallback: direct file append — confirm before writing
+    REPORT(`CLI failed for "${spec.title}", falling back to direct append to ${targetFile}`);
     Edit(targetFile, { append: entryBlock });
   }
 
@@ -348,22 +352,30 @@ for file in ${knowhowPaths}; do
 done
 ```
 
-**6b: Verify spec entries**:
+**6b: Verify spec entries** (verify by actual targetFile set from manifest, not hardcoded categories):
+
+```javascript
+// Collect unique target files from manifest specs
+const verifiedFiles = new Set();
+for (const spec of manifest.specs) {
+  const targetFile = `.workflow/specs/${categoryFileMap[spec.category]}`;
+  verifiedFiles.add(targetFile);
+}
+```
 
 ```bash
 echo "=== Spec Entry Verification ==="
-grep -c "${slug}" .workflow/specs/coding-conventions.md 2>/dev/null && \
-  echo "  OK: coding-conventions.md" || echo "  MISSING: No entries in coding-conventions.md"
-
-grep -c "${slug}" .workflow/specs/architecture-constraints.md 2>/dev/null && \
-  echo "  OK: architecture-constraints.md" || echo "  MISSING: No entries in architecture-constraints.md"
+for target_file in ${verifiedFiles}; do
+  grep -c "${slug}" "${target_file}" 2>/dev/null && \
+    echo "  OK: ${target_file}" || echo "  MISSING: No entries in ${target_file}"
+done
 ```
 
-**6c: Verify ref links**:
+**6c: Verify ref links** (scan only the target files derived from the manifest):
 
 ```bash
 echo "=== Ref Link Verification ==="
-refs=$(grep -oP 'ref="knowhow/[^"]*"' .workflow/specs/coding-conventions.md .workflow/specs/architecture-constraints.md 2>/dev/null | grep "${slug}" || true)
+refs=$(grep -oP 'ref="knowhow/[^"]*"' ${verifiedFiles} 2>/dev/null | grep "${slug}" || true)
 
 if [ -n "$refs" ]; then
   echo "$refs" | while IFS= read -r ref; do

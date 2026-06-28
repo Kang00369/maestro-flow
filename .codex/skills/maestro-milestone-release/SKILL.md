@@ -34,7 +34,23 @@ $ARGUMENTS — optional explicit version and flags.
 Follow '~/.maestro/workflows/milestone-release.md' completely.
 
 **Flow:** Validate preconditions → Resolve version → Collect changes → Generate CHANGELOG →
-Bump manifest → Commit → Tag → Push
+**Confirmation gate** → Bump manifest → Commit → Tag → Push
+
+**Default behavior**: Without explicit `--no-dry-run` or user confirmation, the skill runs in dry-run mode (preview only). This prevents accidental commits, tags, and pushes.
+
+**Confirmation gate** (before any git write operations):
+Unless `-y` flag is set, display a summary and ask user via `request_user_input`:
+```
+Release preview:
+  Version:   v{previous} → v{new}
+  Milestone: {name}
+  Changelog: {N} entries
+  Actions:   commit + tag{" + push" unless --no-push}
+```
+Options: "Confirm release" / "Dry-run only (preview)" / "Cancel"
+- "Confirm release" → proceed with commit, tag, push
+- "Dry-run only" → display report without writing
+- "Cancel" → abort
 
 **Report:**
 ```
@@ -64,6 +80,7 @@ Changelog: {N} entries
 
 <success_criteria>
 - [ ] Preconditions validated
+- [ ] Confirmation gate passed (user confirmed or `-y` set) before any git write operations
 - [ ] Target version computed and greater than previous
 - [ ] Version manifest(s) updated
 - [ ] CHANGELOG.md entry with milestone summary + grouped changes

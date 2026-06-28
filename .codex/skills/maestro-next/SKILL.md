@@ -3,6 +3,7 @@ name: maestro-next
 description: "Single-command recommendation — pick the best next skill from the pool and execute it in-context"
 argument-hint: "\"<intent>\" [-y] [--dry-run] [--top N] [--list]"
 allowed-tools: Read, Bash, Glob, Grep, request_user_input
+invocation-note: "$skill {args}" in output is a suggest-only display format — the user or parent orchestrator decides whether to execute
 ---
 
 <purpose>
@@ -42,7 +43,7 @@ $ARGUMENTS — 意图文本 + 可选 flags。
 1. **不创建 session / 不写 status.json / 不调用 create_goal/update_plan** — 单次原子调用，产出由目标 skill 自行管理
 2. **管线编排器不在候选池** — `maestro` / `maestro-ralph*` / `maestro-player` / `maestro-composer` 永远不会被推荐
 3. **Skill 发现限定 codex 平台** — 通过 `maestro ralph skills --platform codex --json --quiet` 解析 `command_scope` + `command_path`（project 覆盖 global，限定 `.codex/skills/`）；未命中即 E003
-4. **空 intent 或 "continue/next/go/继续/下一步/接下来"** → 直接采用 lifecycle_position 推断的自然下一步
+4. **空 intent 或 "continue/next/go/继续/下一步/接下来"** → 直接采用 lifecycle_position 推断的自然下一步（无需 clarification，不进入 S_PARSE 的 clarify 回合）
 5. **字面命中路由表优先** — lifecycle 仅作加分；命中失败时 lifecycle 上升为决定性信号
 6. **In-context invocation** — top pick 以 `$skill-name {args}` 形式在协调器上下文直接调用，**禁止** spawn_agent / spawn_agents_on_csv / shell_exec 包装
 7. **参数传递** — 默认 intent 原文作为第一个 arg；用户可在 S_CONFIRM 修改；`-y` 仅当用户传入时透传到 skill args
@@ -60,7 +61,7 @@ S_LIST      — `--list` 模式：分组展示候选池                     PERS
 S_PRESENT   — 显示 top pick + 备选 + 推荐理由 + 执行参数        PERSIST: —
 S_CONFIRM   — request_user_input 选择/修改参数（auto_mode 跳过） PERSIST: —
 S_EXECUTE   — 在协调器上下文以 `$skill {args}` 直调              PERSIST: —
-S_FALLBACK  — intent 空且 clarification 失败                    PERSIST: —
+S_FALLBACK  — 候选池全部 missing（E003）                        PERSIST: —
 </states>
 
 <transitions>
@@ -69,8 +70,7 @@ S_PARSE:
   → S_LIST       WHEN: --list flag
   → S_STATE      WHEN: intent text present
   → S_STATE      WHEN: keyword "continue"/"next"/"go"/"继续"/"下一步"/"接下来"
-  → S_PARSE      WHEN: no intent (max 1 clarify round)    DO: request_user_input
-  → S_FALLBACK   WHEN: clarification empty
+  → S_STATE      WHEN: empty intent (treat as lifecycle next step — no clarification)
 
 S_STATE:
   → S_RANK       DO: A_INFER_LIFECYCLE
@@ -99,7 +99,7 @@ S_EXECUTE:
   → END          DO: A_INVOKE_SKILL → 输出 "✓ executed $<skill>"
 
 S_FALLBACK:
-  → END          DO: raise E001
+  → END          DO: raise E003
 
 </transitions>
 
@@ -167,7 +167,7 @@ brainstorm → blueprint → init → analyze-macro → roadmap
 
 | Intent 模式 | top pick |
 |------------|---------|
-| 空 / "continue" / "next" / "go" / "继续" / "下一步" / "接下来" | lifecycle 自然下一步 |
+| 空 / "continue" / "next" / "go" / "继续" / "下一步" / "接下来" | lifecycle 自然下一步（空 intent 直接进入 S_STATE，不做 clarification） |
 | "status" / "状态" / "现在到哪了" | `manage-status` |
 | 字面命中路由表 | 路由表优先（lifecycle 仅加分） |
 | 无任何匹配 | lifecycle 下一步 + raise W002 |
@@ -234,14 +234,15 @@ brainstorm → blueprint → init → analyze-macro → roadmap
 
 ### A_INVOKE_SKILL
 
-在协调器上下文以 `$skill-name {args}` 直接调用（**NO spawn_agent, NO shell_exec 包装**）：
+在协调器上下文以 `$skill-name {args}` 形式输出推荐调用（suggest-only display — 由用户或父编排器决定是否执行）：
 
 1. 解析最终 args：
    - 默认：`{intent}`（原文，去除已识别的关键词如 "continue"）
    - 用户改过：使用用户输入
    - `-y` 透传：附加 `-y`（仅当用户传入且目标 skill 支持）
-2. 在响应中直接写出调用指令，例如：`$maestro-analyze "优化登录流程"`
-3. 读取目标 skill 产出后输出 `✓ executed $<skill-name>`
+2. 在响应中输出建议调用指令，例如：`$maestro-analyze "优化登录流程"`
+   - `$skill {args}` 是建议格式，非自动执行；用户确认后由协调器上下文执行
+3. 执行后输出 `✓ executed $<skill-name>`
 4. 不修改任何 `.workflow/` 文件；不创建 session；不触发后续 chain
 
 </actions>
@@ -278,7 +279,7 @@ brainstorm → blueprint → init → analyze-macro → roadmap
 
 | Code | Severity | Condition | Recovery |
 |------|----------|-----------|----------|
-| E001 | error | intent 空且 clarification 后仍空 | 提供意图描述或使用 `--list` 浏览 |
+| E001 | error | (reserved — empty intent now falls through to lifecycle next step) | — |
 | E002 | error | codex skill 池为空（`maestro ralph skills --platform codex` 无结果） | 检查 `.codex/skills/` 与 `~/.codex/skills/` |
 | E003 | error | 选定命令在 codex 平台未命中（`command_scope == "missing"`） | 列出 codex 可用 skill 让用户重选 |
 | W001 | warning | top1 与 top2 得分差距 < 阈值 | 强制展示前 3 让用户裁决 |

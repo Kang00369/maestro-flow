@@ -133,6 +133,8 @@ Glob latest session → read `session.json` → jump to `current_state`.
 ### A_ARCHAEOLOGY
 2 parallel Agents: Timeline (`git log --oneline -20 -- {files}`) + Blame (top 3 files `git blame -L {region}`). Evidence phase=archaeology.
 
+**Error handling:** If any archaeology agent fails (Timeline or Blame), log W003 and proceed with available results. If delegate fails, log W003 and proceed with local agent results only.
+
 `maestro delegate --role analyze --mode analysis` (`run_in_background: true`):
 - PURPOSE: Review recent modifications related to {target}
 - EXPECTED: JSON [{commit_sha, risk_level, analysis, could_cause_issue, explanation}]
@@ -170,7 +172,7 @@ for tier in [critical, high, medium, low].filter(>= threshold):
 ```
 
 Normal: AskUserQuestion per tier. `-y`: auto-fix all.
-Remaining > 0 → retry (no max_loops limit). Unchanged 2 rounds → classify each individually.
+Remaining > 0 → retry (max_fix_rounds = 5). Unchanged 2 rounds → classify each individually. After 5 rounds with remaining > 0 → escalate: Normal: AskUserQuestion (continue/accept/reclassify) | `-y`: classify remaining as `deferred`, proceed.
 Blanket "pre-existing" forbidden.
 
 Commit per tier: `"odyssey-review({slug}): FIX-{tier} — {N} items fixed"`
@@ -235,6 +237,7 @@ Every finding must have action (fix/issue/decision). Decision pending must AskUs
 | E002 | error | Target path not found | Check path |
 | W001 | warning | No git history | Proceed |
 | W002 | warning | Some dimension agents failed | Partial coverage |
+| W003 | warning | Archaeology agent or delegate failure | Proceed with available results |
 </error_codes>
 
 <success_criteria>

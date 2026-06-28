@@ -1,7 +1,7 @@
 ---
 name: maestro-ralph-cli-execute
 description: Skill execution wrapper for delegate — execute skill, return structured result
-argument-hint: "<skill-name> [args...]"
+argument-hint: "<skill-name> [args...] [--session <id>]"
 allowed-tools:
   - Read
   - Write

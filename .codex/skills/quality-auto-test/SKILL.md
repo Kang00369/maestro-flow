@@ -16,7 +16,7 @@ Topology: layers as waves (L0->L1->L2->L3 sequential, scenarios within layer par
 $ARGUMENTS -- phase number and optional flags.
 
 **Flags**:
-- `-y, --yes`: Skip all confirmations
+- `-y, --yes`: Skip all confirmations (including CSV generation approval gate after S_CSV_GEN)
 - `-c, --concurrency N`: Max concurrent agents per layer (default: 5)
 - `--max-iter N`: Max outer iterations (default: 5; 1 = single-pass)
 - `--layer L`: Restrict to specific layer (L0|L1|L2|L3)
@@ -48,9 +48,17 @@ id,name,layer,priority,category,target_file,test_file,description,test_cases,fix
 ```
 
 **scenarios.csv column semantics**:
-- Input: id (AT-NNN), name, layer (L1/L2/L3 = wave order), priority (critical/high/medium), category (api_contract/business_rule/state_transition/user_flow/...), target_file (source file tested), test_file (test file path to create), description (what scenario validates), test_cases (semicolon-sep, each -> one it() block), fixtures (required mocks/fixtures, semicolon-sep), req_ref (REQ-NNN:AC-N or gap-id or empty), infrastructure_hints (framework + pattern refs from infra discovery)
-- Computed: prev_context (findings from prior layer scenarios, cross-layer propagation)
-- Output: status (pending->written->passed->failed->blocked), red_result (expected_fail/unexpected_fail/pass), findings (patterns discovered, notes for dependents, max 500 chars), error
+
+**Input columns** (written by orchestrator into wave CSV):
+id (AT-NNN), name, layer (L1/L2/L3 = wave order), priority (critical/high/medium), category (api_contract/business_rule/state_transition/user_flow/...), target_file (source file tested), test_file (test file path to create), description (what scenario validates), test_cases (semicolon-sep, each -> one it() block), fixtures (required mocks/fixtures, semicolon-sep), req_ref (REQ-NNN:AC-N or gap-id or empty), infrastructure_hints (framework + pattern refs from infra discovery)
+
+**Computed column** (added to wave CSV by orchestrator before spawn):
+prev_context (findings from prior layer scenarios, cross-layer propagation)
+
+**Lifecycle columns** (exist ONLY in master CSV, populated during merge from output_schema results -- NEVER included in wave CSV input):
+status (pending->written->passed->failed->blocked), red_result (expected_fail/unexpected_fail/pass), classification, fix_code, evidence, findings (patterns discovered, notes for dependents, max 500 chars), files_modified, error
+
+**Column separation rule**: Wave CSV (input to `spawn_agents_on_csv`) contains Input columns + prev_context only. Lifecycle columns are NEVER passed to workers. Workers return values exclusively via `output_schema`. During merge: `result_status` -> master `status`; other output fields copied into matching lifecycle columns.
 
 ### diagnosis.csv (Iteration Phase)
 
@@ -107,7 +115,7 @@ S_INFRA:
   -> S_CSV_GEN      DO: detect framework, read 2-3 existing tests, build infrastructure_hints
 
 S_CSV_GEN:
-  -> S_L0           DO: build scenarios.csv, set cross-layer prev_context
+  -> S_L0           DO: build scenarios.csv, set cross-layer prev_context, then confirm with user via request_user_input (skip if -y/--yes): display scenario count per layer, priority distribution, and sample rows; user approves or adjusts before execution
   -> END            WHEN: --dry-run (plan only)
 
 S_L0:

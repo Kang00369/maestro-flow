@@ -52,10 +52,15 @@ From forcing question answers, extract: design patterns (with file:line anchors)
 
 Cross-reference against `coding-conventions.md`: documented vs undocumented patterns.
 
-### Stage 5: Persist
-1. Write `KNW-follow-{slug}-{date}.md` with understanding map
-2. Append new patterns to `.workflow/specs/learnings.md` (source: "follow", stable INS-ids)
-3. If `--save-wiki`: create wiki note entry
+### Stage 5: Persist (confirmation-gated)
+1. Display understanding map summary to user
+2. **Confirmation gate**: prompt user via `request_user_input` — "Save knowhow and specs? (y/n/edit)"
+   - `y` → proceed to write
+   - `n` → skip persistence, display summary only
+   - `edit` → let user modify findings before writing
+3. On confirmation: write `KNW-follow-{slug}-{date}.md` with understanding map
+4. On confirmation: append new patterns to `.workflow/specs/learnings.md` (source: "follow", stable INS-ids)
+5. If `--save-wiki`: create wiki note entry (also gated by step 2 confirmation)
 
 **Next steps:** `$learn-decompose <path>`, `$spec-add coding ...`, `$learn-second-opinion <file>`
 </execution>
@@ -75,6 +80,7 @@ Cross-reference against `coding-conventions.md`: documented vs undocumented patt
 - [ ] All 4 forcing questions applied per section
 - [ ] Patterns extracted with file:line anchors
 - [ ] Understanding map produced with concepts, patterns, assumptions, questions
-- [ ] `KNW-follow-{slug}-{date}.md` written
-- [ ] `.workflow/specs/learnings.md` appended with stable INS-ids
+- [ ] User confirmation obtained before persistence
+- [ ] `KNW-follow-{slug}-{date}.md` written (if confirmed)
+- [ ] `.workflow/specs/learnings.md` appended with stable INS-ids (if confirmed)
 </success_criteria>

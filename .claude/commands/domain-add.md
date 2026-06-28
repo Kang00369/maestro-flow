@@ -8,6 +8,7 @@ allowed-tools:
   - Bash
   - Glob
   - Grep
+  - AskUserQuestion
 ---
 <purpose>
 Register a domain term into `.workflow/domain/glossary.yaml`. Domain terms are automatically injected into agent context via hooks (domain-compact for all prompts, domain-expanded on keyword match).
@@ -38,6 +39,8 @@ Domain term lifecycle: discover/manual → register → active → (optional) de
 
 <execution>
 Follow '~/.maestro/workflows/domain-add.md' completely.
+
+**Confirmation gate**: Before writing to glossary.yaml, AskUserQuestion showing the term canonical name, definition, extracted aliases/keywords, tier, and target file path. Proceed only on user confirm.
 </execution>
 
 <error_codes>

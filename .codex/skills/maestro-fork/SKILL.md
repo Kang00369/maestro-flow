@@ -58,7 +58,7 @@ Follow '~/.maestro/workflows/fork.md' completely.
 **Fork flow:**
 1. Validate: initialized, roadmap exists, not inside worktree, milestone not forked
 2. Resolve milestone: `state.json.milestones[N-1]`
-3. Create worktree: `git worktree add -b milestone/{slug} .worktrees/m{N}-{slug} HEAD`
+3. Create worktree: `git worktree add -b milestone/{slug} .worktrees/m{N}-{slug} {base_branch}` (where `base_branch` = `--base` flag value or `HEAD` if not specified)
 4. Copy `.workflow/`: shared files + milestone scratch artifacts
 5. Write `worktree-scope.json` with milestone scope
 6. Write scoped `state.json` (this milestone's artifacts only)
@@ -66,8 +66,9 @@ Follow '~/.maestro/workflows/fork.md' completely.
 
 **Sync flow:**
 1. Find worktree from `worktrees.json`
-2. `cd worktree && git merge main`
-3. Re-copy shared files (project.md, roadmap.md, config.json, specs/)
+2. Resolve sync source: use `--base <branch>` if provided, else use `base_branch` from `fork_sessions[]` entry, else default to `main`
+3. `cd worktree && git merge {base_branch}`
+4. Re-copy shared files (project.md, roadmap.md, config.json, specs/)
 
 **Registry: `worktrees.json`** (`.workflow/worktrees.json` in main worktree):
 

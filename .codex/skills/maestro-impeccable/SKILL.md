@@ -154,7 +154,7 @@ Layer 1+2 both did not match, but intent is to build/create a specific thing:
 3. Interactive gates respected — teach, shape, craft retain user confirmation gates
 4. status.json before chain steps — session created before any chain step runs
 5. **Quality gate enforcement** — score MUST be parsed from critique/audit output (not assumed). P0 count MUST be extracted. Do NOT skip quality gate steps or mark as "passed" without parsing actual score.
-6. **Chain completion verification** — all non-skipped steps MUST be executed (TodoWrite all completed). status.json MUST be updated with status: "completed" and final scores.
+6. **Chain completion verification** — all non-skipped steps MUST be executed (all tracked as completed in status.json). status.json MUST be updated with status: "completed" and final scores.
 </invariants>
 
 ## Prerequisites
@@ -162,7 +162,7 @@ Layer 1+2 both did not match, but intent is to build/create a specific thing:
 Before reading any command workflow:
 
 1. **Context**: `maestro load --type spec --category ui` → if empty → `maestro impeccable load-context`
-2. **PRODUCT.md**: missing/placeholder (<200 chars / `[TODO]`) → execute teach first, then resume original task
+2. **PRODUCT.md**: missing/placeholder (<200 chars / `[TODO]`) → prompt user via `request_user_input` to confirm running teach first ("PRODUCT.md is missing or incomplete. Run teach to set it up before proceeding?"). On confirm → execute teach, then resume original task. On decline → abort with message. When `-y` → auto-confirm and run teach without prompting.
 3. **Register**: identify brand/product → Read `~/.maestro/workflows/impeccable/{brand|product}.md`
 
 ## Direct Execution
@@ -215,14 +215,14 @@ Before reading any command workflow:
    - Read `~/.maestro/workflows/impeccable/{command}.md` → execute
    - **Step start**: mark current step in_progress
    - **Step done**: mark completed + update status.json (`current_step`, step `status`)
-   - **Step failed**: mark completed (with note) + record reason
+   - **Step failed**: mark as `failed` in status.json + record reason (do NOT mark completed)
 6. **Quality gate** (critique/audit steps):
    - Parse score: critique `**Total** | | **N/40**`, audit `**Total** | | **N/20**`
    - Count `[P0]` / `[P1]` tags
    - Pass: score ≥ threshold AND P0 == 0 → advance
    - Fail: collect suggested commands from findings → execute → re-gate
-   - Max loops exceeded → force advance with warning
-   - Record gate result in current step notes (score, P0/P1 count, pass/fail)
+   - Max loops exceeded → mark step as `degraded` (not completed), record final score + unresolved P0s, log warning, advance to next step
+   - Record gate result in current step notes (score, P0/P1 count, pass/fail/degraded)
 7. Final report: scores + trend + commands executed
 
 ## Resume

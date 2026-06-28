@@ -2,7 +2,7 @@
 name: security-audit
 description: OWASP Top 10 and STRIDE security auditing with supply chain analysis
 argument-hint: "[quick|standard|deep] [--scope <path>]"
-allowed-tools: spawn_agents_on_csv, Read, Bash, Glob, Grep, request_user_input
+allowed-tools: spawn_agents_on_csv, Read, Write, Bash, Glob, Grep, request_user_input
 ---
 <purpose>
 Systematic security audit covering OWASP Top 10, dependency supply chain, secrets detection,
@@ -57,7 +57,9 @@ Use `Grep` for pattern matching (e.g., `eval(`, `exec(`, `innerHTML`, `dangerous
 `sql.*\+.*req\.`, `process\.env` without validation).
 
 For `standard` and `deep` tiers, use `spawn_agents_on_csv` to parallelize OWASP category scans
-across multiple agents, one agent per 2-3 categories.
+across multiple agents, one agent per 2-3 categories. Unless `-y/--yes`, use `request_user_input` to confirm scope and category assignments before spawning.
+
+**Wave state transitions**: After spawn, merge results. 1+ completed → proceed to next phase. All failed + retry available → retry wave once. All failed + retry exhausted → mark phase `degraded`, continue with available results, log `evidence_incomplete`.
 
 **spawn_agents_on_csv contract** (OWASP scan):
 - CSV columns: `id, title, owasp_categories, scope_glob, deps, wave, status` (initial `status="pending"`); filter `wave==1 AND status=="pending"` before writing wave-1.csv.
@@ -74,11 +76,11 @@ across multiple agents, one agent per 2-3 categories.
     "top_issues":      { "type": "string", "description": "JSON array: [{title, severity, file:line, cwe}]" },
     "error":           { "type": "string" }
   },
-  "required": ["id", "result_status", "findings"]
+  "required": ["id", "result_status", "findings", "severity_counts"]
 }
 ```
 
-- Merge: `result_status` → master `status`; copy `findings`, `severity_counts`, `top_issues`, `error`.
+- Merge: `result_status` → master `status`; copy `findings`, `severity_counts`, `top_issues`, `error`. Clean results with no issues MUST return `severity_counts: "{\"critical\":0,\"high\":0,\"medium\":0,\"low\":0}"`.
 - **Termination contract** (embed in instruction):
   ```
   You MUST call report_agent_job_result EXACTLY ONCE before exiting.
@@ -201,7 +203,7 @@ NEXT: $quality-review
 --- END STATUS ---
 ```
 
-**Register artifact on completion** (so retrospective/harvest can trace this audit):
+**Register artifact on completion** (gated: unless `-y`, use `request_user_input` to confirm artifact registration and report writing before proceeding):
 ```
 Append to state.json.artifacts[]:
 {

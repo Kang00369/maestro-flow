@@ -173,9 +173,9 @@ INPUTS — read these files (do NOT modify):
 - <ABS_SESSION>/guidance-specification.md
 - <ABS_SESSION>/<role_1>/analysis.md
 - <ABS_SESSION>/<role_2>/analysis.md
-- ... (one per role from Wave 2)
+- ... (one per COMPLETED role from Wave 2 — failed/blocked roles are excluded)
 
-(Orchestrator MUST inject the actual absolute paths for all completed Wave 2 rows.)
+(Orchestrator MUST inject the actual absolute paths for completed Wave 2 rows ONLY. If any W2 roles failed, append a gap_note listing the missing roles so the reviewer can flag affected findings as LOW CONFIDENCE.)
 
 TASK: Compare §2 Decision Digests across role analysis.md index files. Identify:
 - Conflicts: contradictory stances between roles on the same feature/topic
@@ -306,8 +306,9 @@ S_CHECK_1 → S_WAVE_2   WHEN: (-y OR user "Proceed") AND ui-designer NOT in sel
 S_CHECK_1 → S_CHECK_1  WHEN: user "Revise"    DO: edit guidance-spec, re-display
 S_CHECK_1 → END        WHEN: user "Abort"
 
-S_DESIGN → S_WAVE_2    WHEN: DESIGN.md exists OR explore completed    DO: A_DESIGN_EXPLORE
-S_DESIGN → S_WAVE_2    WHEN: DESIGN.md already exists (skip explore)
+S_DESIGN → S_WAVE_2    WHEN: DESIGN.md already exists (skip explore — visual direction locked)
+S_DESIGN → S_WAVE_2    WHEN: user confirms explore AND explore completed    DO: A_DESIGN_EXPLORE
+S_DESIGN → S_WAVE_2    WHEN: user skips explore    DO: set session.design_degraded=true, W2 ui-designer receives gap_note="DESIGN.md unavailable"
 S_DESIGN → S_WAVE_2    WHEN: explore failed → W004 → retry once. If still fails: set session.design_degraded=true, record degradation_event in discoveries.ndjson, continue without. W2 ui-designer agent receives gap_note="DESIGN.md unavailable, design evidence incomplete" and outputs inherit LOW CONFIDENCE flag.
 
 S_WAVE_2 → S_CHECK_2   WHEN: 1+ completed     DO: spawn wave-2 (parallel), merge results — each agent writes {role}/analysis.md + sub-files
@@ -347,7 +348,7 @@ system-architect MUST include in §3: Data Model, State Machine, Error Handling,
 
 The agent MUST write files. The agent MUST NOT return analysis as text.
 
-**Cross-Role Review (W3, agent role `cross-role-reviewer`)**: Read ALL `{role}/analysis.md` files (§2 Decision Digests) + guidance-specification.md → emit structured report (NOT files):
+**Cross-Role Review (W3, agent role `cross-role-reviewer`)**: Read ONLY completed W2 role `{role}/analysis.md` files (§2 Decision Digests) + guidance-specification.md → emit structured report (NOT files). Failed/blocked W2 roles are excluded from W3 input; inject a `gap_note` listing which roles are missing so the reviewer knows its coverage is incomplete and flags affected cross-role findings as LOW CONFIDENCE:
 
 ```
 ## Conflicts (need user decision)
@@ -383,9 +384,11 @@ conflicts_count / gaps_count / synergies_count / review_confidence
 
 When ui-designer is among selected roles, establish visual direction before Wave 2:
 
-1. If `.workflow/impeccable/PRODUCT.md` missing → run `$maestro-impeccable teach`
-2. If `.workflow/impeccable/DESIGN.md` missing → run `$maestro-impeccable explore`
-3. If both already exist → skip (visual direction already locked)
+1. If both `.workflow/impeccable/PRODUCT.md` and `.workflow/impeccable/DESIGN.md` already exist → skip (visual direction already locked).
+2. Otherwise, **suggest** the missing steps to the user via `request_user_input` (skip gate when `-y/--yes`):
+   - If `PRODUCT.md` missing → suggest: "Run `maestro-impeccable teach` to establish product identity?" Options: `(Recommended) Yes` / `Skip`
+   - If `DESIGN.md` missing → suggest: "Run `maestro-impeccable explore` to establish visual direction?" Options: `(Recommended) Yes` / `Skip`
+3. Only execute the impeccable commands if the user confirms (or `-y` auto mode). If the user skips, set `session.design_degraded=true` and continue — W2 ui-designer agent receives `gap_note="DESIGN.md unavailable"`.
 
 explore generates multi-style HTML prototypes, visual comparison, user selection/mix, and produces DESIGN.md.
 ui-designer agents in Wave 2 then focus on UX/visual design referencing DESIGN.md.

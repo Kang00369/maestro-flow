@@ -34,7 +34,10 @@ $maestro-companion "route what should I do next"
 **Mode detection priority:**
 1. Explicit `before` / `note` / `after` / `route`
 2. Intent text that is not a mode keyword → `route`
-3. No arguments → auto-detect (`git status` has changes → `after`, else → `before`)
+3. No arguments → show `git status` summary and ask user to choose mode via `request_user_input`:
+   - Options: `before` (start new task), `after` (review & promote), `route` (get next command suggestion)
+   - Display working tree status (clean/dirty, changed file count) as context for the choice
+   - NEVER auto-enter `after` mode based on dirty tree — let the user decide
 
 **Flags:**
 - `--task <description>` — Current task description (for targeted knowledge loading and doc title)

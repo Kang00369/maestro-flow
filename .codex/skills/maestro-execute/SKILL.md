@@ -1,7 +1,7 @@
 ---
 name: maestro-execute
 description: Use when a confirmed plan is ready for implementation
-argument-hint: "[-y|--yes] [--concurrency N] [-c|--continue] \"<phase> [--auto-commit] [--method agent|cli] [--dir <path>]\""
+argument-hint: "[-y|--yes] [--concurrency N] [--continue] \"<phase> [--auto-commit] [--method agent|cli] [--dir <path>]\""
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
@@ -67,7 +67,7 @@ All mean: **run convergence criteria check NOW**.
 <context>
 ```bash
 $maestro-execute "3"
-$maestro-execute -c 4 "3 --auto-commit"
+$maestro-execute --concurrency 4 "3 --auto-commit"
 $maestro-execute -y "3 --method cli"
 $maestro-execute "3 --dir .workflow/scratch/quick-fix"
 $maestro-execute --continue "20260318-execute-P3-phase3"
@@ -75,8 +75,8 @@ $maestro-execute --continue "20260318-execute-P3-phase3"
 
 **Flags**:
 - `-y, --yes`: Skip all confirmations (auto mode)
-- `--concurrency N`: Max concurrent agents within each wave (default: 5)
-- `-c, --continue`: Resume existing session
+- `--concurrency N`: Max concurrent agents within each wave (default: 5, no short flag)
+- `--continue`: Resume existing session (no short flag)
 
 **Inner flags** (passed inside quotes):
 - `--auto-commit`: Atomic git commit after each task completion
@@ -178,7 +178,7 @@ Each wave generates `wave-{N}.csv` with extra `prev_context` column populated fr
 Parse from $ARGUMENTS:
   AUTO_YES        ← --yes | -y
   continueMode    ← --continue
-  maxConcurrency  ← --concurrency | -c N  (default: 5)
+  maxConcurrency  ← --concurrency N  (default: 5)
   autoCommit      ← --auto-commit
   executionMethod ← --method agent|cli  (default: from config.json)
   scratchDir      ← --dir <path>  (default: null)
@@ -352,7 +352,7 @@ Blocked/failed tasks cascade: mark all downstream dependents as `skipped` with e
 3. **Write verification.json** to plan directory with per-task pass/fail and gap list
 4. **Gate decision**:
    - `overall_pass == true` → proceed to Phase 3
-   - Critical gaps (task criteria all failed) → log warning, mark affected tasks as `needs_retry`
+   - Critical gaps (task criteria all failed) → log warning, mark affected tasks as `failed` with error referencing verification gaps
    - Non-critical gaps → record as `concerns` in verification.json, proceed
 5. **Register VRF artifact**: `{ id: "VRF-{next}", type: "verify", scope, path: verification.json, depends_on: "EXC-{id}" }`
 
@@ -384,7 +384,11 @@ Skip Phase 2.5 when `--skip-verify` flag present or task count == 0.
    - Root cause/workaround → `maestro spec add debug "<title>" "<content>" --keywords ... --description "<summary>"`
    Mark artifact `harvested: true`
 
-6. **Post-task Knowledge Inquiry**: After each task completes, evaluate inquiry triggers:
+6. **Post-task Knowledge Inquiry**: After each task completes, evaluate inquiry triggers.
+
+   **`-y` mode**: Skip all prompts. Instead, append triggered items to `context.md` under a "Suggested Knowledge Captures" section (suggest-only, no spec writes). This keeps `-y` fully non-interactive.
+
+   **Interactive mode**: Use `request_user_input` for each triggered item:
 
    - **Execution deviation**: If task summary mentions approach change, dependency swap, or plan deviation:
      → Prompt: "TASK-{NNN} deviated from the plan. Record as architecture constraint?"
@@ -398,7 +402,6 @@ Skip Phase 2.5 when `--skip-verify` flag present or task count == 0.
      → Prompt: "Design decision detected. Record as a learning?"
      → On confirm: `maestro spec add learning "<decision>" "<rationale>" --keywords ... --description "<summary>" --source execute:{PLAN_DIR}`
 
-   Use `request_user_input` for prompts:
    ```json
    { "questions": [{ "id": "knowledge-capture", "header": "Knowledge Capture", "question": "...", "options": [{ "label": "Yes", "description": "Record to specs" }, { "label": "Skip", "description": "Continue without recording" }] }] }
    ```

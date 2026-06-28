@@ -44,9 +44,12 @@ $ARGUMENTS — natural language workflow description, or flags.
 
 | Detection | Condition | Handler |
 |-----------|-----------|---------|
-| Resume | `--resume` or existing WFD session | Phase 0: Resume |
+| Resume | `--resume` flag explicitly set | Phase 0: Resume |
 | Edit | `--edit <path>` | Phase 0: Load + Edit |
-| New | Default | Phase 1: Parse |
+| New | Description text provided (non-empty args without flags) | Phase 1: Parse |
+| Empty | No args, no flags | Phase 0: check for existing WFD drafts → if found, ask user via `request_user_input` whether to resume or start new; if none, Phase 1 |
+
+**IMPORTANT**: An existing WFD draft does NOT auto-resume when new description text is provided. New intent always starts Phase 1 fresh. Auto-resume only triggers with explicit `--resume` or empty args with user confirmation.
 
 **Node catalog**: Read `~/.maestro/templates/workflows/specs/node-catalog.md` at Phase 2 (deferred).
 **Template schema**: Read `~/.maestro/templates/workflows/specs/template-schema.md` at Phase 5 (deferred).
@@ -121,7 +124,7 @@ If spec not found, use built-in fallback:
 | `testing` | skill | `quality-test` |
 | `review` | skill | `quality-review` |
 | `brainstorm` | skill | `maestro-brainstorm` |
-| `analysis` | cli | `maestro delegate --role analyze --mode analysis` |
+| `analysis` | cli | `maestro delegate --to claude --mode analysis` |
 | `refactor` | skill | `quality-refactor` |
 | `debug` | skill | `quality-debug` |
 | `spec` | skill | `maestro-blueprint` |

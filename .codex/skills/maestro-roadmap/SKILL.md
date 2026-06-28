@@ -94,8 +94,14 @@ S_AGGREGATE  -- 精炼、评估、输出                            PERSIST: con
 
 S_PARSE:
   -> S_INPUT        WHEN: create mode (default)
-  -> REVISE_FLOW    WHEN: --revise (load roadmap.md, apply changes, preserve completed phases)
-  -> REVIEW_FLOW    WHEN: --review (read-only health assessment)
+  -> S_REVISE       WHEN: --revise (load roadmap.md, apply changes, preserve completed phases)
+  -> S_REVIEW       WHEN: --review (read-only health assessment)
+
+S_REVISE:
+  -> S_AGGREGATE    DO: A_REVISE — load .workflow/roadmap.md (E005 if missing), apply --revise instructions, preserve completed phases (status!="pending"), rewrite only pending phases, update state.json milestones
+
+S_REVIEW:
+  -> END            DO: A_REVIEW — load .workflow/roadmap.md (E005 if missing), read-only health assessment: phase coverage, dependency integrity, stale phases, progress %. Display report. No writes.
 
 S_INPUT:
   -> S_CSV_GEN      DO: parse requirement (text/@file), load context-package.json if --from, codebase detection, load specs

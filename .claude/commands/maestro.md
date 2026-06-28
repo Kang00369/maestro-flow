@@ -30,7 +30,7 @@ $ARGUMENTS — user intent text, or special keywords.
 
 **Flags:**
 - `-y` / `--yes` — Auto mode: skip clarification, skip confirmation, auto-skip on errors
-- `-c` / `--continue` — Resume previous session
+- `-c` / `--continue` — Resume previous session. **`-c` is reserved for `--continue` across all maestro commands** — downstream skills MUST NOT redefine `-c` for other purposes to prevent collision via transparent forwarding.
 - `--dry-run` — Show chain without executing
 - `--super` — Read and follow `maestro-super.md`
 </context>

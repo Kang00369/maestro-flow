@@ -1,8 +1,8 @@
 ---
 name: maestro-milestone-audit
 description: Audit current milestone for cross-phase integration gaps
-argument-hint: "[milestone, e.g., 'M1']"
-allowed-tools: spawn_agents_on_csv, Read, Write, Bash, Glob, Grep
+argument-hint: "[milestone, e.g., 'M1'] [-y]"
+allowed-tools: spawn_agents_on_csv, Read, Write, Bash, Glob, Grep, request_user_input
 ---
 
 <purpose>
@@ -28,9 +28,9 @@ $maestro-milestone-audit "M1"
 ### tasks.csv (Master State)
 
 ```csv
-id,title,description,scope,check_targets,deps,wave,status,findings,gaps_found,severity,error
-"integ-1","Interface & dependency chains","Verify shared interfaces are consistent across phases: re-exports match, dependency chains unbroken, no circular imports between phase outputs","cross-phase imports, shared types, re-exports","grep for shared type names across phase output dirs; verify export/import consistency","","1","pending","","","",""
-"integ-2","Data contracts & API consistency","Verify request/response schemas match across phases: API signatures consistent, error codes aligned, no contract drift","request/response schemas, API signatures, error codes","diff API type definitions across phases; check error code enum consistency","","1","pending","","","",""
+id,title,description,scope,check_targets,deps,wave,status,audit_verdict,findings,gaps_found,severity,error
+"integ-1","Interface & dependency chains","Verify shared interfaces are consistent across phases: re-exports match, dependency chains unbroken, no circular imports between phase outputs","cross-phase imports, shared types, re-exports","grep for shared type names across phase output dirs; verify export/import consistency","","1","pending","","","","",""
+"integ-2","Data contracts & API consistency","Verify request/response schemas match across phases: API signatures consistent, error codes aligned, no contract drift","request/response schemas, API signatures, error codes","diff API type definitions across phases; check error code enum consistency","","1","pending","","","","",""
 ```
 
 **Columns**:
@@ -45,6 +45,7 @@ id,title,description,scope,check_targets,deps,wave,status,findings,gaps_found,se
 | `deps` | Input | Dependencies (empty — all wave 1) |
 | `wave` | Computed | Wave number (always 1 — single parallel wave) |
 | `status` | Lifecycle | `pending` (initial) → `completed`/`failed` (set by merge step from worker's `result_status`) |
+| `audit_verdict` | Lifecycle | `pass` / `warning` / `fail` — audit check outcome per dimension (merged from worker output) |
 | `findings` | Lifecycle | Detailed findings per dimension (max 500 chars; merged) |
 | `gaps_found` | Lifecycle | Semicolon-separated list of integration gaps (merged) |
 | `severity` | Lifecycle | `critical` / `warning` / `info` per gap (merged) |
@@ -90,7 +91,14 @@ For each phase: check for completed analyze (optional), plan (required), execute
 
 Verify all adhoc-scoped artifacts completed. For each execute artifact, verify all tasks in plan dir completed.
 
-### Step 5: Integration Check via CSV Wave
+### Step 5: Confirmation Gate
+
+Unless `-y` flag is set, display audit scope summary and ask user via `request_user_input`:
+- Show: milestone name, phase count, artifact count, integration dimensions to check
+- Options: "Proceed with audit" / "Cancel"
+- If cancelled → END
+
+### Step 6: Integration Check via CSV Wave
 
 1. Create session folder: `.workflow/.csv-wave/{dateStr}-audit-{milestone}/`
 2. Build `tasks.csv` from csv_schema — populate `scope` and `check_targets` columns using phase artifacts discovered in Step 2
@@ -162,12 +170,16 @@ CONSTRAINTS:
   - Do NOT call spawn_agents_on_csv (no recursion).
 ```
 5. Parse `gaps_found` from all workers — aggregate into `.workflow/milestones/{milestone}/audit-report.md`
-6. Any worker with `audit_verdict == fail` and `severity == critical` → milestone verdict = FAIL
+6. Verdict determination:
+   - Any worker with `result_status == "failed"` (worker error, no verdict produced) → milestone verdict = **INCOMPLETE** (audit cannot pass with missing dimensions; re-run required)
+   - Any worker with `audit_verdict == "fail"` and `severity == "critical"` → milestone verdict = **FAIL**
+   - All workers completed with `audit_verdict` in `["pass", "warning"]` → milestone verdict = **PASS**
 
-### Step 6: Verdict
+### Step 7: Verdict
 
-**PASS**: All phases have completed EXC artifacts, no critical integration gaps, all adhoc completed.
+**PASS**: All phases have completed EXC artifacts, no critical integration gaps, all adhoc completed, all integration workers completed successfully.
 **FAIL**: Missing EXC artifacts or critical integration gaps found.
+**INCOMPLETE**: One or more integration check workers failed (result_status="failed") — audit cannot produce a reliable verdict. Fix worker errors and re-run.
 
 Display structured audit report.
 

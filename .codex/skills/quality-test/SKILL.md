@@ -39,7 +39,7 @@ id,test_id,cluster,test_name,expected,reported,severity,target_files,issue_id,so
 ```
 
 Input: id, test_id, cluster, test_name, expected, reported, severity, target_files, issue_id, source_context.
-Output: root_cause, fix_direction, affected_files, evidence, error.
+Output (via output_schema): root_cause, fix_direction, affected_files, evidence, findings, error.
 </csv_schema>
 
 <invariants>
@@ -49,7 +49,7 @@ Output: root_cause, fix_direction, affected_files, evidence, error.
 4. **Batched writes** -- on issue, every 5 passes, or completion
 5. **Gap-fix loop max 2 iterations** -- prevent infinite loops
 6. **CSV parallel diagnosis** -- spawn_agents_on_csv for gap clusters, not sequential
-7. **Auto-create issues** -- every failed test -> issues.jsonl entry
+7. **Confirmed issue creation** -- every failed test -> issues.jsonl entry, but only after user confirmation (skip confirmation if `-y`); present batch summary (count + severity + titles) before writing
 8. **Issue lifecycle sync** -- registered -> planning -> executing -> completed/failed
 </invariants>
 
@@ -125,7 +125,7 @@ S_PRESENT:
   -> S_COMPLETE     WHEN: all tests done
 
 S_COMPLETE:
-  -> S_DIAGNOSE    WHEN: issues found      DO: write output files, register artifact in state.json
+  -> S_DIAGNOSE    WHEN: issues found      DO: write output files (test-results.json, coverage-report.json); artifact registration deferred to A_REPORT
   -> S_REPORT      WHEN: no issues
 
   **test-results.json**: `{ target, completed_at, results: [...], summary: { total, passed, issues, skipped } }`
@@ -172,7 +172,7 @@ Response processing:
 - color/spacing/alignment/looks off/typo -> cosmetic
 - Default: major
 
-On issue: auto-create in `.workflow/issues/issues.jsonl`:
+On issue: queue issue for creation (do NOT write yet). After all tests are presented (or on batched write triggers), present issue summary to user via `request_user_input` (skip if `-y`): show count, severity, and titles. User can approve all, selectively exclude, or skip. Then write approved issues to `.workflow/issues/issues.jsonl`:
 ```json
 { "id": "ISS-{YYYYMMDD}-{NNN}", "title": "UAT: {test.name} - {response truncated 100}",
   "status": "registered", "priority": "{from severity}", "severity": "{inferred}",
@@ -199,6 +199,7 @@ On issue: auto-create in `.workflow/issues/issues.jsonl`:
     "root_cause":      { "type": "string", "maxLength": 500 },
     "fix_direction":   { "type": "string" },
     "affected_files":  { "type": "string", "description": "Semicolon-separated file:line refs" },
+    "evidence":        { "type": "string", "description": "File:line references supporting the diagnosis" },
     "findings":        { "type": "string", "maxLength": 500 },
     "error":           { "type": "string" }
   },
@@ -233,6 +234,7 @@ OUTPUT (must match output_schema):
     "root_cause": "<concrete root cause with file:line, max 500 chars>",
     "fix_direction": "<high-level fix strategy, NOT code>",
     "affected_files": "<semicolon-separated file:line refs>",
+    "evidence": "<file:line references supporting the diagnosis>",
     "findings": "<one-sentence summary>",
     "error": "<message if not completed>"
   }
@@ -253,7 +255,7 @@ Max 2 iterations:
 
 1. UAT confidence scoring (4 dims: scenario_coverage, diagnostic_depth, observation_quality, closure_completeness). Readiness gate: block if scenario_coverage < 40% or blocker without diagnosis.
 2. Display summary: smoke results, pass/fail/skip counts, diagnosis stats, auto-fix results
-3. Register artifact in state.json (type: test)
+3. Register artifact in state.json (type: test) -- this is the ONLY registration point; S_COMPLETE defers registration here to avoid duplicates
 4. Route: all passed -> milestone-audit; auto-fix succeeded -> maestro-execute; gaps remain -> quality-debug; low coverage -> quality-auto-test
 
 </actions>

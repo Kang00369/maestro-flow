@@ -85,13 +85,15 @@ S_LOAD_CONTEXT:
 S_EXECUTE:
   → END             WHEN: step.decision != null              DO: A_EXEC_DECISION
   → S_POST_EXEC     WHEN: step.decision == null + ralph complete invoked with DONE|DONE_WITH_CONCERNS  DO: A_EXEC_STEP
-  → S_HANDLE_FAIL   WHEN: step.decision == null + ralph next exit≠0 OR ralph complete with NEEDS_RETRY|BLOCKED  DO: A_EXEC_STEP
+  → S_HANDLE_FAIL   WHEN: step.decision == null + ralph next exit=1 OR ralph complete with NEEDS_RETRY|BLOCKED  DO: A_EXEC_STEP
+  → S_HANDLE_FAIL   WHEN: step.decision == null + ralph next exit=3 (concurrency conflict)  DO: A_HANDLE_CONCURRENCY
 
 S_POST_EXEC:
   → S_LOCATE        DO: Bash("maestro ralph complete ...") + Skill("maestro-ralph-execute")
                      NOTE: CLI 已写完 completion_*, status, active_step_index；无需额外写盘
 
 S_HANDLE_FAIL:
+  → S_LOCATE        WHEN: exit code 3 (concurrency conflict)  DO: A_HANDLE_CONCURRENCY (wait 3s + retry)
   → S_LOCATE        WHEN: auto + not retried               DO: A_RETRY
   → END             WHEN: auto + retried                    DO: A_PAUSE_SESSION
   → S_LOCATE        WHEN: interactive + user selects retry  DO: A_RETRY
@@ -271,6 +273,15 @@ Write enriched args + source_artifact_ref back to status.json.
 6. **Propagate context signals** — 按 4c checklist 将关键信号写入 `status.json.context`
 
 完成后 S_LOCATE 触发 `Skill({ skill: "maestro-ralph-execute" })` 自调用。
+
+### A_HANDLE_CONCURRENCY
+
+Exit code 3 — `active_step_index` occupied by another process (concurrency conflict).
+
+1. Display: `[{index}] ⚠ Concurrency conflict — active_step_index already held`
+2. Wait 3 seconds, then re-read `status.json` to check if `active_step_index` has been cleared
+3. If cleared → return to S_LOCATE (retry the step)
+4. If still held after 2 attempts → A_PAUSE_SESSION with reason "concurrency conflict unresolved — another process may be holding the lock"
 
 ### A_RETRY
 

@@ -1,7 +1,7 @@
 ---
 name: odyssey-debug
 description: Long-running debug cycle — archaeology, diagnosis, fix, confirmation, generalization, discovery, and knowledge persistence
-argument-hint: "<issue> [--skip-fix] [--skip-generalize] [--auto] [-y] [-c] [--heartbeat]"
+argument-hint: "<issue> [--template <name>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c] [--heartbeat]"
 allowed-tools:
   - Read
   - Write
@@ -237,6 +237,7 @@ All sibling bugs fixed or issued — no leftovers.
 | E001 | error | No issue, no session | Provide issue or -c |
 | W001 | warning | No relevant git history | Proceed |
 | W002 | warning | 3 retries exhausted | INCONCLUSIVE |
+| W003 | warning | Partial archaeology agent failure (Timeline or Blame) | Proceed with available results, log failed agent |
 | W005 | warning | Pending decisions | Filter evidence phase=decision |
 | W006 | warning | No CLI tools | Skip explore |
 </error_codes>

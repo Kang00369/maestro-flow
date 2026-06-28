@@ -2,7 +2,7 @@
 name: maestro
 description: Auto-route intent to optimal command chain
 argument-hint: "\"intent text\" [-y] [-c|--continue] [--dry-run] [--super]"
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input, create_goal, update_plan, update_goal
 ---
 
 <purpose>
@@ -574,7 +574,7 @@ STEP RESULTS:
   ...
 
 State:    .workflow/.maestro/{sessionId}/status.json
-Resume:   $maestro --continue
+Resume:   Skill(maestro, "--continue")
 ```
 
 </appendix>

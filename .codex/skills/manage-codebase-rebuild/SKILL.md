@@ -6,7 +6,7 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 ---
 
 <purpose>
-Single-wave parallel execution -- 5 independent doc generator agents each analyze a different documentation dimension of the codebase. All agents run concurrently with no dependencies. This is a destructive operation that rebuilds the entire `.workflow/codebase/` directory from scratch.
+Two-wave parallel execution -- Wave 1: 3 scanner agents (Component Scanner, Feature Mapper, Requirement Linker) analyze the codebase in parallel. Wave 2: 2 writer agents (Tech Registry Writer, Feature Map Writer) consume scanner results and write documentation files. This is a destructive operation that rebuilds the entire `.workflow/codebase/` directory from scratch.
 
 **Core workflow**: Prepare Directory -> Decompose Doc Dimensions -> Parallel Generation -> Assemble doc-index.json
 
@@ -25,11 +25,12 @@ Single-wave parallel execution -- 5 independent doc generator agents each analyz
 |     +-- Generate tasks.csv with 5 doc generator tasks                    |
 |     +-- All tasks wave 1 (no dependencies)                               |
 |                                                                           |
-|  Phase 2: Wave Execution (Single Wave)                                    |
-|     +-- Wave 1: All 5 generators run concurrently                        |
+|  Phase 2: Wave Execution (Two Waves)                                      |
+|     +-- Wave 1: 3 scanners run concurrently                              |
 |     |   +-- Component Scanner (TC-* entries)                             |
 |     |   +-- Feature Mapper (FT-* entries)                                |
 |     |   +-- Requirement Linker (REQ-* entries, if specs exist)           |
+|     +-- Wave 2: 2 writers consume scanner results                        |
 |     |   +-- Tech Registry Writer (tech-registry/*.md)                    |
 |     |   +-- Feature Map Writer (feature-maps/*.md)                       |
 |     +-- discoveries.ndjson shared (append-only)                          |
@@ -80,12 +81,12 @@ When `--yes` or `-y`: Auto-confirm rebuild (implies --force), skip all prompts.
 ### tasks.csv (Master State)
 
 ```csv
-id,title,description,doc_dimension,output_path,deps,context_from,wave
-"1","Component Scanner","Scan all source directories for components: models, services, controllers, utils, types, config, middleware, core modules. For each component extract exported symbols, determine type, record code locations. Return JSON array of component entries with id (TC-NNN), name, type, code_locations, symbols via output_schema. Do NOT write files — orchestrator assembles doc-index.json in Phase 3.","components","<ABS_WORKFLOW>/codebase/doc-index.json#components","","","1"
-"2","Feature Mapper","Group discovered components by domain/functional area using directory proximity, naming patterns, and import relationships. Map features to requirements if <ABS_WORKFLOW>/blueprint/ exists. Return JSON array of feature entries with id (FT-NNN), name, status, component_ids, requirement_ids, phase via output_schema. Do NOT write files.","features","<ABS_WORKFLOW>/codebase/doc-index.json#features","","","1"
-"3","Requirement Linker","If <ABS_WORKFLOW>/blueprint/ exists, scan BLP-*/requirements/REQ-*.md files. Parse requirement metadata (title, priority, acceptance_criteria). Match requirements to features by keyword analysis. Also scan for ADR-*.md architecture decisions. Return JSON arrays for requirements and architecture_decisions via output_schema. Do NOT write files.","requirements","<ABS_WORKFLOW>/codebase/doc-index.json#requirements","","","1"
-"4","Tech Registry Writer","For each component discovered, use the Write tool to create a markdown documentation file at <ABS_WORKFLOW>/codebase/tech-registry/{slug}.md with: ID, type, features, code locations, exported symbols, dependencies. Also write <ABS_WORKFLOW>/codebase/tech-registry/_index.md with the component table. After all writes, verify every intended file exists with Glob and return file count + absolute paths via output_schema. MUST use the Write tool — files on disk are the deliverable, do NOT return file content as text.","tech-registry","<ABS_WORKFLOW>/codebase/tech-registry/","","","1"
-"5","Feature Map Writer","For each feature discovered, use the Write tool to create a markdown documentation file at <ABS_WORKFLOW>/codebase/feature-maps/{slug}.md with: ID, status, phase, requirements, component table. Also write <ABS_WORKFLOW>/codebase/feature-maps/_index.md with the feature table. After all writes, verify every intended file exists with Glob and return file count + absolute paths via output_schema. MUST use the Write tool — files on disk are the deliverable, do NOT return file content as text.","feature-maps","<ABS_WORKFLOW>/codebase/feature-maps/","","","1"
+id,title,description,doc_dimension,output_path,deps,context_from,wave,status
+"1","Component Scanner","Scan all source directories for components: models, services, controllers, utils, types, config, middleware, core modules. For each component extract exported symbols, determine type, record code locations. Return JSON array of component entries with id (TC-NNN), name, type, code_locations, symbols via output_schema. Do NOT write files — orchestrator assembles doc-index.json in Phase 3.","components","<ABS_WORKFLOW>/codebase/doc-index.json#components","","","1","pending"
+"2","Feature Mapper","Group discovered components by domain/functional area using directory proximity, naming patterns, and import relationships. Map features to requirements if <ABS_WORKFLOW>/blueprint/ exists. Return JSON array of feature entries with id (FT-NNN), name, status, component_ids, requirement_ids, phase via output_schema. Do NOT write files.","features","<ABS_WORKFLOW>/codebase/doc-index.json#features","","","1","pending"
+"3","Requirement Linker","If <ABS_WORKFLOW>/blueprint/ exists, scan BLP-*/requirements/REQ-*.md files. Parse requirement metadata (title, priority, acceptance_criteria). Match requirements to features by keyword analysis. Also scan for ADR-*.md architecture decisions. Return JSON arrays for requirements and architecture_decisions via output_schema. Do NOT write files.","requirements","<ABS_WORKFLOW>/codebase/doc-index.json#requirements","","","1","pending"
+"4","Tech Registry Writer","For each component discovered, use the Write tool to create a markdown documentation file at <ABS_WORKFLOW>/codebase/tech-registry/{slug}.md with: ID, type, features, code locations, exported symbols, dependencies. Also write <ABS_WORKFLOW>/codebase/tech-registry/_index.md with the component table. After all writes, verify every intended file exists with Glob and return file count + absolute paths via output_schema. MUST use the Write tool — files on disk are the deliverable, do NOT return file content as text.","tech-registry","<ABS_WORKFLOW>/codebase/tech-registry/","1;2;3","1;2;3","2","pending"
+"5","Feature Map Writer","For each feature discovered, use the Write tool to create a markdown documentation file at <ABS_WORKFLOW>/codebase/feature-maps/{slug}.md with: ID, status, phase, requirements, component table. Also write <ABS_WORKFLOW>/codebase/feature-maps/_index.md with the feature table. After all writes, verify every intended file exists with Glob and return file count + absolute paths via output_schema. MUST use the Write tool — files on disk are the deliverable, do NOT return file content as text.","feature-maps","<ABS_WORKFLOW>/codebase/feature-maps/","1;2;3","1;2;3","2","pending"
 ```
 
 **Path resolution (orchestrator MUST do BEFORE writing tasks.csv)**: substitute `<ABS_WORKFLOW>` with the absolute path to the project's `.workflow/` directory (e.g. `D:/maestro2/.workflow`). Agent Write tool requires absolute paths — passing relative `.workflow/...` literals will fail.
@@ -101,7 +102,8 @@ id,title,description,doc_dimension,output_path,deps,context_from,wave
 | `output_path` | Input | Target output path in .workflow/codebase/ |
 | `deps` | Input | Empty (all independent) |
 | `context_from` | Input | Empty (no cross-task context needed) |
-| `wave` | Computed | Always 1 (single wave, independent parallel) |
+| `wave` | Computed | 1 (scanners, independent parallel) or 2 (writers, depend on wave 1) |
+| `status` | Lifecycle | Initialized to `pending`, updated to `completed`/`failed` after wave merge |
 
 **Output columns** (returned exclusively via `output_schema`, NOT in wave CSV):
 
@@ -124,7 +126,7 @@ Single wave generates `wave-1.csv`. No `prev_context` needed (all tasks independ
 3. **Discovery Board is Append-Only**: Generators share findings via NDJSON
 4. **Partial Results OK**: If 3/5 generators succeed, still assemble available docs
 5. **Destructive by Design**: This is a full rebuild -- existing codebase/ is cleared
-6. **Single Wave**: All generators are independent, no wave ordering needed
+6. **Two Waves**: Wave 1 (Scanner/Mapper/Linker, independent parallel), Wave 2 (Writers, depend on wave 1 results via context_from)
 7. **Cleanup Temp Files**: Remove wave-1.csv after results are merged
 8. **DO NOT STOP**: Execute until all generators complete or fail
 9. **Absolute Paths Only**: All paths in `description` and `output_path` MUST be absolute before tasks.csv is written. Orchestrator substitutes `<ABS_WORKFLOW>` placeholder; never let it leak into a spawned agent's prompt.
@@ -182,6 +184,8 @@ Parse `$ARGUMENTS` to extract:
 Session ID: `{YYYYMMDD}-rebuild-full`
 Session folder: `.workflow/.csv-wave/{sessionId}/` — create via `mkdir -p`
 
+**Continue mode** (`--continue`): Locate existing session by ID or most recent. Read `tasks.csv`, identify pending/failed rows. Resume from next pending wave — do NOT re-run Phase 1 cleanup. If no session found, list available sessions and exit.
+
 ### Phase 1: Setup -> CSV
 
 **Objective**: Validate prerequisites, prepare directory, detect source dirs, generate tasks.csv.
@@ -201,11 +205,11 @@ Session folder: `.workflow/.csv-wave/{sessionId}/` — create via `mkdir -p`
 6. **Generate tasks.csv**: 5 rows, all wave 1, no dependencies
 7. **User validation**: Display doc generator breakdown (skip if AUTO_YES)
 
-### Phase 2: Wave Execution (Single Wave)
+### Phase 2: Wave Execution (Two Waves)
 
-**Objective**: Run all 5 doc generators concurrently via spawn_agents_on_csv.
+**Objective**: Run scanners (wave 1) then writers (wave 2) via spawn_agents_on_csv.
 
-#### Wave 1: All Generators (Parallel)
+#### Wave 1: Scanners (Parallel)
 
 Filter master `tasks.csv` for `wave == 1 AND status == pending` → write `wave-1.csv` (no prev_context needed, all independent).
 
@@ -231,6 +235,24 @@ spawn_agents_on_csv({
 ```
 
 Merge `wave-1-results.csv` into master `tasks.csv`: map `result_status` -> master `status`, `result_findings` -> master `findings`, copy `error` as-is. After merge, delete temporary files (`wave-1.csv` and `wave-1-results.csv`).
+
+#### Wave 2: Writers (Parallel, depends on Wave 1)
+
+Filter master `tasks.csv` for `wave == 2 AND status == pending`. Build `prev_context` from wave 1 findings (scanner/mapper/linker results). Write `wave-2.csv` with `prev_context` column.
+
+```javascript
+spawn_agents_on_csv({
+  csv_path: `${sessionFolder}/wave-2.csv`,
+  id_column: "id",
+  instruction: REBUILD_INSTRUCTION,
+  max_concurrency: maxConcurrency,
+  max_runtime_seconds: 3600,
+  output_csv_path: `${sessionFolder}/wave-2-results.csv`,
+  output_schema: { /* same as wave 1 */ }
+})
+```
+
+Merge `wave-2-results.csv` into master `tasks.csv`. Delete temporary files.
 
 #### Rebuild Worker Contract (REBUILD_INSTRUCTION)
 

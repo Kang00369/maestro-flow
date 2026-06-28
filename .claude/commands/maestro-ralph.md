@@ -42,7 +42,7 @@ Remaining     → intent (amend_mode 时为 change_request)
 <invariants>
 1. **Ralph never executes steps** — only creates sessions and evaluates decisions
 2. **Handoff via Skill("maestro-ralph-execute")** — 创建 session 后始终自动 handoff；decision 评估后始终 handoff
-3. **Decision delegates read-only** — `maestro delegate --role analyze --mode analysis`
+3. **Decision delegates read-only** — `maestro delegate --to <tool> --mode analysis`
 4. **执行 step 通过 `maestro ralph next` CLI 加载并内联执行**（详见 invariant 8）
 5. **status.json 是唯一真源** — 不生成 markdown 清单或侧文件
 6. **每个 step 必须 `completion_confirmed: true`** — 由 `maestro ralph complete N --status DONE`（或 DONE_WITH_CONCERNS）写入；CLI 是唯一合法写入路径
@@ -472,11 +472,11 @@ Generate steps from `session.lifecycle_position` to `milestone-complete`（`sess
    ```
    maestro delegate "PURPOSE: 评估 {decision} 质量门结果
    TASK: 读取结果 | 分析状态 | 评估严重性 | 给出建议
-   EXPECTED: ---VERDICT--- STATUS/REASON/GAP_SUMMARY/CONFIDENCE(high|medium|low)/CONFIDENCE_SCORE(0-100)/WEAKEST_DIMENSION ---END---
+   EXPECTED: ---VERDICT--- STATUS(PASS|FAIL|PARTIAL|BLOCKED)/REASON/GAP_SUMMARY/CONFIDENCE(high|medium|low)/CONFIDENCE_SCORE(0-100)/WEAKEST_DIMENSION ---END---
    CONSTRAINTS: 只评估 | 置信度<60% 倾向 fix | retry {n}/{max} 达上限必须 escalate"
-   --role analyze --mode analysis
+   --to {session.cli_tool} --mode analysis
    ```
-6. On callback: parse verdict; if parse fails → fallback STATUS="fix", BUT MUST set `parse_failed: true` and `confidence_score: 0` in decision log (invariant 13). Subsequent steps inherit LOW CONFIDENCE flag.
+6. On callback: parse verdict block — STATUS must match strict enum `PASS|FAIL|PARTIAL|BLOCKED`; any other value → parse failure. If parse fails → fallback STATUS="fix", BUT MUST set `parse_failed: true` and `confidence_score: 0` in decision log (invariant 13). Subsequent steps inherit LOW CONFIDENCE flag.
 7. Confidence adjustment: <60 + proceed → fix; >95 + fix + retry>0 → suggest proceed
 8. **Decision log**: Append to `{session_dir}/decisions.ndjson`:
    ```json
@@ -545,7 +545,7 @@ Runs only when `task_decomposition` present.
      - 严格按 done_when 判定；evidence 缺失 → unmet
      - 不得建议超出 boundary_contract 的修改
    "
-   --role analyze --mode analysis
+   --to {session.cli_tool} --mode analysis
    ```
 4. On callback: 对每个 met 子目标，set `task_decomposition[i].status="done"` + `completion_confirmed=true` + `completed_at=now`
 5. Append `{session_dir}/decisions.ndjson` with `"type": "goal-gate"`, `unmet_count`, `unmet_ids`
@@ -592,7 +592,7 @@ GUARD: `task_decomposition` 存在（周期触发，见 build rule 5.5）
      - aligned 阈值：≥80% 已完成产出直接服务 intent
      - 单个 step 触碰 out_of_scope → 直接判 drifted
      - goal_changelog 存在 → 以最新 after.goals 为基准"
-   --role analyze --mode analysis
+   --to {session.cli_tool} --mode analysis
    ```
 3. On callback: parse verdict
 4. Append `{session_dir}/decisions.ndjson`：`{ "id": "DEC-{ts}", "type": "reground-gate", "source": "ralph", "node_id": "post-reground", "verdict": "{aligned|drifted}", "confidence_score": {N}, "drift_description": "...", "corrective_action": "..." }`
@@ -677,7 +677,7 @@ GUARD: `task_decomposition` 存在（周期触发，见 build rule 5.5）
 |-------|------|------|
 | 1. 快照 | 读 `task_decomposition` + `boundary_contract` + 已完成 steps 的 `completion_summary` | Display: 目标列表 + 进度 |
 | 2. 解析 | `change_request` 非空 → 直接用；为空 → AskUserQuestion（修改/新增/移除/调整边界） | `change_type` + `change_request` |
-| 3. Mini Grill | `maestro delegate --role analyze --mode analysis`：评估影响 | RISK_LEVEL + AFFECTED_GOALS + INVALIDATED_STEPS + NEW_GAPS |
+| 3. Mini Grill | `maestro delegate --to {session.cli_tool} --mode analysis`：评估影响 | RISK_LEVEL + AFFECTED_GOALS + INVALIDATED_STEPS + NEW_GAPS |
 | 4. 确认 | AskUserQuestion：应用并继续 / 仅改目标 / 取消 | 用户选择 |
 | 5. 应用 | 归档旧目标（`superseded`）→ 写入新目标（`origin: CHG-xxx`）→ 重建链路 → write status.json | handoff ralph-execute |
 
@@ -890,7 +890,7 @@ decision:post-goal-audit {retry+1}
 - [ ] planning_mode 显式决定；unified=无 `{phase}`, independent=带 `{phase}`
 - [ ] specs 预检：lifecycle_position 在 init 之后 + `.workflow/specs/` 不存在 → 链路最前面插入 `spec-setup`
 - [ ] Chain 必须以 `milestone-complete` 结尾
-- [ ] Decision nodes 由 maestro delegate --role analyze 评估
+- [ ] Decision nodes 由 maestro delegate --to {session.cli_tool} --mode analysis 评估
 - [ ] Ralph 不执行 step，只 evaluate；Skill("maestro-ralph-execute") handoff
 - [ ] Phase-level deferred chaining：plan/execute step 的 `--from`/`--dir` 注入由 A_RESOLVE_ARGS（ralph-execute）运行时完成；build 阶段标记意图，不预知 artifact ID
 - [ ] Phase-level plan step 运行时获得 `--from analyze:{phase_analyze_id}`（由 ralph-execute 从 state.json 查找注入）

@@ -2,7 +2,7 @@
 name: maestro-ui-codify
 description: Extract design system from code, generate reference package, persist as knowledge assets
 argument-hint: "<source-path> [--package-name <name>] [--output-dir <path>] [--overwrite] [-y]"
-allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep
+allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
 <purpose>
@@ -68,13 +68,13 @@ $maestro-ui-codify "src/styles" --output-dir .workflow/packages --overwrite -y
 ### tasks.csv (Master State)
 
 ```csv
-id,wave,title,description,agent_type,deps
-"discover-1","1","Discover design files","Scan source directory, categorize files by type (CSS/SCSS/JS/TS/HTML), build file inventory with import relationships","discover",""
-"style-1","2","Extract visual design tokens","Extract color, typography, spacing, border, shadow tokens from source files. Output design-tokens.json","extract-style","discover-1"
-"anim-1","2","Extract animation tokens","Extract animation/transition declarations: keyframes, durations, easings, motion patterns. Output animation-tokens.json","extract-animation","discover-1"
-"layout-1","2","Extract layout patterns","Extract component layout patterns: grid/flex systems, responsive breakpoints, container patterns. Output layout-templates.json","extract-layout","discover-1"
-"package-1","3","Generate reference package","Copy token JSONs to package dir, generate preview.html + preview.css interactive showcase","package","style-1;anim-1;layout-1"
-"knowhow-1","4","Build knowledge assets","Read token JSONs, build knowhow-manifest.json, write knowhow files + spec entries, cleanup temp workspace","knowhow","package-1"
+id,wave,title,description,agent_type,deps,status
+"discover-1","1","Discover design files","Scan source directory, categorize files by type (CSS/SCSS/JS/TS/HTML), build file inventory with import relationships","discover","","pending"
+"style-1","2","Extract visual design tokens","Extract color, typography, spacing, border, shadow tokens from source files. Output design-tokens.json","extract-style","discover-1","pending"
+"anim-1","2","Extract animation tokens","Extract animation/transition declarations: keyframes, durations, easings, motion patterns. Output animation-tokens.json","extract-animation","discover-1","pending"
+"layout-1","2","Extract layout patterns","Extract component layout patterns: grid/flex systems, responsive breakpoints, container patterns. Output layout-templates.json","extract-layout","discover-1","pending"
+"package-1","3","Generate reference package","Copy token JSONs to package dir, generate preview.html + preview.css interactive showcase","package","style-1;anim-1;layout-1","pending"
+"knowhow-1","4","Build knowledge assets","Read token JSONs, build knowhow-manifest.json, write knowhow files + spec entries, cleanup temp workspace","knowhow","package-1","pending"
 ```
 
 **Column separation rule**: Input columns and Output columns MUST NOT share names. Wave CSV only contains Input columns. Output columns are returned exclusively via output_schema.
@@ -89,6 +89,7 @@ id,wave,title,description,agent_type,deps
 | `description` | Input | Detailed instructions for this task |
 | `agent_type` | Input | Agent type: discover/extract-style/extract-animation/extract-layout/package/knowhow |
 | `deps` | Input | Semicolon-separated dependency task IDs |
+| `status` | Lifecycle | Task lifecycle status, initialized to `pending`. Updated to `completed`/`failed` after wave merge via `result_status` mapping |
 | `result_status` | Output | `completed` / `failed` (returned via output_schema) |
 | `findings` | Output | Key findings summary (max 500 chars, via output_schema) |
 | `output_path` | Output | Path to generated artifact (via output_schema) |
@@ -186,6 +187,10 @@ session_date=$(date -u +%Y%m%d)
 sessionFolder=".workflow/.csv-wave/${session_date}-ui-codify-${session_slug}"
 mkdir -p "$sessionFolder"
 ```
+
+### Step 2c.1: Confirmation Gate
+
+Unless `-y/--yes`, display source path, package name, output directory, overwrite policy, and wave plan summary. Use `request_user_input` to confirm before proceeding. Under `-y`, skip confirmation.
 
 ### Step 3: Generate tasks.csv
 
@@ -329,7 +334,7 @@ spawn_agents_on_csv({
 
 Merge wave-2-results.csv into master `tasks.csv`: map `result_status` -> master `status` column, then delete `wave-2.csv` and `wave-2-results.csv`.
 
-**Degradation**: If animation agent fails (W001), continue — animation is optional. If style or layout agent fails, warn but continue with available results.
+**Degradation**: If animation agent fails (W001), continue — animation is optional. If style agent fails, Wave 3 proceeds without design-tokens.json but artifact verification will report `incomplete` status. If layout agent fails, Wave 3 proceeds without layout-templates.json but artifact verification will report `incomplete` status. If both style AND layout fail, skip Wave 3 and Wave 4, mark session `degraded`, and report partial results only.
 
 #### Wave 3: Reference Package (Barrier)
 

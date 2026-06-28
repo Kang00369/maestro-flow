@@ -6,7 +6,9 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
 <purpose>
-Codify reusable business processes as knowhow documents with `tool: true` in YAML frontmatter. Once registered, entries are auto-discovered by downstream agents via `spec load --category` — plan agents pick up design/architecture flows, test agents pick up verification methods, coding agents pick up execution steps.
+Codify reusable business processes as knowhow documents with `tool: true` in YAML frontmatter.
+
+**Storage architecture**: `knowhow/` is the single source of truth for tool content. Spec index entries (`specs/`) serve only as discovery pointers — they reference knowhow documents via `ref:` links but never store tool steps directly. Downstream agents discover tools via `maestro search` or `maestro load --type knowhow --keyword <name>`, with spec index providing category-based routing.
 
 Four modes:
 
@@ -30,7 +32,7 @@ $maestro-tools-register "promote RCP-db-migration-rollback as test tool"
 $maestro-tools-register "promote knowhow-auth-api to coding tool"
 ```
 
-**Tool registration**: Creates knowhow documents in `knowhow/` folder with `tool: true` in YAML frontmatter. Tools are auto-discovered by `spec load` based on category + tool flag.
+**Tool registration**: Creates knowhow documents in `.workflow/knowhow/` (single source of truth for tool content). Tools are discovered via `maestro search` or `maestro load --type knowhow` by category + tool flag.
 
 **Knowhow format**:
 ```yaml
@@ -149,8 +151,9 @@ tool: true
 
 ### Step 6: Verify
 
-- `maestro load --type spec --category <category> --keyword <keyword>` to confirm loadable
-- Display result: title, category, keywords, storage location
+- Verify knowhow document exists: `maestro load --type knowhow --id <id>` to confirm loadable
+- Verify discovery works: `maestro search "<keyword>" --type knowhow` to confirm searchable
+- Display result: title, category, keywords, storage location (knowhow/)
 
 </execution>
 
@@ -163,9 +166,10 @@ tool: true
 </error_codes>
 
 <success_criteria>
-- [ ] Tool registered as knowhow document with `tool: true` frontmatter
+- [ ] Tool registered as knowhow document in `.workflow/knowhow/` with `tool: true` frontmatter
 - [ ] category attribute correctly set
 - [ ] keywords auto-extracted (3-5 terms)
-- [ ] Loadable via `spec load --category <category>`
+- [ ] Discoverable via `maestro search` and `maestro load --type knowhow`
 - [ ] Long processes use ref mode with knowhow file created
+- [ ] No tool content duplicated in spec index — spec entries use `ref:` links only
 </success_criteria>

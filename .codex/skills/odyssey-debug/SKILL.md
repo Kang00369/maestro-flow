@@ -6,6 +6,10 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 ---
 <base>@~/.maestro/workflows/odyssey-base-codex.md</base>
 
+<required_reading>
+Required reading: base (`odyssey-base-codex.md`) before any actions. Load and apply base invariants, execution discipline, and shared actions before proceeding.
+</required_reading>
+
 <purpose>
 archaeology → explore → diagnose → fix & confirm → generalize → discover siblings → persist.
 Exhaustive iteration until root cause confirmed or INCONCLUSIVE.
@@ -184,7 +188,7 @@ spawn_agents_on_csv({ csv_path:"tasks.csv", id_column:"id",
 
 Merge results → evidence.ndjson (phase: "archaeology").
 
-**Step 2 — CLI change review** via `maestro delegate --role analyze --mode analysis` (`run_in_background: true`):
+**Step 2 — CLI change review** via `maestro delegate --to claude --mode analysis` (`run_in_background: true`):
 - PURPOSE: Review recent modifications related to {issue}
 - EXPECTED: JSON [{commit_sha, risk_level, analysis, could_cause_issue, explanation}]
 
@@ -193,7 +197,7 @@ Update §2. Commit: `"odyssey-debug({slug}): ARCHAEOLOGY — git history analysi
 ### A_EXPLORE
 Skip if no CLI tools (W006).
 
-`maestro delegate --role explore --mode analysis` (`run_in_background: true`):
+`maestro delegate --to claude --mode analysis` (`run_in_background: true`):
 - PURPOSE: Call chains, recent changes, error gaps, similar patterns
 - EXPECTED: JSON {call_chains, recent_changes, error_gaps, similar_patterns}
 
@@ -208,7 +212,7 @@ Write `explore.json` + evidence phase=explore. Update §3. Mark G2. Commit: `"od
 Commit: `"odyssey-debug({slug}): DIAGNOSE — root cause confirmed"`
 
 ### A_ESCALATE_DIAGNOSIS
-`diagnosis_retries++`. < 3: `maestro delegate --role analyze`, new hypotheses, → S_DIAGNOSE. >= 3: Normal → request_user_input | `-y` → INCONCLUSIVE → S_RECORD.
+`diagnosis_retries++`. < 3: `maestro delegate --to claude --mode analysis`, new hypotheses, → S_DIAGNOSE. >= 3: Normal → request_user_input | `-y` → INCONCLUSIVE → S_RECORD.
 
 ### A_FIX
 1. Present root cause + proposed fix. Normal: request_user_input | `-y`: auto proceed
@@ -218,7 +222,7 @@ Commit: `"odyssey-debug({slug}): FIX — {summary}"`
 
 ### A_CONFIRM
 1. Run covering tests
-2. `maestro delegate --role review --mode analysis` (`run_in_background: true`):
+2. `maestro delegate --to claude --mode analysis` (`run_in_background: true`):
    - EXPECTED: JSON {verdict, findings [{severity, description, suggestion}], regression_risk}
 3. `session.json.confirmation`: `{test_result, cli_review, overall: "confirmed|needs_rework"}`
 4. Update §6. `needs_rework` → S_FIX. `confirmed` → mark G3.
@@ -251,7 +255,7 @@ Update §7. Mark G4. Commit: `"odyssey-debug({slug}): GENERALIZE — pattern sca
 ### A_DISCOVER, A_RECORD
 Base shared_actions. Debug overrides:
 - **A_DISCOVER** routes scan hits per csv_schema wave results. Commit: `"odyssey-debug({slug}): DISCOVER — triage complete"`
-- **A_RECORD** learnings per Knowledge Persistence table
+- **A_RECORD** learnings per Knowledge Persistence table. **Confirmation gate**: Before writing spec entries, present proposed entries to user via `request_user_input` for confirmation. Skip confirmation only if `-y` flag is set.
 
 **Completion summary:**
 ```
@@ -318,6 +322,7 @@ All sibling bugs fixed or issued — no leftovers.
 </success_criteria>
 
 <next_step_routing>
+<!-- suggest-only — do NOT auto-execute. Present these as suggestions to the user. -->
 | Condition | Next |
 |-----------|------|
 | Discovery issues | `/manage-issue list --source debug-odyssey` |

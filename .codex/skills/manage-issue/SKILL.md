@@ -50,10 +50,11 @@ If `.workflow/issues/` does not exist, auto-create the directory and write an em
 ```
 Append JSON line to `issues.jsonl`.
 
-**list**: Read `issues.jsonl`, filter by `--status`, `--phase`, `--severity`, `--source`. Display as table:
+**list**: Read both `issues.jsonl` (active) and `issue-history.jsonl` (closed) to build the full issue set. Filter by `--status`, `--phase`, `--severity`, `--source`. When `--status closed` is specified, read from `issue-history.jsonl`. When no `--status` filter, merge both files. Display as table:
 ```
 ID              | Severity | Status | Title
 ISS-20260318-001 | high     | open   | Auth token expiry bug
+ISS-20260310-003 | medium   | closed | Stale cache entries
 ```
 
 **status**: Find issue by ID in `issues.jsonl`. Display all fields in detail format.
@@ -63,9 +64,12 @@ ISS-20260318-001 | high     | open   | Auth token expiry bug
 **close**: Find issue by ID, set status to `closed`, add `resolution` and `closed_at`. Move line from `issues.jsonl` to `issue-history.jsonl`.
 
 **link**: Bidirectional cross-reference between issue and task:
-1. Find issue by ID in `issues.jsonl`, add task ID to issue's `linked_tasks[]` array, rewrite the line
-2. Read task JSON at `.workflow/.task/{TASK-ID}.json` (or `.task/{TASK-ID}.json`). Edit the task's `linked_issues` field — append the issue ID to the array. If `linked_issues` field does not exist, create it as `[ISS-ID]`
-3. Both writes must succeed for the link to be considered complete
+1. **Pre-validate**: Verify issue ID exists in `issues.jsonl` AND task file exists at `.workflow/.task/{TASK-ID}.json` (or `.task/{TASK-ID}.json`). If either is missing, abort with error before any writes
+2. **Save rollback state**: Read and store the original issue line from `issues.jsonl` before modification
+3. **First write**: Find issue by ID in `issues.jsonl`, add task ID to issue's `linked_tasks[]` array, rewrite the line
+4. **Second write**: Read task JSON. Edit the task's `linked_issues` field — append the issue ID to the array. If `linked_issues` field does not exist, create it as `[ISS-ID]`
+5. **Rollback on failure**: If the second write (task file) fails, restore the original issue line in `issues.jsonl` from the saved rollback state and report the error
+6. Both writes must succeed for the link to be considered complete
 </execution>
 
 <error_codes>

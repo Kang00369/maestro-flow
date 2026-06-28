@@ -149,7 +149,11 @@ S_CSV_GEN:
 S_WAVE_1:
   -> S_WAVE_2     WHEN: full mode, 1+ completed    DO: A_SPAWN_WAVE_1
   -> S_WAVE_3     WHEN: gaps mode, 1+ completed    DO: merge results
-  -> ERROR        WHEN: all failed
+  -> S_WAVE_1 (retry)    WHEN: all failed, retry available   DO: retry once
+  -> S_WAVE_2_DEGRADED   WHEN: all failed, retry exhausted   DO: flag ALL downstream LOW CONFIDENCE, record degradation_event in discoveries.ndjson
+
+S_WAVE_2_DEGRADED:
+  -> S_WAVE_3     DO: A_SPAWN_WAVE_2 with degraded=true (scoring agents receive gap_note for all dimensions, outputs inherit LOW CONFIDENCE)
 
 S_WAVE_2:
   -> S_BOUNDARY_GRILL   WHEN: 1+ completed                 DO: A_SPAWN_WAVE_2
@@ -233,6 +237,8 @@ Merge results -> master tasks.csv (map `result_status` → master `status`).
 ### A_SPAWN_WAVE_3
 
 Filter `wave==3 AND status=="pending"` -> build prev_context from wave 2 scores (or project context for quick mode) -> spawn with `SYNTHESIS_INSTRUCTION + SHARED_TERMINATION_CONTRACT`.
+
+**Failed-score exclusion**: when building prev_context, skip `context_from` IDs whose status is `failed`/`blocked`. Append a `gap_note` to the synthesis instruction listing which scoring dimensions are missing so the agent knows its evidence base is incomplete. When gaps exist, synthesis outputs MUST include a `confidence_penalty` and flag affected decisions as LOW CONFIDENCE.
 
 **Synthesis agent**:
 - Full mode: analysis.md (executive summary, per-dimension scores, risk matrix, Go/No-Go), context.md (Locked/Free/Deferred decisions), context-package.json, conclusions.json (with `scope_verdict` + `implementation_scope[]`)

@@ -17,6 +17,7 @@ $ARGUMENTS — question text and optional flags.
 **Flags:**
 - `--scope <path>` — Restrict to files under this directory (default: entire project)
 - `--max-hypotheses N` — Max hypotheses before escalating (default: 3)
+- `--no-persist` — Skip writing to learnings.md (report.md still written locally)
 
 **Output**: `.workflow/knowhow/KNW-investigate-{slug}/` (evidence.ndjson, understanding.md, report.md)
 </context>
@@ -50,12 +51,15 @@ Generate ranked hypotheses from evidence. For each (in rank order):
 ### Stage 4: 3-Strike Escalation
 If all hypotheses fail: broaden scope, search wiki with alt keywords, or mark INCONCLUSIVE.
 
-### Stage 5: Synthesize + Persist
+### Stage 5: Synthesize + Persist (confirmation-gated)
 1. Write `report.md` with answer, evidence trail, hypothesis results
-2. Append to `.workflow/specs/learnings.md`:
-   - Confirmed → category: "technique" / "pattern"
-   - Disproved → category: "gotcha"
-3. Display summary with next-step routing
+2. If `--no-persist`: skip learnings append, display summary only
+3. Otherwise: **Confirmation gate** — prompt user via `request_user_input`: "Persist findings to learnings.md? (y/n)"
+   - `y` → append to `.workflow/specs/learnings.md`:
+     - Confirmed → category: "technique" / "pattern"
+     - Disproved → category: "gotcha"
+   - `n` → skip learnings append
+4. Display summary with next-step routing
 
 **Next steps:** `$spec-add debug <finding>`, `$learn-follow <path>`, `$learn-decompose <module>`
 </execution>
@@ -76,6 +80,7 @@ If all hypotheses fail: broaden scope, search wiki with alt keywords, or mark IN
 - [ ] At least 1 hypothesis formed and tested
 - [ ] understanding.md tracks evolving understanding
 - [ ] report.md written with answer and evidence trail
-- [ ] Findings appended to .workflow/specs/learnings.md with stable INS-ids
+- [ ] User confirmation obtained before learnings append (unless --no-persist)
+- [ ] Findings appended to .workflow/specs/learnings.md with stable INS-ids (if confirmed)
 - [ ] 3-strike escalation triggered if all hypotheses fail
 </success_criteria>

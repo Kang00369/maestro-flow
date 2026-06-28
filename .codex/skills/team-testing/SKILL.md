@@ -161,6 +161,54 @@ S_WAVE_{N} → S_AGGREGATE     WHEN: last wave
 
 <actions>
 
+### Session Initialization (S_PARSE)
+
+```
+Parse from $ARGUMENTS:
+  AUTO_YES       ← --yes | -y
+  continueMode   ← --continue
+  maxConcurrency ← --concurrency | -c N  (default: 3)
+  pipelineFlag   ← --pipeline targeted|standard|comprehensive
+  scopeTarget    ← remaining text (file/module path)
+
+Derive:
+  dateStr       ← UTC+8 YYYYMMDD
+  slug          ← first 3 meaningful words, kebab-case
+  sessionId     ← "{dateStr}-tst-{slug}"
+  sessionFolder ← ".workflow/.csv-wave/{sessionId}"
+  skillRoot     ← resolve path to this skill directory
+
+mkdir -p {sessionFolder}
+```
+
+When `--continue`: scan `.workflow/.csv-wave/*-tst-*/tasks.csv` for sessions with pending tasks. Single match → resume. Multiple → `request_user_input`. Read master tasks.csv → find first pending wave → jump to S_WAVE_{N}.
+
+### Scope Detection + Pipeline Selection (S_CSV_GEN)
+
+1. If `--pipeline` flag → use specified pipeline
+2. Else detect from scope:
+   - Count files and modules in scopeTarget
+   - ≤3 files, ≤1 module → `targeted`
+   - ≤10 files, ≤3 modules → `standard`
+   - >10 files or >3 modules → `comprehensive`
+3. Load pipeline wave assignments from csv_schema section above
+4. For each task, build CSV row with PURPOSE/TASK/EXPECTED/CONSTRAINTS in description
+5. Initialize lifecycle columns: `status=pending`, empty `findings`/`files_modified`/`pass_rate`/`coverage_score`/`error`
+6. Write `tasks.csv` and empty `discoveries.ndjson`
+7. User validation (skip if `-y`): display pipeline, task count, layer coverage targets
+
+### Wave Execution (S_WAVE_{N})
+
+1. Skip check: if all tasks in wave N completed/skipped → next wave
+2. Cascading skip: if any dep is failed/blocked → skip dependents
+3. Build `prev_context` from upstream findings
+4. Write `wave-{N}.csv` with qualifying rows + `prev_context` column
+5. `spawn_agents_on_csv` with output_schema (see below)
+6. Merge results: `result_status` → master `status`
+7. Cascade skip failed task dependents
+8. Delete `wave-{N}.csv` and `wave-{N}-results.csv`
+9. If wave was TESTRUN → transition to S_GC_CHECK
+
 ### GC Loop
 
 After each TESTRUN wave:
@@ -197,7 +245,7 @@ You MUST call report_agent_job_result EXACTLY ONCE before exiting. NO exceptions
   "result_status": "completed" | "failed" | "blocked",
   "findings": "<key findings, max 500 chars>",
   "files_modified": "<semicolon-separated paths or empty>",
-  "pass_rate": "<0-100 or empty>" (TESTRUN only),
+  "pass_rate": "<0.0-1.0 or empty>" (TESTRUN only),
   "coverage_score": "<0-100 or empty>" (TESTRUN only),
   "error": "<message if not completed>"
 }
@@ -217,7 +265,7 @@ You MUST call report_agent_job_result EXACTLY ONCE before exiting. NO exceptions
     "result_status":  { "type": "string", "enum": ["completed", "failed", "blocked"] },
     "findings":       { "type": "string", "maxLength": 500 },
     "files_modified": { "type": "string" },
-    "pass_rate":      { "type": "string" },
+    "pass_rate":      { "type": "string", "description": "0.0-1.0 ratio, e.g. 0.95" },
     "coverage_score": { "type": "string" },
     "error":          { "type": "string" }
   },

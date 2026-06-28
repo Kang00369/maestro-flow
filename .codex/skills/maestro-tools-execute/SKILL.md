@@ -31,11 +31,11 @@ Empty arguments enters interactive mode: list all tools for user selection.
 
 ### Step 1: Load Tool
 
-**By name**:
+**By name** (search all categories first, then filter):
 ```bash
-maestro load --type spec --category coding --keyword <name>
+maestro search "<name>" --type spec
 ```
-Match tool entries whose title or keywords contain the name.
+Match tool entries whose title or keywords contain the name across all categories. If no results, retry with `maestro search "<name>" --type knowhow`. Present matches to user if multiple found.
 
 **By category**:
 ```bash
@@ -44,7 +44,11 @@ maestro load --type spec --category <category>
 Extract tool entries from output, list available tools.
 
 **Empty args**:
-Load all tool entries, present to user with request_user_input for selection.
+Search all tool entries across all categories:
+```bash
+maestro search "tool" --type knowhow
+```
+Present to user with request_user_input for selection.
 
 ### Step 2: Display Tool
 

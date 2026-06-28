@@ -21,7 +21,7 @@ Wave-based hypothesis-driven debugging using `spawn_agents_on_csv`. Wave 1 explo
 All mean: **return to evidence gathering**.
 
 ## Escalation Rule
-After **3 failed hypotheses**, STOP. Summarize failures, question architecture, present to user.
+After wave 1, if **0 hypotheses confirmed** (all refuted/inconclusive/failed) AND total hypotheses >= 3: STOP. Skip wave 2. Summarize failures, question architecture assumptions, present to user via `request_user_input` for guidance before proceeding.
 
 ## Backward Tracing
 Find where incorrect value appears → trace backward through call chain → fix at source, not symptom.
@@ -160,7 +160,7 @@ Each wave generates `wave-{N}.csv` with Input columns + `prev_context` only. Out
 5. **Discovery Board is Append-Only**: Never clear, modify, or recreate discoveries.ndjson
 6. **Skip on Refuted**: Wave 2 fix tasks skip if their hypothesis was refuted or inconclusive
 7. **Cleanup Temp Files**: Remove wave-{N}.csv AND wave-{N}-results.csv after results are merged into master tasks.csv
-8. **DO NOT STOP**: Continuous execution until all waves complete
+8. **Escalation gate**: After wave 1 merge, if 0 hypotheses confirmed AND total >= 3, STOP and present to user (overrides continuous execution). Otherwise, continuous execution until all waves complete
 </invariants>
 
 <execution>
@@ -254,7 +254,7 @@ spawn_agents_on_csv({
     properties: {
       id:                  { type: "string" },
       result_status:       { type: "string", enum: ["completed", "failed"] },
-      hypothesis_verdict:  { type: "string", enum: ["confirmed", "refuted", "inconclusive"], description: "Investigation outcome" },
+      hypothesis_verdict:  { type: "string", enum: ["confirmed", "refuted", "inconclusive"], description: "Investigation outcome. Use 'inconclusive' as fallback when result_status=failed." },
       findings:            { type: "string", maxLength: 500 },
       evidence_for:        { type: "string" },
       evidence_against:    { type: "string" },
@@ -294,7 +294,7 @@ REQUIRED STEPS:
 TERMINATION CONTRACT (mandatory — NO worker may end without calling report_agent_job_result):
   - Success path  → result_status=completed, hypothesis_verdict = confirmed | refuted, with evidence
   - Timeout path  → if approaching {max_runtime_seconds}, STOP investigation and report result_status=completed, hypothesis_verdict=inconclusive
-  - Failure path  → on any unrecoverable error, result_status=failed with error message
+  - Failure path  → on any unrecoverable error, result_status=failed, hypothesis_verdict=inconclusive, with error message
   - NEVER continue indefinitely. NEVER exit silently. NEVER omit the call.
 
 OUTPUT (return via report_agent_job_result; must match output_schema):
@@ -333,10 +333,10 @@ spawn_agents_on_csv({
     properties: {
       id:            { type: "string" },
       result_status: { type: "string", enum: ["completed", "failed"] },
-      fix_result:    { type: "string", enum: ["fixed", "fix_failed"], description: "Fix attempt outcome" },
+      fix_result:    { type: "string", enum: ["fixed", "fix_failed"], description: "Fix attempt outcome. Use 'fix_failed' as fallback when result_status=failed." },
       findings:      { type: "string", maxLength: 500 },
       fix_applied:   { type: "string" },
-      verified:      { type: "string", enum: ["true", "false"] },
+      verified:      { type: "string", enum: ["true", "false"], description: "Use 'false' as fallback when result_status=failed." },
       error:         { type: "string" }
     },
     required: ["id", "result_status", "fix_result", "findings", "verified"]
@@ -366,8 +366,8 @@ REQUIRED STEPS:
 TERMINATION CONTRACT (mandatory):
   - Success path → fix applied AND verified → result_status=completed, fix_result=fixed, verified="true"
   - Partial path → fix applied but verification failed → result_status=completed, fix_result=fix_failed, verified="false"
-  - Timeout path → approaching {max_runtime_seconds} with no fix applied → result_status=completed, fix_result=fix_failed with error="timeout"
-  - Failure path → cannot apply fix (file missing, parse error, etc.) → result_status=failed
+  - Timeout path → approaching {max_runtime_seconds} with no fix applied → result_status=completed, fix_result=fix_failed, verified="false", error="timeout"
+  - Failure path → cannot apply fix (file missing, parse error, etc.) → result_status=failed, fix_result=fix_failed, verified="false", with error message
   - NEVER continue indefinitely. NEVER exit silently. NEVER omit the call.
 
 OUTPUT (return via report_agent_job_result; must match output_schema):
@@ -399,11 +399,18 @@ CONSTRAINTS:
 
    Dimensions (4): hypothesis_quality, evidence_completeness, root_cause_isolation, fix_confidence. Factors (weights): evidence_depth(.30), evidence_strength(.25), coverage_breadth(.20), reproduction(.15), consistency(.10). Map to legacy: <40% = low, 40-70% = medium, >70% = high. Append confidence assessment to understanding.md.
 
-3. **UAT update** (if --from-uat): Update `uat.md` gaps with `root_cause`, `fix_direction`, `affected_files` for confirmed hypotheses.
+2c. **Side-effect confirmation gate** (skip when `-y/--yes`):
+   Before writing to external stores, present a summary to the user via `request_user_input`:
+   - UAT gaps to update (count + hypothesis titles) if --from-uat
+   - Issues to update (count + issue IDs)
+   - Artifact registration in state.json
+   The user can approve all, selectively exclude, or skip entirely.
 
-4. **Issue update**: If `issues.jsonl` exists, update matching issues with status `diagnosed`, add `context.suggested_fix` and `context.notes`.
+3. **UAT update** (approved items only; if --from-uat): Update `uat.md` gaps with `root_cause`, `fix_direction`, `affected_files` for confirmed hypotheses.
 
-5. **Register artifact** (phase-scoped only): Append to `state.json.artifacts[]` with `type: "debug"`, `id: DBG-NNN`, `depends_on: triggering_review_id || exec_art.id`.
+4. **Issue update** (approved items only): If `issues.jsonl` exists, update matching issues with status `diagnosed`, add `context.suggested_fix` and `context.notes`.
+
+5. **Register artifact** (approved items only; phase-scoped): Append to `state.json.artifacts[]` with `type: "debug"`, `id: DBG-NNN`, `depends_on: triggering_review_id || exec_art.id`.
 
 6. **Post-debug Knowledge Inquiry**: Prompt user to capture knowledge when:
    - Recurring root cause pattern detected -> `$spec-add debug`

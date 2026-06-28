@@ -97,11 +97,11 @@ $manage-drift-realign --continue "20260624-drift-realign"
 ### tasks.csv (Master State)
 
 ```csv
-id,title,description,scan_scope,output_format,deps,context_from,wave
-"1","Roadmap Scanner","Scan .workflow/roadmap.md and .workflow/state.json for drift against code reality. Read timeline.json for git change context. Detect: phantom_phase (P0), stale_progress (P1), milestone_mismatch (P0), outdated_criteria (P1), dependency_ghost (P1), timeline_impossible (P2). For each finding: verify against code/state.json before reporting. Return JSON array of DriftFinding objects via output_schema.","roadmap","json","","","1"
-"2","Spec Scanner","Scan .workflow/specs/*.md spec-entry blocks for drift against actual code patterns. Read timeline.json hot_paths to focus on high-change areas. Detect: convention_violation (P0), dead_import_pattern (P1), architecture_breach (P0), stale_dependency (P1), naming_drift (P2), test_convention_gap (P2). {DEPTH_INSTRUCTION}. Return JSON array of DriftFinding objects via output_schema.","spec","json","","","1"
-"3","Codebase Scanner","Scan .workflow/codebase/*.md and doc-index.json for drift against current code structure. Read timeline.json for git changes. Detect: architecture_outdated (P0), feature_missing (P1), tech_stack_changed (P0), concern_drift (P1), doc_index_stale (P0). {DEPTH_INSTRUCTION}. Return JSON array of DriftFinding objects via output_schema.","codebase","json","","","1"
-"4","Artifact Scanner","Scan .workflow/issues/issues.jsonl, .workflow/knowhow/*.md, .workflow/project.md, and state.json accumulated_context for drift. Read timeline.json for git context. Detect: issue_code_ref_dead (P1), issue_stale_open (P1), knowhow_code_ref_dead (P1), orphan_session (P2), project_tech_drift (P0), project_req_drift (P1), accumulated_stale (P1), deferred_resolved (P2). Return JSON array of DriftFinding objects via output_schema.","artifact","json","","","1"
+id,title,description,scan_scope,output_format,deps,context_from,wave,status
+"1","Roadmap Scanner","Scan .workflow/roadmap.md and .workflow/state.json for drift against code reality. Read timeline.json for git change context. Detect: phantom_phase (P0), stale_progress (P1), milestone_mismatch (P0), outdated_criteria (P1), dependency_ghost (P1), timeline_impossible (P2). For each finding: verify against code/state.json before reporting. Return JSON array of DriftFinding objects via output_schema.","roadmap","json","","","1","pending"
+"2","Spec Scanner","Scan .workflow/specs/*.md spec-entry blocks for drift against actual code patterns. Read timeline.json hot_paths to focus on high-change areas. Detect: convention_violation (P0), dead_import_pattern (P1), architecture_breach (P0), stale_dependency (P1), naming_drift (P2), test_convention_gap (P2). {DEPTH_INSTRUCTION}. Return JSON array of DriftFinding objects via output_schema.","spec","json","","","1","pending"
+"3","Codebase Scanner","Scan .workflow/codebase/*.md and doc-index.json for drift against current code structure. Read timeline.json for git changes. Detect: architecture_outdated (P0), feature_missing (P1), tech_stack_changed (P0), concern_drift (P1), doc_index_stale (P0). {DEPTH_INSTRUCTION}. Return JSON array of DriftFinding objects via output_schema.","codebase","json","","","1","pending"
+"4","Artifact Scanner","Scan .workflow/issues/issues.jsonl, .workflow/knowhow/*.md, .workflow/project.md, and state.json accumulated_context for drift. Read timeline.json for git context. Detect: issue_code_ref_dead (P1), issue_stale_open (P1), knowhow_code_ref_dead (P1), orphan_session (P2), project_tech_drift (P0), project_req_drift (P1), accumulated_stale (P1), deferred_resolved (P2). Return JSON array of DriftFinding objects via output_schema.","artifact","json","","","1","pending"
 ```
 
 **Substitutions (orchestrator MUST do BEFORE writing tasks.csv)**:
@@ -119,6 +119,7 @@ id,title,description,scan_scope,output_format,deps,context_from,wave
 | `deps` | Empty (all independent) |
 | `context_from` | Empty (all read timeline.json directly) |
 | `wave` | Always 1 (single wave) |
+| `status` | `pending` / `running` / `completed` / `failed` |
 
 **Output columns** (returned exclusively via `output_schema`):
 
@@ -309,8 +310,8 @@ maestro spec conflict list
 For spec entries with existing conflict-markers that also appear in scanner findings: merge and elevate to P0.
 
 **Step 3.3: Triage**
-- If `--report` → skip to Phase 4 report
-- If `--dry-run` → display all findings with suggested actions, skip Phase 4 apply
+- If `--report` → generate report output only (Phase 4 Step 4.3), skip triage and all file mutations (no backups, no action application, no state.json update)
+- If `--dry-run` → display all findings with suggested actions, skip all file mutations in Phase 4 (no backups, no action application, no state.json update, no drift-log.jsonl writes)
 - If `--auto-archive` → auto-apply each finding's `suggested_action` for P1/P2; only P0 gets interactive review
 - Otherwise → interactive triage per finding using `request_user_input`:
 
@@ -340,13 +341,15 @@ Export master `tasks.csv` as `results.csv`.
 
 ### Phase 4: Apply + Report
 
-**Step 4.1: Backup**
+> **Write boundary**: If `--report`, skip directly to Step 4.3 (report generation only). If `--dry-run`, skip Steps 4.1 and 4.2 entirely — no backup, no file mutations, no state.json update. Only Step 4.3 (report) and Step 4.4 (context.md) execute.
+
+**Step 4.1: Backup** (skipped by --report and --dry-run)
 ```bash
 mkdir -p .workflow/.trash/drift-realign-{timestamp}/
 ```
 Copy all affected files + state.json to backup. If backup fails → abort (E005).
 
-**Step 4.2: Apply actions**
+**Step 4.2: Apply actions** (skipped by --report and --dry-run)
 
 | Action | Implementation |
 |--------|---------------|
@@ -354,16 +357,16 @@ Copy all affected files + state.json to backup. If backup fails → abort (E005)
 | skip | Write drift-log.jsonl entry (action=skipped) |
 | update | Prepend `<!-- DRIFT-TODO: {hint} (DFT-{id}, {date}) -->` to target file |
 | archive | Move file to `.trash/{timestamp}/`, update state.json refs |
-| rebuild | Collect targets; after all other actions: invoke $quality-sync --full |
+| rebuild | Collect targets; after all other actions: suggest `$quality-sync --full` with target list. Require explicit user confirmation before invoking (use `request_user_input`). If declined, log as `action=rebuild_deferred` in drift-log.jsonl |
 
-After rebuild: if sync reports major structural changes → suggest $manage-codebase-rebuild.
+After rebuild (if confirmed and executed): if sync reports major structural changes → suggest $manage-codebase-rebuild.
 
 Conflict-marker cleanup: for update/archive targets with existing conflict-markers:
 ```bash
 maestro spec conflict clear <file> <line>
 ```
 
-Update state.json: `last_drift_realign = now` (atomic: backup → write → verify).
+Update state.json: `last_drift_realign = now` (atomic: backup → write → verify). Skipped when `--report` or `--dry-run` is active.
 
 **Step 4.3: Generate report**
 

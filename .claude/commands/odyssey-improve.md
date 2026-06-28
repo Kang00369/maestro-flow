@@ -1,7 +1,7 @@
 ---
 name: odyssey-improve
 description: Long-running codebase improvement cycle — multi-dimensional audit, deep diagnosis, targeted fix, verify, generalize, and engineering knowledge persistence
-argument-hint: "<target> [--dimensions <list>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c] [--heartbeat]"
+argument-hint: "<target> [--dimensions <list>] [--fix-threshold <severity>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c] [--heartbeat]"
 allowed-tools:
   - Read
   - Write
@@ -189,7 +189,7 @@ Commit: `"odyssey-improve({slug}): DIAGNOSE — root cause analysis"`
 `retries++`. < 3: `maestro delegate --role analyze`, new hypotheses, → S_DIAGNOSE. >= 3: Normal → AskUserQuestion | `-y` → INCONCLUSIVE → S_RECORD.
 
 ### A_FIX
-1. Exhaustive fix: ALL diagnosed issues by severity tier (critical → high → medium → low within fix_threshold), one dimension at a time. After each tier, re-verify — new findings append to current tier.
+1. Exhaustive fix: ALL diagnosed issues by severity tier (critical → high → medium → low within fix_threshold), one dimension at a time. After each tier, re-verify **current tier's dimension only** (not all dimensions) — new findings at same or higher severity append to current tier. Cross-dimension regression checks run once at S_VERIFY after all tiers complete.
 2. For each fix: implement → evidence phase=fix
 3. Normal: AskUserQuestion per-fix confirmation | `-y`: auto-proceed, record `deferred`
 

@@ -117,7 +117,7 @@ id,title,description,role,review_dimension,deps,context_from,wave
 1. **Wave Order Sacred**
 2. **CSV Source of Truth**
 3. **Column Separation Rule**
-4. **User Checkpoint Before Fix**: In full mode, pause after REV for user approval (skip if -y)
+4. **User Checkpoint Before Fix**: In full mode, pause after REV for user approval (skip if -y; when `-y` is set, default fix scope is `critical+high` severity only)
 5. **0 Findings Shortcut**: If scanner finds 0 issues → skip REV and FIX
 6. **Discovery Board Append-Only**
 7. **Cleanup Temp Files**
@@ -141,21 +141,65 @@ S_CSV_GEN → S_WAVE_1
 S_WAVE_{N} → S_FIX_GATE       WHEN: mode=full, REV wave complete, FIX pending
 S_WAVE_{N} → S_WAVE_{N+1}     WHEN: more waves
 S_WAVE_{N} → S_AGGREGATE      WHEN: last wave or 0 findings shortcut
-S_FIX_GATE → S_WAVE_{N+1}     WHEN: user selects fix scope (all/critical+high)
+S_FIX_GATE → S_WAVE_{N+1}     WHEN: user selects fix scope (all/critical+high), or -y (default: critical+high)
 S_FIX_GATE → S_AGGREGATE      WHEN: user selects skip
 </transitions>
 
 <actions>
+
+### Session Initialization (S_PARSE)
+
+```
+Parse from $ARGUMENTS:
+  AUTO_YES       ← --yes | -y
+  continueMode   ← --continue
+  maxConcurrency ← --concurrency | -c N  (default: 3)
+  modeFlag       ← --mode default|full|fix-only|quick
+  scopeTarget    ← remaining text (file/module path)
+
+Derive:
+  dateStr       ← UTC+8 YYYYMMDD
+  slug          ← first 3 meaningful words, kebab-case
+  sessionId     ← "{dateStr}-rv-{slug}"
+  sessionFolder ← ".workflow/.csv-wave/{sessionId}"
+  skillRoot     ← resolve path to this skill directory
+
+mkdir -p {sessionFolder}
+```
+
+When `--continue`: scan `.workflow/.csv-wave/*-rv-*/tasks.csv` for sessions with pending tasks. Single match → resume. Multiple → `request_user_input`. Read master tasks.csv → find first pending wave → jump to S_WAVE_{N}.
+
+### Mode Selection + CSV Generation (S_CSV_GEN)
+
+1. Select mode: `--mode` flag, or default to `default`
+2. Load pipeline wave assignments from csv_schema section above
+3. For each task, build CSV row with PURPOSE/TASK/EXPECTED/CONSTRAINTS in description
+4. Initialize lifecycle columns: `status=pending`, empty `findings`/`files_modified`/`finding_count`/`verdict`/`error`
+5. Write `tasks.csv` and empty `discoveries.ndjson`
+6. User validation (skip if `-y`): display mode, task count, scope
+
+### Wave Execution (S_WAVE_{N})
+
+1. Skip check: if all tasks in wave N completed/skipped → next wave
+2. Cascading skip: if any dep is failed/blocked → skip dependents
+3. Build `prev_context` from upstream findings
+4. Write `wave-{N}.csv` with qualifying rows + `prev_context` column
+5. `spawn_agents_on_csv` with output_schema (see below)
+6. Merge results: `result_status` → master `status`
+7. Cascade skip failed task dependents
+8. Delete `wave-{N}.csv` and `wave-{N}-results.csv`
+9. If mode=full and REV wave complete → transition to S_FIX_GATE
 
 ### Fix Gate Logic
 
 After REV wave in full mode:
 1. Read reviewer's `findings` and `verdict`
 2. If `finding_count` = 0 or verdict = APPROVE → skip fix, aggregate
-3. Display findings summary to user
-4. `request_user_input`: Fix all / Fix critical+high only / Skip fixes
-5. Update FIX-001 description with approved scope
-6. Continue to FIX wave
+3. If `-y` → auto-select fix scope = `critical+high` (default), update FIX-001 description, continue to FIX wave
+4. Otherwise display findings summary to user
+5. `request_user_input`: Fix all / Fix critical+high only / Skip fixes
+6. Update FIX-001 description with approved scope
+7. Continue to FIX wave
 
 ### Instruction Builder
 

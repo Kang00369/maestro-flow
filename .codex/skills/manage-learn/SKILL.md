@@ -2,7 +2,7 @@
 name: manage-learn
 description: Capture and search learning insights and tips
 argument-hint: "[\"<insight text>\"|list|search <query>|show <INS-id>] [--category pattern|antipattern|decision|tool|gotcha|technique] [--tag t1,t2] [--phase N] [--confidence high|medium|low]"
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
 <purpose>
@@ -48,7 +48,7 @@ $manage-learn "\"Zod v4 breaks z.object().strict() API\" --category gotcha --tag
 
 <invariants>
 1. **No LLM or CLI calls**: This skill is pure file I/O — parse, infer, append, confirm. No `shell_exec`, no `spawn_agent`.
-2. **Bootstrap on demand**: Create `.workflow/knowhow/` structure on first use; do not require it to exist.
+2. **Bootstrap on demand**: Create `.workflow/specs/` directory and `learnings.md` on first use; do not require it to exist.
 3. **Append-only learnings.md**: Never rewrite or delete existing entries.
 4. **Stable INS-ids**: `INS-{8hex}` from `hash(insightText + timestamp)` — same text at different times gets different ids.
 5. **Source field**: Always `"manual"` for captures from this skill; `"retrospective"` is reserved for `quality-retrospective`.

@@ -43,7 +43,9 @@ Display ranked suggestions with scores, reasons, projected health delta.
 If not `--fix`: display and exit.
 
 ### Stage 5: Apply (--fix only)
-For each suggestion: get entry → append target to `related` → update via `maestro wiki update`.
+**Confirmation gate**: Before applying, present the list of link changes to user via `request_user_input` for confirmation. Only proceed with user-approved changes. Skip confirmation only if `-y` flag is also set.
+
+For each approved suggestion: get entry → append target to `related` → update via `maestro wiki update`.
 Re-run `maestro wiki health` for delta.
 
 ### Stage 6: Persist

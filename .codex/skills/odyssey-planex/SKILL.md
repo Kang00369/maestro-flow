@@ -7,6 +7,10 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 
 <base>@~/.maestro/workflows/odyssey-base-codex.md</base>
 
+<required_reading>
+Required reading: base (`odyssey-base-codex.md`) before any actions. Load and apply base invariants, execution discipline, and shared actions before proceeding.
+</required_reading>
+
 <purpose>
 Requirement-to-delivery closed loop: parse requirement -> define acceptance criteria ->
 plan -> execute -> verify -> fix gaps -> iterate until ALL criteria pass.
@@ -89,6 +93,7 @@ $ARGUMENTS
 <invariants>
 Base invariants apply. Additionally:
 6. **Acceptance criteria are sacred** -- no "close enough", no manual override without explicit escalation
+7. **Max-iteration failure is ESCALATED** -- when max iterations reached with failing criteria, status MUST be `ESCALATED` or `PARTIAL`, NEVER `ALL_PASSED`. Under `-y`, criteria remain `failed` with `deferred` decision, session status is `ESCALATED`. Lowering acceptance standards requires explicit user confirmation with original criteria, change reason, and `incomplete` marker recorded.
 </invariants>
 
 <self_iteration>
@@ -186,7 +191,7 @@ Commit: `"odyssey-planex({slug}): INTAKE -- requirement parsed"`
    MODE: analysis
    CONTEXT: @**/* | Criteria: {criteria_summary}
    EXPECTED: JSON [{task_id, title, description, criteria_refs, deps}]
-   " --role analyze --mode analysis
+   " --to claude --mode analysis
    ```
    Execute with `run_in_background: true`, wait for callback.
 3. Write session.json.plan, append evidence (planning), update understanding.md S2. Mark G2 done.
@@ -289,7 +294,7 @@ Execute with `run_in_background: true`, wait for callback.
 1. First attempt: normal dispatch
 2. Retry: `--resume planex-${slug}-${task_id}` with simplified prompt
 3. Final: fallback to Agent path
-4. All 3 fail -> mark task `blocked`, record checkpoint, continue remaining tasks
+4. All 3 fail -> mark task `blocked`, record checkpoint, continue remaining tasks. Blocked tasks make G3 `incomplete` — related acceptance criteria are marked `blocked`, and S_VERIFY/S_RECORD propagate the incomplete status.
 
 #### Step 4: Per-Task Evidence
 
@@ -382,7 +387,7 @@ Commit: `"odyssey-planex({slug}): VERIFY -- acceptance check"`
    MODE: analysis
    CONTEXT: @{modified_files} | Passing: {passing} | Fixed: {fixed}
    EXPECTED: JSON {verdict, regression_risk, concerns}
-   " --role review --mode analysis
+   " --to claude --mode analysis
    ```
 4. Append evidence (fix), update understanding.md S5 -> S_VERIFY
 
@@ -405,7 +410,7 @@ Mark G5 done. Commit: `"odyssey-planex({slug}): GENERALIZE -- pattern scan"`
 Base shared_actions. Mark G6 done. Commit: `"odyssey-planex({slug}): DISCOVER -- triage complete"`
 
 ### A_RECORD
-Base shared_actions. Learnings per Knowledge Persistence table.
+Base shared_actions. Learnings per Knowledge Persistence table. **Confirmation gate**: Before writing spec entries, present proposed entries to user via `request_user_input` for confirmation. Skip confirmation only if `-y` flag is set.
 
 **Completion summary:**
 ```
@@ -437,7 +442,7 @@ Commit: `"odyssey-planex({slug}): RECORD -- session summary"`
 | S_EXECUTE execution options | request_user_input (executor/review/verify) | use defaults (auto/Skip/Auto), `confirmed: true` |
 | S_EXECUTE task blocked (3 retries) | request_user_input: continue or stop | auto continue, log blocked |
 | S_VERIFY manual criterion | request_user_input | `deferred` |
-| S_VERIFY max iteration reached | request_user_input | auto accept, `deferred` |
+| S_VERIFY max iteration reached | request_user_input (continue/lower bar/accept) | mark status `ESCALATED`, record failing criteria as `deferred`, proceed to S_RECORD with `ESCALATED` status — NEVER mark as `ALL_PASSED` |
 
 ### Goal convergence rules
 
@@ -490,6 +495,7 @@ Max iterations (default 3) prevents infinite loops. Each iteration records crite
 </success_criteria>
 
 <next_step_routing>
+<!-- suggest-only — do NOT auto-execute. Present these as suggestions to the user. -->
 | Condition | Next step |
 |-----------|-----------|
 | All criteria passed | `$odyssey-review-test-fix <changed-files>` |

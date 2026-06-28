@@ -38,8 +38,8 @@ Read `.workflow/state.json` for `current_milestone`, `artifacts[]`, `milestones[
 
 Validate audit report at `.workflow/milestones/{milestone}/audit-report.md`:
 - Parse for `## Verdict` section (or `**Verdict:**` inline)
-- PASS condition: verdict line contains the word `PASS` (case-insensitive)
-- Any other verdict (FAIL, PARTIAL, missing section) → E002 unless `--force`
+- PASS condition: verdict line matches strict pattern `^PASS$` (case-insensitive, trimmed) — rejects partial matches like "PASS_WITH_WARNINGS", "BYPASS", or "COMPASS"
+- Any other verdict (FAIL, INCOMPLETE, PARTIAL, missing section) → E002 unless `--force`
 
 Verify all milestone artifacts completed (E003 unless `--force`).
 
@@ -91,7 +91,7 @@ Learning content here.
 
 1. **High-frequency patterns**: Scan all `<spec-entry category="learning">` entries for keyword overlap. Trigger threshold: **>=2 entries sharing the same keyword**. For each triggered keyword, ask: "Keyword '{keyword}' appears in {N} learning entries. Promote to formal coding convention?"
 2. **Convention drift**: Compare executed task summaries against `coding-conventions.md` and `architecture-constraints.md`. Trigger threshold: **any deviation found** (technique used but not documented, or documented convention not followed). Ask: "Convention '{convention}' was bypassed during this milestone. Update conventions?"
-3. **Wiki island check**: Auto-trigger `wiki-connect --fix` to link new knowledge. Trigger threshold: **always runs** (no user confirmation needed).
+3. **Wiki island check**: Suggest `wiki-connect --fix` to link new knowledge. Ask user via `request_user_input`: "Run wiki-connect to link new knowledge entries?" with options: "Yes, link now" / "No, skip". Only run if user confirms (or `-y` is set).
 
 If `-y`: auto-accept all promotions without asking.
 If not `-y`: ask user for confirmation via `request_user_input`:

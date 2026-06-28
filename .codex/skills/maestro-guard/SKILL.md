@@ -9,7 +9,7 @@ Configure directory-level write boundaries enforced by the workflow-guard PreToo
 When enabled, Write and Edit tool calls targeting files outside allowed paths are blocked.
 
 Subcommands:
-- **on** -- Enable path guard (defaults to `src/` if no paths configured)
+- **on** -- Enable path guard (defaults to `["src/", "tests/", ".workflow/"]` if no paths configured)
 - **off** -- Disable path guard (preserves path list)
 - **status** -- Show current guard configuration
 - **allow `<path>`** -- Add a directory to the allowed paths list

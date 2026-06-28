@@ -98,10 +98,12 @@ Check for:
 
 **Phase 4: Secrets Detection** (standard + deep)
 
-```bash
-# Current codebase
-grep -rn --include="*.ts" --include="*.js" --include="*.json" --include="*.env*" \
-  -E "(password|secret|api.?key|token|credential).*=.*['\"][^'\"]{8,}" . || true
+```
+Grep({
+  pattern: "(password|secret|api.?key|token|credential).*=.*['\"][^'\"]{8,}",
+  glob: "*.{ts,js,json,env*}",
+  output_mode: "content"
+})
 ```
 
 Check `.env.example` for leaked values. Check `.gitignore` for missing `.env` patterns.
@@ -159,6 +161,14 @@ Summary: {total} findings ({critical} critical, {high} high, {medium} medium, {l
 ```
 
 **Register artifact on completion:**
+
+Confirm before writing:
+```
+AskUserQuestion("Register security-audit artifact RVW-{NNN} in state.json? (yes/no)")
+→ yes: proceed with write
+→ no: skip registration, continue to completion
+```
+
 ```
 Append to state.json.artifacts[]:
 {

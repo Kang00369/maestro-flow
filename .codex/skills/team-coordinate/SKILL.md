@@ -182,6 +182,7 @@ S_EVAL_W3    — Evaluate Wave 3 participation                      PERSIST: ski
 S_WAVE_3     — Execute Wave 3 (Implementation)                    PERSIST: findings in master CSV
 S_EVAL_W4    — Evaluate Wave 4 participation                      PERSIST: skipped tasks if any
 S_WAVE_4     — Execute Wave 4 (Validation/Testing)                PERSIST: findings in master CSV
+S_DEGRADED_AGG — Degraded aggregation after all-failed retry      PERSIST: partial results
 S_AGGREGATE  — Generate report, export results                    PERSIST: context.md, results.csv
 </states>
 
@@ -193,10 +194,13 @@ S_CSV_GEN → S_EVAL_W1
 
 S_EVAL_W{N} → S_WAVE_{N}      WHEN: tasks qualify after evaluation
 S_EVAL_W{N} → S_EVAL_W{N+1}   WHEN: all tasks skipped or no tasks in wave
-S_WAVE_{N} → S_EVAL_W{N+1}    WHEN: wave complete, N < 4
+S_WAVE_{N} → S_EVAL_W{N+1}    WHEN: wave complete (some tasks succeeded), N < 4
+S_WAVE_{N} → S_WAVE_{N}       WHEN: all tasks in wave failed AND retry_count < 1 (retry once)
+S_WAVE_{N} → S_DEGRADED_AGG   WHEN: all tasks in wave failed AND retry_count >= 1
 
 S_EVAL_W4 → S_AGGREGATE       WHEN: after Wave 4 eval (regardless of skip)
 S_WAVE_4 → S_AGGREGATE        WHEN: Wave 4 complete
+S_DEGRADED_AGG → S_AGGREGATE  WHEN: degraded aggregation (partial results only)
 </transitions>
 
 <actions>
@@ -232,10 +236,11 @@ When `--continue`:
 
 1. **Parse task description**
 
-2. **Clarify if ambiguous** (skip if `-y`):
+2. **Confirm scope and deliverables** (skip if `-y`):
    - Scope? (specific files, module, project-wide)
    - Deliverables? (documents, code, reports)
    - Constraints? (technology, style)
+   - Always confirm via `request_user_input` unless `-y` is set
 
 3. **Signal detection** — scan keywords against `specs/role-catalog.md` §1 Signal Detection Table:
    - Match keywords → capabilities → roles
@@ -259,7 +264,7 @@ When `--continue`:
 
 8. **Dependency + context_from** — tasks in wave N depend on relevant tasks in wave N-1
 
-9. **Write `tasks.csv`** with all rows (Input columns only, no status/findings)
+9. **Write `tasks.csv`** with all rows (Input columns + lifecycle columns initialized: `status=pending`, `findings=""`, `files_modified=""`, `error=""`)
 
 10. **Write empty `discoveries.ndjson`**
 
@@ -454,7 +459,8 @@ Protocol: read before work, append-only, dedup by type+key.
 |-----------|----------|
 | No capabilities detected | Default to single `general` role in wave 1 |
 | All wave 1 tasks failed | Abort pipeline (downstream has no context) |
-| All tasks in wave N failed | Skip subsequent waves, proceed to aggregation |
+| All tasks in wave N failed (first attempt) | Retry wave once with same tasks |
+| All tasks in wave N failed (after retry) | Enter S_DEGRADED_AGG: aggregate partial results from prior waves, mark remaining waves skipped |
 | Evaluation skipped all tasks in wave | Normal — skip wave, continue to next |
 | Task timeout | Mark failed, cascade skip dependents |
 | Session not found (--continue) | Error with available session list |

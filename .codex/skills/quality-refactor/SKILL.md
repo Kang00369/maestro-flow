@@ -95,12 +95,12 @@ Each wave generates `wave-{N}.csv` with extra `prev_context` column populated fr
 
 <invariants>
 1. **Test after every change** -- zero regressions tolerated
-2. **Revert on failure** -- never leave broken state
+2. **Revert on failure** -- never leave broken state; revert ONLY files listed in the task's `files_modified` output (tracked per worker), never `git checkout .` or `git reset --hard` which may discard unrelated user changes
 3. **Max 2 retries per task** with strategy adjustment
 4. **Reflection-driven** -- every round records strategy, outcome, adjustment
 5. **User approval required** before execution (Step 4)
 6. **Quick wins first** -- order by risk (low first) and dependency
-7. **CSV waves execute synchronously** — each refactoring task dispatched as single-row wave, wait for completion before next
+7. **Single-row waves** — each refactoring task dispatched as its own single-row wave (one task per wave, sequential execution). Wave numbers are assigned 1:1 per task in dependency-safe order (low-risk first, deps respected). No multi-row shared waves.
 8. **Incremental safety** -- each task is independently safe to apply or revert
 </invariants>
 
@@ -157,7 +157,7 @@ Initialize session folder `.workflow/.csv-wave/{dateStr}-refactor-{slug}/`.
 Initialize `reflection-log.md` and `discoveries.ndjson` in session folder.
 Build `tasks.csv` from plan.json tasks using csv_schema columns.
 
-**Wave computation**: Group independent same-risk tasks into shared waves. Dependent tasks go to later waves. Low-risk tasks wave first, high-risk last.
+**Wave computation**: Each task gets its own wave number (single-row per wave). Order: low-risk first, high-risk last, dependencies respected.
 
 For each wave N in ascending order:
 
@@ -210,7 +210,7 @@ REQUIRED STEPS:
   2. Apply refactoring per description, modifying only files in scope
   3. Verify EVERY convergence_criterion via grep (ALL must pass; ANY miss → failure)
   4. Run verification_cmd via Bash; capture pass/fail
-  5. If tests fail OR convergence fails → revert ALL changes for this task using git (or Edit reverse), set files_modified=""
+  5. If tests fail OR convergence fails → revert ONLY files this task modified (track touched files; use `git checkout -- <file>` per file, NOT `git checkout .` or `git reset --hard`), set files_modified=""
   6. Append discoveries (type=implementation_note / pattern) to {sessionFolder}/discoveries.ndjson
   7. Call report_agent_job_result EXACTLY ONCE
 

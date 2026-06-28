@@ -2,7 +2,7 @@
 name: maestro-collab
 description: Use when a question needs cross-verification from multiple CLI tools or diverse analytical perspectives
 argument-hint: "\"<requirement>\" [--tools agy,qwen,claude] [--mode analysis|write] [--rule <template>] [-y]"
-allowed-tools: Read, Write, Edit, Glob, Grep, request_user_input
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
 <purpose>
@@ -68,7 +68,7 @@ $ARGUMENTS — requirement text and optional flags.
 4. **NEVER fire-and-forget** — every shell_exec MUST complete before proceeding, result consumed before next step
 5. **NEVER substitute internal reasoning** — if CLI fails, report failure; do NOT generate analysis yourself as replacement
 6. **Indefinite wait** — shell_exec has NO max timeout; continue waiting until CLI returns regardless of elapsed time; NEVER abandon a running session
-6. **Same prompt, different --to** — fan-out delegates all use identical base prompt, only `--to <tool>` differs
+7. **Same prompt, different --to** — fan-out delegates all use identical base prompt, only `--to <tool>` differs
 7. **Minimum 2 tools** — abort if fewer eligible
 8. **Partial degradation** — 1 tool fails → continue with remaining (minimum 2 results for cross-verify)
 </invariants>
@@ -142,8 +142,8 @@ Launch ALL delegate commands simultaneously in parallel:
 
 ```
 // Parallel fan-out — one shell_exec per selected tool:
-shell_exec(`maestro delegate "<shared_prompt>" --to agy --mode <mode> [--rule <rule>]`, { timeout: 30000 })
-shell_exec(`maestro delegate "<shared_prompt>" --to claude --mode <mode> [--rule <rule>]`, { timeout: 30000 })
+Bash(`maestro delegate "<shared_prompt>" --to agy --mode <mode> [--rule <rule>]`, { run_in_background: true })
+Bash(`maestro delegate "<shared_prompt>" --to claude --mode <mode> [--rule <rule>]`, { run_in_background: true })
 // ... one call per selected tool
 // Execution mapping: @~/.maestro/workflows/shell-exec-protocol.md
 ```
@@ -241,7 +241,7 @@ Generate 3 output files from cross-verify results:
 
 1. Copy outputs to scratchDir
 2. Register CLB artifact in state.json (type: collab, scope: adhoc)
-3. Spec enrichment: for each Locked decision → `maestro spec add arch "<title>" "<content>" --keywords <kw> --description "<summary>"`
+3. **Spec enrichment** (gated): for each Locked decision, display the proposed spec entry. Unless `-y/--yes`, `request_user_input` to confirm before writing. Only confirmed entries execute `maestro spec add arch "<title>" "<content>" --keywords <kw> --description "<summary>"`. Under `-y`, auto-write all Locked decisions.
 4. `update_plan` all steps completed
 5. Display summary:
    ```

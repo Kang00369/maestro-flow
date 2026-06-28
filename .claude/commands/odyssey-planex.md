@@ -1,7 +1,7 @@
 ---
 name: odyssey-planex
 description: Requirement-driven iterative cycle — plan, execute, strict verify, fix loop until acceptance criteria met
-argument-hint: "<requirement> [--max-iterations N] [--skip-generalize] [--auto] [--method agent|cli|auto] [--executor <tool>] [--skip-verify] [--heartbeat] [-y] [-c]"
+argument-hint: "<requirement> [--template <name>] [--max-iterations N] [--skip-generalize] [--auto] [--method agent|cli|auto] [--executor <tool>] [--skip-verify] [--heartbeat] [-y] [-c]"
 allowed-tools:
   - Read
   - Write
@@ -108,7 +108,7 @@ Applies to: **S_PLAN, S_VERIFY, S_GENERALIZE**. Logic in base.
 <state_machine>
 
 <states>
-S_INTAKE → S_PLAN → S_EXECUTE → S_VERIFY → S_GENERALIZE → S_DISCOVER → S_RECORD → END
+S_INTAKE → S_PLAN → S_EXECUTE → S_VERIFY → S_FIX → S_GENERALIZE → S_DISCOVER → S_RECORD → END
 </states>
 
 <transitions>
@@ -122,7 +122,7 @@ S_EXECUTE → S_VERIFY
 S_VERIFY → S_GENERALIZE   : all passed AND NOT skip_generalize
 S_VERIFY → S_RECORD       : all passed AND skip_generalize
 S_VERIFY → S_FIX          : some failed AND iteration < max
-S_VERIFY → S_PLAN         : fundamental plan flaw → cross_phase_loops++ (replan)
+S_VERIFY → S_PLAN         : fundamental plan flaw → cross_phase_loops++ (replan). **Criteria preservation:** acceptance_criteria[] statuses are preserved; only plan.tasks[] are regenerated. Previously passed criteria retain `passed` status; failed criteria reset to `pending` for re-verification after new plan execution.
 S_VERIFY → S_RECORD       : some failed AND iteration >= max (escalate)
 
 S_FIX → S_VERIFY (loop)
@@ -295,7 +295,7 @@ Iron gate — every acceptance criterion checked objectively.
 |--------|--------|
 | `test` | Run relevant tests, check pass/fail |
 | `grep` | Grep for expected pattern |
-| `cli-review` | `maestro delegate --role review --mode analysis` with criterion as focus |
+| `cli-review` | `maestro delegate "PURPOSE: Verify criterion {criterion_id}: {criterion}\nTASK: Read implementation code \| Check behavior matches criterion \| Report pass/fail with file:line evidence\nMODE: analysis\nCONTEXT: @{relevant_files}\nEXPECTED: JSON {criterion_id, status: passed\|failed, evidence: [{file, line, detail}]}" --role review --mode analysis` |
 | `manual` | Normal: AskUserQuestion / `-y`: record `deferred` |
 
 Record per criterion: `{"phase":"verification","type":"criterion-check","criterion_id":"AC1","method":"","result":"passed|failed","evidence":"","iteration":N}`. Update acceptance_criteria[].status. Append to iterations[].
@@ -312,11 +312,12 @@ Commit: `"odyssey-planex({slug}): VERIFY — acceptance check"`
 2. For each failed criterion: diagnose gap → targeted code fix
 3. CLI fix review (optional):
    ```bash
-   maestro delegate "PURPOSE: Review fixes for failing criteria
-   TASK: Check fix correctness | Verify no regressions on passing criteria
+   maestro delegate "PURPOSE: Review fixes for failing criteria; success = no regressions and fixes correct
+   TASK: Check fix correctness | Verify no regressions on passing criteria | Report verdict with file:line evidence
    MODE: analysis
    CONTEXT: @{modified_files} | Passing: {passing} | Fixed: {fixed}
-   EXPECTED: JSON {verdict, regression_risk, concerns}
+   EXPECTED: JSON {verdict: passed|concerns_found, regression_risk: low|medium|high, concerns: [{criterion_id, file, line, description}]}
+   CONSTRAINTS: Read-only | Check ALL passing criteria for regressions
    " --role review --mode analysis
    ```
 4. Append evidence (fix), update understanding.md section 5 → S_VERIFY

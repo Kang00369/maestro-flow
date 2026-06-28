@@ -88,7 +88,7 @@ id,title,description,focus_area,output_file,deps,context_from,wave,status,findin
 </csv_schema>
 
 <invariants>
-1. **Start Immediately**: Initialize session, generate CSV, execute
+1. **Confirm Before Execute**: After session init and CSV generation, present mapper assignment summary to user via `request_user_input` for confirmation before spawning agents. Skip confirmation only if `-y` flag is set.
 2. **CSV is Source of Truth**: tasks.csv holds all mapper state
 3. **Discovery Board is Append-Only**: Mappers share findings
 4. **Partial Results OK**: If 3/4 mappers succeed, still write available docs
@@ -101,6 +101,8 @@ id,title,description,focus_area,output_file,deps,context_from,wave,status,findin
 ### Session Initialization
 
 Parse flags from `$ARGUMENTS` (`-y`, `-c N`, `--continue`). Extract focus area (default: "full"). Generate session ID: `{YYYYMMDD}-map-{focusArea}`. Create session folder at `.workflow/.csv-wave/{sessionId}/` and `.workflow/codebase/`.
+
+**Confirmation gate**: Present mapper assignment summary (4 tasks, focus area, concurrency) to user via `request_user_input`. Skip if `-y` flag is set.
 
 ### Phase 1: Generate tasks.csv
 
@@ -132,6 +134,11 @@ spawn_agents_on_csv({
 ```
 
 Merge: write `master.status = result_status`, copy `findings` and `error`. Delete `wave-1.csv` and `wave-1-results.csv`.
+
+**Retry / degraded paths:**
+- If `spawn_agents_on_csv` call fails entirely: retry once. If second attempt fails, abort with E003.
+- If individual mapper fails (`result_status == "failed"`): mark that mapper as failed, continue with remaining mappers. Phase 3 writes partial output from completed mappers only.
+- If all 4 mappers fail: transition to degraded state — write empty output files with headers only, report E004, and exit gracefully.
 
 #### Mapper Worker Contract (MAPPER_INSTRUCTION)
 
@@ -192,6 +199,8 @@ Mappers share discoveries so other mappers can skip redundant exploration (e.g.,
 | Mapper agent timeout | Mark failed, continue with other mappers |
 | Mapper agent failed | Mark failed, output partial results |
 | .workflow/codebase/ exists | Prompt: refresh/skip/merge (auto-refresh with -y) |
+| E003: spawn_agents_on_csv failed twice | Abort with error message |
+| E004: All 4 mappers failed | Write empty output files with headers, exit gracefully |
 
 </error_codes>
 

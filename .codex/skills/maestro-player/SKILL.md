@@ -103,14 +103,20 @@ S_LOAD:
 
 S_INIT:
   → END          WHEN: --dry-run                        DO: display wave plan with [BARRIER] markers
-  → S_WAVE_LOOP  DO: A_INIT_SESSION
+  → S_CONFIRM    DO: A_INIT_SESSION
+
+S_CONFIRM:
+  → S_WAVE_LOOP  WHEN: -y OR --yes OR --continue OR --skip-questions OR user confirms
+  → END          WHEN: user cancels
+  GUARD: display wave plan (template, session, context, waves with [BARRIER] markers), request_user_input to confirm execution. Do NOT write state.json or spawn agents before confirmation.
 
 S_WAVE_LOOP:
-  → S_WAVE_LOOP  WHEN: wave completed, more pending     DO: A_EXECUTE_WAVE → advance
+  → S_WAVE_LOOP  WHEN: 1+ completed in wave, more pending   DO: A_EXECUTE_WAVE → advance (propagate incomplete marker if partial failures)
   → S_COMPLETE   WHEN: all steps completed
-  → END          WHEN: checkpoint pause                 DO: set status=paused
-  → END          WHEN: wave failed                      DO: mark remaining skipped, set status=aborted
-  GUARD: checkpoint nodes → handle inline (no spawn), save snapshot, optional user pause
+  → END          WHEN: checkpoint pause                      DO: set status=paused
+  → S_WAVE_LOOP  WHEN: all failed in wave, retry available   DO: retry same wave (retry_count++, max 1 retry per wave)
+  → END          WHEN: all failed in wave, retry exhausted   DO: set status=aborted, record retry_count and evidence_incomplete
+  GUARD: checkpoint nodes → handle inline (no spawn), save snapshot, optional user pause. Partial failures (1+ completed, some failed) → continue with incomplete marker, do NOT mark failed rows as completed.
 
 S_COMPLETE:
   → END          DO: display per-wave results, set status=completed

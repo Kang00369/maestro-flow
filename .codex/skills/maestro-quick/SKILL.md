@@ -100,14 +100,14 @@ Update plan.json task statuses as completed.
 
 ### Step 9: Commit and Report
 
-Commit all changes: `git add -A && git commit -m "quick: {slug} - {short description}"`. Update `.workflow/state.json` scratch task entry (if state.json exists).
+Stage only files modified during this skill execution (tracked via task summaries). Display the file list for user confirmation before committing (skip confirmation if `-y`). Commit: `git add <file1> <file2> ... && git commit -m "quick: {slug} - {short description}"`. NEVER use `git add -A` — it may stage unrelated changes. Update `.workflow/state.json` scratch task entry (if state.json exists).
 
 Display report: task description, scratch path, status (completed/completed-with-gaps), tasks completed/total, files modified count. If `--full`: include verification result (PASS/GAPS).
 
 </execution>
 
 ### Artifact Verification
-Before reporting completion, verify: plan.json exists AND .summaries/TASK-*-summary.md exists for each task. Task summaries MUST include concrete evidence of completion. If missing: DO NOT report completion.
+Before reporting completion, verify: `{scratchDir}/plan.json` exists AND `{scratchDir}/plan.json` contains task statuses marked completed. Task status entries MUST include concrete evidence of completion (files_modified, verification results). If missing: DO NOT report completion.
 
 <error_codes>
 

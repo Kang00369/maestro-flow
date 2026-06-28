@@ -6,6 +6,10 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 ---
 <base>@~/.maestro/workflows/odyssey-base-codex.md</base>
 
+<required_reading>
+Required reading: base (`odyssey-base-codex.md`) before any actions. Load and apply base invariants, execution discipline, and shared actions before proceeding.
+</required_reading>
+
 <purpose>
 survey → 6-dimension audit → diagnose → fix → verify → generalize → discover → persist.
 Baseline-first, exhaustive iteration until zero remaining actionable findings.
@@ -217,13 +221,13 @@ Root cause analysis for critical/high findings.
 
 1. Group by dimension, prioritize by severity. For each: hypothesis → trace code path + git history → evidence (phase: "diagnosis")
 2. Ambiguity → evidence (phase: "decision"); Normal: request_user_input | `-y`: defer
-3. Complex findings: `maestro delegate --role analyze --mode analysis` (`run_in_background: true`)
+3. Complex findings: `maestro delegate --to claude --mode analysis` (`run_in_background: true`)
 4. Write `session.json.diagnoses[]`. Update section 4. Mark G3.
 
 Commit: `"odyssey-improve({slug}): DIAGNOSE — root cause analysis"`
 
 ### A_ESCALATE_DIAGNOSIS
-`retries++`. < 3: `maestro delegate --role analyze`, new hypotheses, → S_DIAGNOSE. >= 3: Normal → request_user_input | `-y` → INCONCLUSIVE → S_RECORD.
+`retries++`. < 3: `maestro delegate --to claude --mode analysis`, new hypotheses, → S_DIAGNOSE. >= 3: Normal → request_user_input | `-y` → INCONCLUSIVE → S_RECORD.
 
 ### A_FIX
 Fix ALL diagnosed issues by severity tier (critical → high → medium → low within fix_threshold), one dimension at a time. After each tier, re-verify modified area — new findings append to current tier.
@@ -235,7 +239,7 @@ Commit: `"odyssey-improve({slug}): FIX — improvements implemented"`
 ### A_VERIFY
 1. Run tests covering modified areas
 2. Re-capture metrics, compare with `session.json.baseline_metrics`
-3. `maestro delegate --role review --mode analysis` (`run_in_background: true`) — check fix correctness, regressions, impact vs baseline
+3. `maestro delegate --to claude --mode analysis` (`run_in_background: true`) — check fix correctness, regressions, impact vs baseline
 4. `needs_rework` → S_FIX. `verified` → mark G4.
 5. Write `session.json.confirmation`. Update section 5.
 
@@ -263,7 +267,7 @@ Commit: `"odyssey-improve({slug}): GENERALIZE — pattern scan"`
 ### A_DISCOVER, A_RECORD
 Base shared_actions. Improve overrides:
 - **A_RECORD** section 8: before/after comparison table from baseline_metrics vs current measurements
-- **A_RECORD** section 9: learnings per Knowledge Persistence table
+- **A_RECORD** section 9: learnings per Knowledge Persistence table. **Confirmation gate**: Before writing spec entries, present proposed entries to user via `request_user_input` for confirmation. Skip confirmation only if `-y` flag is set.
 
 **Completion summary:**
 ```
@@ -333,6 +337,7 @@ Pending decisions must request_user_input — no report-only.
 </success_criteria>
 
 <next_step_routing>
+<!-- suggest-only — do NOT auto-execute. Present these as suggestions to the user. -->
 | Condition | Next |
 |-----------|------|
 | Security findings need deep investigation | `$odyssey-debug "<finding>"` |

@@ -65,7 +65,7 @@ $quality-review --continue "20260318-review-P3-auth"
 **Flags**:
 - `-y, --yes`: Skip all confirmations (auto mode)
 - `-c, --concurrency N`: Max concurrent agents within each wave (default: 6)
-- `--continue`: Resume existing session
+- `--continue [session-id]`: Resume existing session. If session-id provided, load that session directly. If omitted, list available sessions in `.workflow/.csv-wave/` matching `*-review-*` and prompt user to select. Resume reads master `tasks.csv`, skips completed waves, and continues from the next pending wave.
 - `--level quick|standard|deep`: Explicit review level (default: auto-detect from file count)
 - `--dimensions <list>`: Comma-separated subset of dimensions to review (overrides level defaults)
 - `--skip-specs`: Skip loading project specs as review context
@@ -81,14 +81,14 @@ When `--yes` or `-y`: Auto-confirm dimension selection, skip interactive validat
 ### tasks.csv (Master State)
 
 ```csv
-id,title,description,dimension,changed_files,project_specs,review_level,deps,context_from,wave
-"1","Correctness Review","Review all changed files for correctness: logic errors, missing edge cases, incorrect return values, null/undefined handling, off-by-one errors. Classify each finding as critical/high/medium/low with file:line references.","correctness","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","Existing patterns use Result type for error handling","standard","","","1"
-"2","Security Review","Review all changed files for security vulnerabilities: injection flaws, XSS, CSRF, auth bypass, sensitive data exposure, insecure crypto. Reference OWASP Top 10. Classify each finding.","security","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","Auth uses bcrypt + JWT","standard","","","1"
-"3","Performance Review","Review all changed files for performance issues: N+1 queries, unnecessary re-renders, memory leaks, blocking operations, unoptimized algorithms.","performance","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","","standard","","","1"
-"4","Architecture Review","Review all changed files for architecture issues: layer violations, circular dependencies, inappropriate coupling, missing abstractions, SRP violations.","architecture","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","ESM modules, strict TypeScript","standard","","","1"
-"5","Maintainability Review","Review all changed files for maintainability: code duplication, overly complex functions, poor naming, missing types, unclear control flow.","maintainability","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","","standard","","","1"
-"6","Best Practices Review","Review all changed files for best-practice violations: error handling gaps, missing validation, hardcoded values, deprecated API usage, inconsistent patterns.","best-practices","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","","standard","","","1"
-"7","Aggregate + Deep-Dive","Aggregate all dimension findings. Calculate severity distribution. Determine verdict (PASS/WARN/BLOCK). If critical findings exist, perform deep-dive with cross-file impact analysis.","aggregation","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","","standard","1;2;3;4;5;6","1;2;3;4;5;6","2"
+id,title,description,dimension,changed_files,project_specs,review_level,deps,context_from,wave,status
+"1","Correctness Review","Review all changed files for correctness: logic errors, missing edge cases, incorrect return values, null/undefined handling, off-by-one errors. Classify each finding as critical/high/medium/low with file:line references.","correctness","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","Existing patterns use Result type for error handling","standard","","","1","pending"
+"2","Security Review","Review all changed files for security vulnerabilities: injection flaws, XSS, CSRF, auth bypass, sensitive data exposure, insecure crypto. Reference OWASP Top 10. Classify each finding.","security","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","Auth uses bcrypt + JWT","standard","","","1","pending"
+"3","Performance Review","Review all changed files for performance issues: N+1 queries, unnecessary re-renders, memory leaks, blocking operations, unoptimized algorithms.","performance","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","","standard","","","1","pending"
+"4","Architecture Review","Review all changed files for architecture issues: layer violations, circular dependencies, inappropriate coupling, missing abstractions, SRP violations.","architecture","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","ESM modules, strict TypeScript","standard","","","1","pending"
+"5","Maintainability Review","Review all changed files for maintainability: code duplication, overly complex functions, poor naming, missing types, unclear control flow.","maintainability","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","","standard","","","1","pending"
+"6","Best Practices Review","Review all changed files for best-practice violations: error handling gaps, missing validation, hardcoded values, deprecated API usage, inconsistent patterns.","best-practices","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","","standard","","","1","pending"
+"7","Aggregate + Deep-Dive","Aggregate all dimension findings. Calculate severity distribution. Determine verdict (PASS/WARN/BLOCK). If critical findings exist, perform deep-dive with cross-file impact analysis.","aggregation","src/auth/login.ts;src/auth/register.ts;src/utils/validation.ts","","standard","1;2;3;4;5;6","1;2;3;4;5;6","2","pending"
 ```
 
 **Columns**:
@@ -105,6 +105,7 @@ id,title,description,dimension,changed_files,project_specs,review_level,deps,con
 | `deps` | Input | Semicolon-separated dependency task IDs |
 | `context_from` | Input | Semicolon-separated task IDs whose findings this task needs |
 | `wave` | Computed | Wave number (1 = dimension review, 2 = aggregation) |
+| `status` | Lifecycle | Task lifecycle state in master CSV: `pending` / `completed` / `failed` / `skipped` (initialized to `pending`; updated during merge from `result_status`) |
 | `result_status` | Output | `completed` / `failed` (returned via output_schema) |
 | `findings` | Output | Key review findings summary (max 500 chars) |
 | `severity_counts` | Output | JSON: `{"critical":N,"high":N,"medium":N,"low":N}` |
@@ -166,6 +167,12 @@ Parse `$ARGUMENTS` to extract:
 - `dimsMatch` from `--dimensions <list>`
 - `phaseArg` = remaining text after stripping all flags
 
+**Resume flow** (when `--continue`):
+1. If session-id argument provided: load `.workflow/.csv-wave/{session-id}/tasks.csv` directly
+2. If no session-id: scan `.workflow/.csv-wave/*-review-*` directories, list sessions with their status (pending wave counts), prompt user to select
+3. Read master `tasks.csv`, identify next pending wave (lowest wave number with `status == "pending"` rows), skip to Phase 2 for that wave
+4. If no pending rows remain, skip to Phase 3 (results aggregation)
+
 Session ID: `{YYYYMMDD}-review-P{phaseArg}-{phaseSlug}` (phaseSlug from index.json or roadmap)
 Session folder: `.workflow/.csv-wave/{sessionId}/` — create via `mkdir -p`
 
@@ -210,7 +217,7 @@ If `--dimensions` flag provided, override with explicit list.
 
 #### Wave 1: Dimension Reviews (Parallel)
 
-Filter master `tasks.csv` for `wave == 1 AND status == pending` → write `wave-1.csv` (no prev_context needed).
+Filter master `tasks.csv` for `wave == 1 AND status == "pending"` → write `wave-1.csv` (no prev_context needed).
 
 ```javascript
 spawn_agents_on_csv({
@@ -275,7 +282,7 @@ CONSTRAINTS:
 
 #### Wave 2: Aggregation + Deep-Dive
 
-Filter master `tasks.csv` for `wave == 2 AND status == pending`. If all wave 1 tasks failed, skip aggregation (invariant 6).
+Filter master `tasks.csv` for `wave == 2 AND status == "pending"`. If all wave 1 tasks failed, skip aggregation (invariant 6).
 
 Build `prev_context` from wave 1 findings (format: `[Task N: Title] summary...` per task). **Failed-dependency handling**: exclude failed task IDs from prev_context. If SOME wave 1 tasks failed, append gap_note listing missing dimensions so the aggregation agent knows its coverage is incomplete.
 Write `wave-2.csv` with `prev_context` column → execute `spawn_agents_on_csv` with `REVIEW_AGGREGATION_INSTRUCTION` (same termination contract; output_schema returns `result_status` enum [completed|failed], findings, plus `verdict` enum [PASS|WARN|BLOCK]) → merge results into master `tasks.csv` (map `result_status` → master `status` column) → delete both `wave-2.csv` and `wave-2-results.csv`.

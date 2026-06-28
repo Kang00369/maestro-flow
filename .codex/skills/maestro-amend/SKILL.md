@@ -1,7 +1,7 @@
 ---
 name: maestro-amend
 description: Generate overlays to fix workflow command deficiencies
-argument-hint: "[description] [--from-verify <dir>] [--from-review <dir>] [--from-session <id>] [--from-issues ISS-xxx,...] [--scan] [--dry-run]"
+argument-hint: "[description] [--from-verify <dir>] [--from-review <dir>] [--from-session <id>] [--from-issues ISS-xxx,...] [--scan] [--dry-run] [-y]"
 allowed-tools: Read, Write, Bash, Glob, Grep, request_user_input
 ---
 <purpose>
@@ -33,6 +33,13 @@ Multiple combinable. No flags + no description → interactive (scan + request_u
 
 **CLI targeting**: `"cli": "claude"` (default, patches .claude/commands/), `"codex"` (patches .codex/skills/), `"both"` (both paths)
 
+**Source path mapping by CLI**:
+| CLI | Pristine source path |
+|-----|---------------------|
+| `claude` | `$PKG_ROOT/.claude/commands/<name>.md` |
+| `codex` | `.codex/skills/<name>/SKILL.md` |
+| `both` | Both paths checked; overlay targets whichever exists |
+
 **Output**: `~/.maestro/overlays/amend-{slug}.json` + optional `~/.maestro/overlays/docs/amend-{slug}.md`
 </context>
 
@@ -62,6 +69,7 @@ S_GROUP:
   → S_PREVIEW     DO: A_GROUP_OVERLAYS
 
 S_PREVIEW:
+  → S_DRAFT       WHEN: `-y` flag set (skip confirmation, apply all)
   → S_DRAFT       WHEN: user confirms "Apply all" or selects patches
   → S_PREVIEW     WHEN: user selects "Edit"                DO: modify signal target/section
   → END           WHEN: user cancels
@@ -109,7 +117,7 @@ Per signal, determine:
 | Scope/context gap | context | append |
 | Entirely new concern | _(new section)_ | new-section |
 
-Read pristine source from `$PKG_ROOT/.claude/commands/<name>.md` to confirm section.
+Read pristine source using CLI path mapping: `claude` → `$PKG_ROOT/.claude/commands/<name>.md`, `codex` → `.codex/skills/<name>/SKILL.md`. Confirm section exists in target.
 Classify: command deficiency → proceed; code bug → skip (suggest $maestro-quick).
 
 ### A_GROUP_OVERLAYS

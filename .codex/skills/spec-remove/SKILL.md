@@ -1,7 +1,7 @@
 ---
 name: spec-remove
 description: Remove spec entry by ID
-argument-hint: "<entry-id> [--cascade]"
+argument-hint: "<entry-id> [--cascade] [-y]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
@@ -25,7 +25,8 @@ $ARGUMENTS — entry ID to remove (e.g., `spec-learnings-003`)
 - `maestro search "<query>"` — BM25 search
 
 **Flags:**
-- `--cascade` — When the target spec is a ref-type entry (created via `spec-add --ref` and linked to a knowhow document), also delete the referenced knowhow file. Without this flag, ref-type removal leaves an orphan knowhow file.
+- `--cascade` — When the target spec has a `ref` attribute linking to a knowhow document, also delete the referenced knowhow file. Without this flag, removal leaves an orphan knowhow file. Cascade checks the entry's `ref` attribute in the `<spec-entry>` tag.
+- `-y` — Skip confirmation prompt and proceed with removal immediately.
 </context>
 
 <execution>

@@ -34,7 +34,7 @@ Extract canonical (first token, kebab-case) and definition (remainder) from argu
 
 ### Step 2: Validate Domain Directory
 
-Verify `.workflow/domain/glossary.yaml` exists (E002). If not, run `maestro domain init`.
+Verify `.workflow/domain/glossary.yaml` exists. If missing, ask user to confirm auto-initialization (`maestro domain init`). Proceed on confirmation; abort with E002 if declined. Skip confirmation when `--yes` flag is set.
 
 ### Step 3: Check Duplicates
 
@@ -42,13 +42,15 @@ Read existing glossary and check for:
 - Exact duplicate (same canonical name) → report existing entry, exit
 - Near match (Levenshtein ≤ 2 or alias overlap) → warn, ask to confirm or merge
 
-### Step 4: Extract Metadata
+### Step 4: Extract & Confirm Metadata
 
 Auto-derive from the definition and codebase context:
 - **aliases** (1-3): common abbreviations, Chinese translations, alternate forms
 - **keywords** (3-5): search terms for discovery
 - **tier**: `core` | `extended` | `peripheral`
 - **relationships**: scan existing glossary for related terms
+
+Display a preview of all derived metadata and ask user to confirm or edit before proceeding. When `--yes` / `-y` flag is set, skip confirmation and write directly.
 
 ### Step 5: Register Term
 
@@ -66,7 +68,7 @@ Display: canonical name, definition, aliases, tier, relationships, and verify co
 | Code | Severity | Description |
 |------|----------|-------------|
 | E001 | fatal | Canonical name and definition are both required |
-| E002 | fatal | `.workflow/domain/` not initialized — run `maestro domain init` first |
+| E002 | fatal | `.workflow/domain/` not initialized and user declined auto-init |
 | E003 | fatal | Term already registered with same canonical name |
 </error_codes>
 

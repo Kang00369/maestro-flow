@@ -64,7 +64,7 @@ Follow '~/.maestro/workflows/harvest.md' Stages 1–8 (standard mode) or Stage 9
 - Component-level pitfalls → `learning` category
 - Quality enforcement rules → `quality` category
 - Wiki: `maestro wiki create --type <type> --slug harvest-<source_type>-<short_id>`
-- Spec: `maestro wiki append spec-<file> --body "<content>" --keywords "<kws>"` (unified write path) or `$spec-add "<category> <content>"`
+- Spec: `$spec-add "<category> <content>"` (single source of truth — always use spec-add for spec routing; do NOT use `maestro wiki append` for spec entries)
 - Issue: append to `issues.jsonl` matching canonical schema, with `source: "harvest"` field (distinguishes from `manage-issue-discover`, which uses `source: "discover"` — required for cross-skill dedup when both write concurrently)
 
 **Next steps:** `$manage-wiki health`, `maestro search --type note`, `$wiki-connect --fix`, `$wiki-digest`, `$manage-issue list --source harvest`, `$manage-knowledge-audit --scope spec` (when specs extracted, check for conflicts)

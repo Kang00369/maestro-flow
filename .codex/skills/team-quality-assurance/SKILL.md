@@ -156,6 +156,49 @@ S_WAVE_{N} → S_AGGREGATE     WHEN: last wave
 
 <actions>
 
+### Session Initialization (S_PARSE)
+
+```
+Parse from $ARGUMENTS:
+  AUTO_YES       ← --yes | -y
+  continueMode   ← --continue
+  maxConcurrency ← --concurrency | -c N  (default: 3)
+  modeFlag       ← --mode discovery|testing|full
+  scopeTarget    ← remaining text (file/module path)
+
+Derive:
+  dateStr       ← UTC+8 YYYYMMDD
+  slug          ← first 3 meaningful words, kebab-case
+  sessionId     ← "{dateStr}-qa-{slug}"
+  sessionFolder ← ".workflow/.csv-wave/{sessionId}"
+  skillRoot     ← resolve path to this skill directory
+
+mkdir -p {sessionFolder}
+```
+
+When `--continue`: scan `.workflow/.csv-wave/*-qa-*/tasks.csv` for sessions with pending tasks. Single match → resume. Multiple → `request_user_input`. Read master tasks.csv → find first pending wave → jump to S_WAVE_{N}.
+
+### CSV Generation (S_CSV_GEN)
+
+1. Select mode: `--mode` flag, or detect from scope (single module → discovery, test files exist → testing, else → full)
+2. Load pipeline wave assignments from csv_schema section above
+3. For each task, build CSV row with PURPOSE/TASK/EXPECTED/CONSTRAINTS in description
+4. Initialize lifecycle columns: `status=pending`, empty `findings`/`files_modified`/`coverage_score`/`error`
+5. Write `tasks.csv` and empty `discoveries.ndjson`
+6. User validation (skip if `-y`): display mode, task count, wave structure
+
+### Wave Execution (S_WAVE_{N})
+
+1. Skip check: if all tasks in wave N completed/skipped → next wave
+2. Cascading skip: if any dep is failed/blocked → skip dependents
+3. Build `prev_context` from upstream findings
+4. Write `wave-{N}.csv` with qualifying rows + `prev_context` column
+5. `spawn_agents_on_csv` with output_schema (see below)
+6. Merge results: `result_status` → master `status`
+7. Cascade skip failed task dependents
+8. Delete `wave-{N}.csv` and `wave-{N}-results.csv`
+9. If wave was QARUN → transition to S_GC_CHECK
+
 ### GC Loop
 
 After each QARUN wave:

@@ -2,16 +2,16 @@
 name: maestro-overlay
 description: Create or edit command overlays from natural language
 argument-hint: "<intent> | --list | --remove <name>"
-allowed-tools: Read, Write, Bash, Glob, Grep
+allowed-tools: Read, Write, Bash, Glob, Grep, request_user_input
 ---
 
 <purpose>
 4-step pipeline: parse intent → identify targets + injection points → draft overlay JSON → install via CLI and report. Overlays are JSON patch files that augment `.claude/commands/*.md` non-invasively. They survive reinstalls because `maestro install` auto-reapplies them. Each overlay is idempotent: the patcher wraps content in hashed HTML-comment markers, so re-running `maestro overlay apply` produces no file changes.
 
 ```
-Parse Intent  →  Identify Targets  →  Draft JSON  →  Install + Report
-(or --list /      (read command        (apply_patch    (shell_exec +
-  --remove)         XML sections)       to overlays/)    banner)
+Parse Intent  →  Identify Targets  →  Draft JSON  →  Preview+Confirm  →  Install + Report
+(or --list /      (read command        (apply_patch    (request_user_      (shell_exec +
+  --remove)         XML sections)       to overlays/)    input preview)      banner)
 ```
 
 **Available injection sections**: `purpose`, `required_reading`, `deferred_reading`, `context`, `execution`, `error_codes`, `success_criteria`
@@ -46,7 +46,7 @@ $maestro-overlay "--remove cli-verify-after-execute"
 3. **Idempotent content**: Injected blocks use hashed comment markers — re-runs produce no changes
 4. **Heading required**: Every injected block must start with a `## <Title> (overlay)` heading
 5. **Validate before report**: Run `maestro overlay add` successfully before displaying the report banner
-6. **Max 2 clarification questions**: If intent is ambiguous, ask at most 2 focused questions then proceed with best guess
+6. **Max 2 clarification questions**: If intent is ambiguous, ask at most 2 focused questions. After clarification, always show a preview of the overlay (target commands, injection section, mode, content summary) and request user confirmation via `request_user_input` before writing or installing. Never proceed with best-guess writes without confirmation.
 </invariants>
 
 <execution>
@@ -57,7 +57,7 @@ $maestro-overlay "--remove cli-verify-after-execute"
 - `--list` → run `maestro overlay list`, then stop
 - `--remove <name>` → run `maestro overlay remove <name>`, then stop
 
-**Ambiguous intent**: If target command or injection point unclear, ask up to 2 focused questions.
+**Ambiguous intent**: If target command or injection point unclear, ask up to 2 focused questions via `request_user_input`.
 
 ### Step 2: Identify Targets and Injection Points
 
@@ -91,6 +91,16 @@ Build slug from intent (kebab-case, lowercase, max 40 chars). Write overlay to `
 ```
 
 **Content guidelines**: Lead with `## Title (overlay)` heading. Use `@~/.maestro/...` references. Keep concise.
+
+### Step 3.5: Preview and Confirm
+
+Before writing or installing, show the user a preview via `request_user_input`:
+- Target command(s) and injection section(s)
+- Patch mode (append/prepend/replace/new-section)
+- Content summary (first few lines of injected markdown)
+- Overlay file path
+
+Options: Confirm (proceed to install), Edit (revise content), Cancel (abort).
 
 ### Step 4: Install via CLI and Report
 

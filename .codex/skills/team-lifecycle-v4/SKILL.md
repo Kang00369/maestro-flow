@@ -130,10 +130,10 @@ id,title,description,role,pipeline_phase,deps,context_from,wave
 | Column | Initial Value | Description |
 |--------|--------------|-------------|
 | `status` | `pending` | Task lifecycle: pending → completed/failed/blocked/skipped |
-| `findings` | `""` | Populated from output_schema merge |
-| `files_modified` | `""` | Populated from output_schema merge |
-| `quality_score` | `""` | Populated from output_schema merge |
-| `error` | `""` | Populated from output_schema merge |
+| `findings` | `""` | Populated from output_schema `result_findings` during merge |
+| `files_modified` | `""` | Populated from output_schema `result_files_modified` during merge |
+| `quality_score` | `""` | Populated from output_schema `result_quality_score` during merge |
+| `error` | `""` | Populated from output_schema `result_error` during merge |
 
 **Dynamic column** (added to wave-N.csv only, not in initial tasks.csv):
 
@@ -146,12 +146,12 @@ id,title,description,role,pipeline_phase,deps,context_from,wave
 | Column | Description |
 |--------|-------------|
 | `result_status` | completed / failed / blocked (maps to master `status`) |
-| `findings` | Key findings (max 500 chars) |
-| `files_modified` | Semicolon-separated paths |
-| `quality_score` | Numeric quality score (0-100) |
-| `error` | Error message if failed |
+| `result_findings` | Key findings (max 500 chars) → maps to master `findings` |
+| `result_files_modified` | Semicolon-separated paths → maps to master `files_modified` |
+| `result_quality_score` | Numeric quality score (0-100) → maps to master `quality_score` |
+| `result_error` | Error message if failed → maps to master `error` |
 
-**Column separation rule**: Input/lifecycle columns and output_schema MUST NOT share names. `result_status` → master `status` during merge.
+**Column separation rule**: Input/lifecycle columns and output_schema MUST NOT share names. Merge mapping: `result_status` → `status`, `result_findings` → `findings`, `result_files_modified` → `files_modified`, `result_quality_score` → `quality_score`, `result_error` → `error`.
 
 ### Pipeline Wave Assignments
 
@@ -201,7 +201,7 @@ spec-only waves 1-8 + user approval checkpoint + impl-only waves shifted.
 6. **Discovery Board is Append-Only**: Never clear/modify discoveries.ndjson
 7. **Cascading Skip on Failure**: Failed tasks cascade to dependents
 8. **Cleanup Temp Files**: Delete wave-N.csv and wave-N-results.csv after merge
-9. **Checkpoint Pause**: After CHECKPOINT waves, pause for user approval (skip if -y)
+9. **Checkpoint Pause**: After CHECKPOINT waves, pause for user approval (skip if -y). Record approval decision in master tasks.csv (`status=approved|revision_requested|aborted`) and persist gate state to `{sessionFolder}/gate-{checkpoint_id}.json`
 10. **DO NOT STOP**: Continuous execution between checkpoints
 11. **Role Files are Authoritative**: Agents read roles/{role}/role.md for domain logic
 </invariants>
@@ -227,9 +227,9 @@ S_WAVE_{N} → S_CHECKPOINT     WHEN: wave N was a CHECKPOINT task
 S_WAVE_{N} → S_WAVE_{N+1}     WHEN: wave N not checkpoint, more waves
 S_WAVE_{N} → S_AGGREGATE      WHEN: last wave complete
 
-S_CHECKPOINT → S_WAVE_{N+1}   WHEN: user approves or -y
-S_CHECKPOINT → S_WAVE_{N}     WHEN: user requests revision (re-run checkpoint)
-S_CHECKPOINT → S_AGGREGATE    WHEN: user aborts
+S_CHECKPOINT → S_WAVE_{N+1}   WHEN: user approves or -y (persist: set CHECKPOINT task status=approved in tasks.csv, write gate-{id}.json)
+S_CHECKPOINT → S_WAVE_{N}     WHEN: user requests revision (persist: set CHECKPOINT task status=revision_requested in tasks.csv, write gate-{id}.json with feedback)
+S_CHECKPOINT → S_AGGREGATE    WHEN: user aborts (persist: set CHECKPOINT task status=aborted in tasks.csv, write gate-{id}.json)
 </transitions>
 
 <actions>
@@ -311,30 +311,37 @@ spawn_agents_on_csv({
   output_schema: {
     type: "object",
     properties: {
-      id:             { type: "string" },
-      result_status:  { type: "string", enum: ["completed", "failed", "blocked"] },
-      findings:       { type: "string", maxLength: 500 },
-      files_modified: { type: "string", description: "Semicolon-separated paths" },
-      quality_score:  { type: "string", description: "0-100" },
-      error:          { type: "string" }
+      id:                    { type: "string" },
+      result_status:         { type: "string", enum: ["completed", "failed", "blocked"] },
+      result_findings:       { type: "string", maxLength: 500 },
+      result_files_modified: { type: "string", description: "Semicolon-separated paths" },
+      result_quality_score:  { type: "string", description: "0-100" },
+      result_error:          { type: "string" }
     },
-    required: ["id", "result_status", "findings"]
+    required: ["id", "result_status", "result_findings"]
   }
 })
 ```
 
 #### Step 5: Merge + Cleanup
 1. Map `result_status` → master `status`
-2. Copy `findings`, `files_modified`, `quality_score`, `error`
+2. Map `result_findings` → master `findings`, `result_files_modified` → master `files_modified`, `result_quality_score` → master `quality_score`, `result_error` → master `error`
 3. Delete `wave-{N}.csv` AND `wave-{N}-results.csv`
 4. Cascade skip failed task dependents
 
 #### Step 6: Checkpoint handling
 If wave N was a CHECKPOINT task:
-- Read supervisor's `findings` and `quality_score`
+- Read supervisor's `result_findings` and `result_quality_score`
 - If quality_score >= 80 (pass) → continue
 - If 60-79 (review) → display warnings, continue (or pause if not -y)
 - If < 60 (fail) → pause for user: Revise / Override / Abort
+- **Persist approval decision**:
+  1. Update CHECKPOINT task `status` in master tasks.csv to `approved` / `revision_requested` / `aborted`
+  2. Write `{sessionFolder}/gate-{checkpoint_id}.json`:
+     ```json
+     {"checkpoint_id":"<id>","decision":"approved|revision_requested|aborted","quality_score":<N>,"feedback":"<user feedback if any>","timestamp":"<ISO>"}
+     ```
+  3. On `--continue` resume, read gate files to restore checkpoint state
 
 ### Instruction Builder
 
@@ -393,10 +400,10 @@ Append to {sessionFolder}/discoveries.ndjson:
 ## Output
 Return via output_schema:
 - result_status: completed | failed | blocked
-- findings: key findings (max 500 chars)
-- files_modified: semicolon-separated paths
-- quality_score: 0-100 per quality-gates.md
-- error: error message if not completed
+- result_findings: key findings (max 500 chars)
+- result_files_modified: semicolon-separated paths
+- result_quality_score: 0-100 per quality-gates.md
+- result_error: error message if not completed
 ```
 
 ### Results Aggregation (S_AGGREGATE)

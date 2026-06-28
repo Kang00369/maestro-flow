@@ -29,8 +29,9 @@ $spec-load "--category review"
 | `test-conventions.md` | test |
 | `review-standards.md` | review |
 | `debug-notes.md` | debug |
-| `quality-rules.md` | review |
-| `learnings.md` | coding |
+| `quality-rules.md` | quality |
+| `learnings.md` | learning |
+| `tools.md` | tools |
 
 **--category loading**: Loads category's primary doc in full + matching entries from other files.
 

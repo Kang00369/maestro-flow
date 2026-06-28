@@ -123,8 +123,9 @@ Write collected configuration to `.workflow/config.json`.
 Run `Bash("maestro spec init")` to create empty seed files in `.workflow/specs/`.
 
 If project state is **code** (existing source files detected in Step 2):
-- Auto-trigger `$spec-setup` to scan codebase and populate specs with detected conventions
-- This runs unconditionally for `code` state — existing source means conventions can be extracted
+- Suggest `$spec-setup` to scan codebase and populate specs with detected conventions
+- Ask user via `request_user_input`: "Source files detected. Run spec-setup to scan codebase conventions?" with options: "Yes, scan now (Recommended)" / "No, skip for now"
+- Only run `$spec-setup` if user confirms
 
 If project state is **empty** (greenfield, no source files found in Step 2):
 - Skip spec-setup entirely — no code to scan

@@ -78,7 +78,7 @@ id,title,description,role,scan_dimension,deps,context_from,wave
 | `result_status` | completed / failed / blocked |
 | `findings` | Key findings (max 500 chars) |
 | `files_modified` | Semicolon-separated paths |
-| `debt_count` | Number of debt items found/fixed |
+| `debt_count` | Number of debt items found/fixed (string type, e.g. "5") |
 | `regression_detected` | true/false (for TDVAL tasks) |
 | `error` | Error message |
 
@@ -136,6 +136,7 @@ S_CSV_GEN     — Generate tasks.csv
 S_WAVE_{N}    — Execute wave N
 S_PLAN_GATE   — User approval of remediation plan
 S_GC_CHECK    — Regression check after TDVAL
+S_DEGRADED_AGGREGATE — Aggregate partial results after GC exhaustion (regression persists)
 S_AGGREGATE   — Generate report
 </states>
 
@@ -149,11 +150,56 @@ S_WAVE_{N} → S_AGGREGATE       WHEN: last wave
 S_PLAN_GATE → S_WAVE_{N+1}     WHEN: user approves
 S_PLAN_GATE → S_WAVE_{N}       WHEN: user requests revision (re-run TDPLAN with feedback)
 S_PLAN_GATE → S_AGGREGATE      WHEN: user aborts
-S_GC_CHECK → S_AGGREGATE       WHEN: no regression or gc_rounds >= 3
-S_GC_CHECK → S_WAVE_{N+1}      WHEN: regression, add TDFIX+TDVAL rows
+S_GC_CHECK → S_AGGREGATE           WHEN: no regression (clean pass)
+S_GC_CHECK → S_WAVE_{N+1}          WHEN: regression AND gc_rounds < 3 (add TDFIX+TDVAL rows)
+S_GC_CHECK → S_DEGRADED_AGGREGATE  WHEN: regression AND gc_rounds >= 3 (aggregate partial results with regression warning)
 </transitions>
 
 <actions>
+
+### Session Initialization (S_PARSE)
+
+```
+Parse from $ARGUMENTS:
+  AUTO_YES       ← --yes | -y
+  continueMode   ← --continue
+  maxConcurrency ← --concurrency | -c N  (default: 3)
+  modeFlag       ← --mode scan|remediate|targeted
+  scopeTarget    ← remaining text (file/module path)
+
+Derive:
+  dateStr       ← UTC+8 YYYYMMDD
+  slug          ← first 3 meaningful words, kebab-case
+  sessionId     ← "{dateStr}-td-{slug}"
+  sessionFolder ← ".workflow/.csv-wave/{sessionId}"
+  skillRoot     ← resolve path to this skill directory
+
+mkdir -p {sessionFolder}
+```
+
+When `--continue`: scan `.workflow/.csv-wave/*-td-*/tasks.csv` for sessions with pending tasks. Single match → resume. Multiple → `request_user_input`. Read master tasks.csv → find first pending wave → jump to S_WAVE_{N}.
+
+### Mode Selection + CSV Generation (S_CSV_GEN)
+
+1. Select mode: `--mode` flag, or detect from scope (no existing scan → scan, existing scan results → remediate, specific debt items → targeted)
+2. Load pipeline wave assignments from csv_schema section above
+3. For each task, build CSV row with PURPOSE/TASK/EXPECTED/CONSTRAINTS in description
+4. Initialize lifecycle columns: `status=pending`, empty `findings`/`files_modified`/`debt_count`/`regression_detected`/`error`
+5. Write `tasks.csv` and empty `discoveries.ndjson`
+6. User validation (skip if `-y`): display mode, task count, wave structure
+
+### Wave Execution (S_WAVE_{N})
+
+1. Skip check: if all tasks in wave N completed/skipped → next wave
+2. Cascading skip: if any dep is failed/blocked → skip dependents
+3. Build `prev_context` from upstream findings
+4. Write `wave-{N}.csv` with qualifying rows + `prev_context` column
+5. `spawn_agents_on_csv` with output_schema (see below)
+6. Merge results: `result_status` → master `status`
+7. Cascade skip failed task dependents
+8. Delete `wave-{N}.csv` and `wave-{N}-results.csv`
+9. If TDPLAN wave complete → transition to S_PLAN_GATE
+10. If TDVAL wave complete → transition to S_GC_CHECK
 
 ### Plan Gate
 
@@ -169,9 +215,9 @@ After TDPLAN wave:
 
 After TDVAL wave:
 1. Read `regression_detected` from results
-2. No regression → complete
-3. Regression AND gc_rounds < 3 → add TDFIX+TDVAL rows, iterate
-4. gc_rounds >= 3 → escalate to user
+2. No regression → S_AGGREGATE (clean pass)
+3. Regression AND gc_rounds < 3 → add TDFIX+TDVAL rows to tasks.csv, increment wave, iterate
+4. Regression AND gc_rounds >= 3 → S_DEGRADED_AGGREGATE (aggregate partial results with regression warning, escalate to user)
 
 ### Instruction Builder
 
@@ -202,7 +248,7 @@ Return JSON:
   "result_status": "completed" | "failed" | "blocked",
   "findings": "<key findings, max 500 chars>",
   "files_modified": "<semicolon-separated paths or empty>",
-  "debt_count": <integer or empty>,
+  "debt_count": "<integer as string or empty>",
   "regression_detected": "true" | "false" | "" (TDVAL only),
   "error": "<message if not completed>"
 }

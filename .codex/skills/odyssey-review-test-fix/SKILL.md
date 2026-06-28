@@ -6,6 +6,10 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 ---
 <base>@~/.maestro/workflows/odyssey-base-codex.md</base>
 
+<required_reading>
+Required reading: base (`odyssey-base-codex.md`) before any actions. Load and apply base invariants, execution discipline, and shared actions before proceeding.
+</required_reading>
+
 <purpose>
 archaeology → explore → multi-dimensional review → fix ALL findings → confirm → generalize → discover → persist. Zero-residual: every finding must have an action (fix/issue/decision).
 </purpose>
@@ -156,10 +160,10 @@ spawn_agents_on_csv({ csv_path: "tasks.csv", id_column: "id",
   max_concurrency: 2, max_runtime_seconds: 300,
   output_csv_path: "wave-1-results.csv", output_schema: SHARED_OUTPUT_SCHEMA })
 ```
-Merge → evidence (phase: archaeology). CLI delegate `--role analyze`. Update section 2.
+Merge → evidence (phase: archaeology). CLI delegate `--to claude --mode analysis`. Update section 2.
 
 ### A_EXPLORE
-CLI delegate `--role explore` — call chains, error gaps, similar patterns. Write explore.json. Update section 3. Mark G2.
+CLI delegate `--to claude --mode analysis` — call chains, error gaps, similar patterns. Write explore.json. Update section 3. Mark G2.
 
 ### A_REVIEW
 **spawn_agents_on_csv (Wave 2):**
@@ -192,7 +196,7 @@ Remaining > 0 → retry (no max_loops limit). Unchanged 2 rounds → classify ea
 Blanket "pre-existing" forbidden.
 
 ### A_CONFIRM
-Run tests + CLI delegate zero-residual review (`--role review`).
+Run tests + CLI delegate zero-residual review (`--to claude --mode analysis`).
 - `remaining == 0 AND new == 0` → confirmed, mark G3
 - Otherwise → needs_rework → S_FIX
 
@@ -223,7 +227,7 @@ Mark G4.
 Base shared_actions. Review overrides: cross-phase loop tracking per base.
 
 ### A_RECORD
-Base shared_actions. Learnings per Knowledge Persistence table.
+Base shared_actions. Learnings per Knowledge Persistence table. **Confirmation gate**: Before writing spec entries, present proposed entries to user via `request_user_input` for confirmation. Skip confirmation only if `-y` flag is set.
 
 **Completion summary:**
 ```
@@ -278,6 +282,7 @@ Decision pending must request_user_input.
 </success_criteria>
 
 <next_step_routing>
+<!-- suggest-only — do NOT auto-execute. Present these as suggestions to the user. -->
 | Condition | Next |
 |-----------|------|
 | Deeper debug needed | `$odyssey-debug "<finding>"` |

@@ -32,7 +32,7 @@ Verify `.workflow/` exists (E001) and `.workflow/codebase/` exists (E002 -- use 
 
 ### Step 2: Detect Changes
 
-Resolve baseline: `--since` flag > `state.json.codebase_last_refreshed` > `codebase_last_rebuilt` > 7-day fallback. Run `git diff --name-only --since="{baseline}" HEAD`. If no changes: W001, exit.
+Resolve baseline: `--since` flag > `state.json.codebase_last_refreshed` > `codebase_last_rebuilt` > 7-day fallback. Find the baseline commit via `git log --since="{baseline}" --reverse --format="%H" | head -1`. If no commit found, use `HEAD~1`. Then run `git diff --name-only {baseline_commit}..HEAD`. If no changes: W001, exit.
 
 ### Step 3: Map Changes to Docs
 

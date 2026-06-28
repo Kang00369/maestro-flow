@@ -1,7 +1,7 @@
 ---
 name: spec-add
 description: Add spec entry by category with role tagging
-argument-hint: "<category> <content>"
+argument-hint: "<category> <title> <content>"
 allowed-tools: Read, Write, Bash, Glob, Grep
 ---
 
@@ -17,11 +17,13 @@ $spec-add "quality All API endpoints must return structured error objects"
 
 **Valid categories**: coding, arch, quality, debug, test, review, learning, tools, bug, pattern, decision, rule, validation.
 
+**Input format**: `<category> <title> <content>` — category is the first token, title is a short identifier (quoted if multi-word), content is the remainder.
+
 **CLI alternative**: `maestro spec add <category> "<title>" "<content>" --keywords kw1,kw2 --description "<desc>" --source <src>`. Used by workflow agents (analyze, plan, execute) for programmatic spec enrichment.
 </purpose>
 
 <context>
-$ARGUMENTS — `<category> <content>` where category selects the target file.
+$ARGUMENTS — `<category> <title> <content>` where category selects the target file, title is a short identifier, and content is the spec body.
 
 **Category-to-file mapping (1:1, same as spec-load):**
 | Category | Target file |
@@ -49,9 +51,9 @@ Category is determined by the first positional argument.
 
 ### Step 1: Parse Input
 
-Extract category (first token) and content (remainder) from arguments.
-- Validate category is one of: coding, arch, quality, debug, test, review, learning, bug, pattern, decision, rule, validation (E003 if invalid)
-- Validate content is non-empty (E001 if missing)
+Extract category (first token), title (second token or quoted string), and content (remainder) from arguments.
+- Validate category is one of: coding, arch, quality, debug, test, review, learning, tools, bug, pattern, decision, rule, validation (E003 if invalid)
+- Validate title and content are non-empty (E001 if missing)
 
 ### Step 2: Validate Specs Directory
 
@@ -92,9 +94,9 @@ Display: category, target file, extracted keywords, and commands for verify (`$s
 <error_codes>
 | Code | Severity | Description |
 |------|----------|-------------|
-| E001 | fatal | Category and content are both required |
+| E001 | fatal | Category, title, and content are all required |
 | E002 | fatal | `.workflow/specs/` not initialized -- run `$spec-setup` first |
-| E003 | fatal | Invalid category -- must be one of: coding, arch, quality, debug, test, review, learning, ui, bug, pattern, decision, rule, validation |
+| E003 | fatal | Invalid category -- must be one of: coding, arch, quality, debug, test, review, learning, tools, bug, pattern, decision, rule, validation |
 </error_codes>
 
 <success_criteria>

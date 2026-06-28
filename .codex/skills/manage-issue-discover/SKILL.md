@@ -78,16 +78,16 @@ When `--yes` or `-y`: Auto-confirm perspective selection, skip interactive valid
 ### tasks.csv (Master State)
 
 ```csv
-id,title,description,perspective,scope_glob,deps,context_from,wave
-"1","Security Scan","Scan codebase for security vulnerabilities: authentication bypass, injection flaws, XSS, CSRF, sensitive data exposure, insecure crypto, secrets in code. Rate each finding critical/high/medium/low with file:line references.","security","src/**/*.{ts,tsx,js,jsx}","","","1"
-"2","Performance Scan","Scan codebase for performance issues: N+1 queries, unbounded loops, missing caching, memory leaks, large payloads, blocking operations, unoptimized algorithms.","performance","src/**/*.{ts,tsx,js,jsx}","","","1"
-"3","Reliability Scan","Scan codebase for reliability issues: unhandled errors, missing retry logic, race conditions, data integrity gaps, missing graceful degradation, silent failures.","reliability","src/**/*.{ts,tsx,js,jsx}","","","1"
-"4","Maintainability Scan","Scan codebase for maintainability issues: code duplication, tight coupling, missing abstractions, unclear naming, dead code, overly complex functions.","maintainability","src/**/*.{ts,tsx,js,jsx}","","","1"
-"5","Scalability Scan","Scan codebase for scalability issues: hardcoded limits, single-threaded bottlenecks, stateful assumptions, schema rigidity, missing pagination.","scalability","src/**/*.{ts,tsx,js,jsx}","","","1"
-"6","UX Scan","Scan codebase for UX issues: confusing flows, missing user feedback, inconsistent behavior, missing loading states, poor error messages.","ux","src/**/*.{ts,tsx,js,jsx}","","","1"
-"7","Accessibility Scan","Scan codebase for accessibility issues: missing ARIA labels, keyboard navigation gaps, color contrast problems, missing alt text, focus management issues.","accessibility","src/**/*.{ts,tsx,js,jsx}","","","1"
-"8","Compliance Scan","Scan codebase for compliance issues: logging gaps, missing audit trails, data retention violations, privacy control gaps, regulatory requirement gaps.","compliance","src/**/*.{ts,tsx,js,jsx}","","","1"
-"9","Dedup + Issue Creation","Aggregate all perspective findings. Deduplicate by file path + description similarity (keep higher severity). Generate ISS-YYYYMMDD-NNN issue records. Append to .workflow/issues/issues.jsonl.","dedup","","1;2;3;4;5;6;7;8","1;2;3;4;5;6;7;8","2"
+id,title,description,perspective,scope_glob,deps,context_from,wave,status
+"1","Security Scan","Scan codebase for security vulnerabilities: authentication bypass, injection flaws, XSS, CSRF, sensitive data exposure, insecure crypto, secrets in code. Rate each finding critical/high/medium/low with file:line references.","security","src/**/*.{ts,tsx,js,jsx}","","","1","pending"
+"2","Performance Scan","Scan codebase for performance issues: N+1 queries, unbounded loops, missing caching, memory leaks, large payloads, blocking operations, unoptimized algorithms.","performance","src/**/*.{ts,tsx,js,jsx}","","","1","pending"
+"3","Reliability Scan","Scan codebase for reliability issues: unhandled errors, missing retry logic, race conditions, data integrity gaps, missing graceful degradation, silent failures.","reliability","src/**/*.{ts,tsx,js,jsx}","","","1","pending"
+"4","Maintainability Scan","Scan codebase for maintainability issues: code duplication, tight coupling, missing abstractions, unclear naming, dead code, overly complex functions.","maintainability","src/**/*.{ts,tsx,js,jsx}","","","1","pending"
+"5","Scalability Scan","Scan codebase for scalability issues: hardcoded limits, single-threaded bottlenecks, stateful assumptions, schema rigidity, missing pagination.","scalability","src/**/*.{ts,tsx,js,jsx}","","","1","pending"
+"6","UX Scan","Scan codebase for UX issues: confusing flows, missing user feedback, inconsistent behavior, missing loading states, poor error messages.","ux","src/**/*.{ts,tsx,js,jsx}","","","1","pending"
+"7","Accessibility Scan","Scan codebase for accessibility issues: missing ARIA labels, keyboard navigation gaps, color contrast problems, missing alt text, focus management issues.","accessibility","src/**/*.{ts,tsx,js,jsx}","","","1","pending"
+"8","Compliance Scan","Scan codebase for compliance issues: logging gaps, missing audit trails, data retention violations, privacy control gaps, regulatory requirement gaps.","compliance","src/**/*.{ts,tsx,js,jsx}","","","1","pending"
+"9","Dedup + Issue Creation","Aggregate all perspective findings. Deduplicate by file path + description similarity (keep higher severity). Generate ISS-YYYYMMDD-NNN issue records. Append to .workflow/issues/issues.jsonl.","dedup","","1;2;3;4;5;6;7;8","1;2;3;4;5;6;7;8","2","pending"
 ```
 
 **Columns**:
@@ -102,6 +102,7 @@ id,title,description,perspective,scope_glob,deps,context_from,wave
 | `deps` | Input | Semicolon-separated dependency task IDs |
 | `context_from` | Input | Semicolon-separated task IDs whose findings this task needs |
 | `wave` | Computed | Wave number (1 = perspective scans, 2 = dedup + issue creation) |
+| `status` | Lifecycle | Task lifecycle status, initialized to `pending`. Updated to `completed`/`failed`/`skipped` after wave merge via `result_status` mapping |
 | `result_status` | Output | `completed` / `failed` / `skipped` (mapped to master `status` on merge) |
 | `findings` | Output | Key scan findings summary (max 500 chars) |
 | `issues_found` | Output | JSON array of discovered issues: `[{"title":"...","severity":"critical","description":"...","location":"file:line","fix_direction":"...","affected_components":["..."]}]` |
@@ -309,8 +310,8 @@ CONSTRAINTS:
 
 1. Read master `tasks.csv`
 2. Filter rows where `wave == 2` AND `status == pending`
-3. Check deps -- if all wave 1 agents failed, skip dedup
-4. Build `prev_context` from wave 1 findings:
+3. Check deps -- if all wave 1 agents failed, skip dedup (invariant 6)
+4. Build `prev_context` from **completed** wave 1 rows only. Exclude `failed`/`skipped` rows. For excluded rows, inject `[GAP: {perspective} scan failed — findings incomplete]` note. Set `evidence_incomplete: true` if any perspective failed:
    ```
    [Task 1: Security Scan] Found 3 issues: SQL injection in query builder (critical), missing CSRF token (high)...
    [Task 2: Performance Scan] Found 5 issues: N+1 query in user listing (high), missing pagination (medium)...
@@ -384,7 +385,7 @@ CONSTRAINTS:
 - Merge all perspective findings from prev_context into single list
 - Deduplicate: group by file path, compare descriptions (>80% overlap or same file:line → keep higher severity)
 - For each unique finding: generate `ISS-YYYYMMDD-NNN` ID (collision-safe), build full issue record
-  - Severity-to-priority: critical→1, high→2, medium→3, low→4; source = "discovery", tags = ["{perspective}"]
+  - Severity-to-priority: critical→1, high→2, medium→3, low→4; source = "discover", tags = ["{perspective}"]
 - Append to `.workflow/issues/issues.jsonl` and `{discoveryDir}/discovery-issues.jsonl`
 - Report: pre-dedup count, post-dedup count, severity_distribution
 
@@ -503,7 +504,7 @@ echo '{"ts":"<ISO>","worker":"{id}","type":"vulnerability","data":{"location":"s
 | `by-prompt` with empty prompt | Interactive prompt with suggested options |
 | Perspective agent timeout | Mark as failed, continue remaining perspectives |
 | All perspective agents failed | Skip dedup, report no findings |
-| Dedup agent failed | Use wave 1 results directly, create issues from raw findings |
+| Dedup agent failed | Do NOT write to issues.jsonl — preserve raw findings in context.md and `{discoveryDir}/` for manual review or retry. Mark session `incomplete`. |
 | issues.jsonl write failure | Retry once, then report error with findings in context.md |
 | CSV parse error | Validate format, show line number |
 | discoveries.ndjson corrupt | Ignore malformed lines |

@@ -1,7 +1,7 @@
 ---
 name: odyssey-ui
 description: Long-running UI optimization cycle — visual survey, multi-dimensional audit, divergent exploration, fix, verify, generalize, and design knowledge persistence
-argument-hint: "<target> [--dimensions <list>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c] [--heartbeat]"
+argument-hint: "<target> [--dimensions <list>] [--fix-threshold <severity>] [--skip-fix] [--skip-generalize] [--auto] [-y] [-c] [--heartbeat]"
 allowed-tools:
   - Read
   - Write
@@ -136,7 +136,7 @@ Glob latest session → read `session.json` → jump to `current_state`.
 ### A_SURVEY
 1. **Design system inventory**: Scan for design tokens, CSS variables, theme imports
 2. **Current state analysis**: Styling patterns, layout strategy, component hierarchy
-3. **CLI-assisted**: `maestro delegate --role analyze` — survey tokens, spacing, typography, hierarchy, consistency
+3. **CLI-assisted**: `maestro delegate --role analyze --mode analysis` — survey tokens, spacing, typography, hierarchy, consistency
 4. Append evidence phase=survey. Update section 2. Mark G1.
 
 Commit: `"odyssey-ui({slug}): SURVEY — design token inventory"`
@@ -167,7 +167,7 @@ Goes beyond defect fixing — "what would make this delightful?"
 
 Each returns `[{idea, category (polish|delight), impact, effort, description, inspiration}]`
 
-**Step 2 — CLI-assisted**: `maestro delegate --role analyze` — polish opportunities, micro-interactions, visual rhythm, delight moments
+**Step 2 — CLI-assisted**: `maestro delegate --role analyze --mode analysis` — polish opportunities, micro-interactions, visual rhythm, delight moments
 
 **Step 3 — Consolidate**: Merge audit findings + divergent ideas → prioritized list (severity x impact x effort).
 Append evidence phase=diverge. Update section 4. Mark G3.
@@ -184,7 +184,7 @@ Commit: `"odyssey-ui({slug}): FIX — implement improvements"`
 
 ### A_VERIFY
 1. Run tests (lint, unit, visual regression)
-2. `maestro delegate --role review` — visual correctness, interaction states, accessibility, responsive
+2. `maestro delegate --role review --mode analysis` — visual correctness, interaction states, accessibility, responsive
 3. `needs_rework` → S_FIX. `verified` → mark G4. Update section 5, write `confirmation`.
 
 Commit: `"odyssey-ui({slug}): VERIFY — visual verification"`

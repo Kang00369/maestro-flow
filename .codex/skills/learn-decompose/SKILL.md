@@ -77,7 +77,9 @@ Generate `tasks.csv` with 4 dimension rows (wave 1) + 1 cross-ref row (wave 2). 
     "findings":      { "type": "string", "maxLength": 500 },
     "error":         { "type": "string" }
   },
-  "required": ["id", "result_status", "findings"]
+  "required": ["id", "result_status", "findings"],
+  "if":   { "properties": { "result_status": { "const": "completed" } } },
+  "then": { "required": ["id", "result_status", "findings", "patterns", "dimension"] }
 }
 ```
 
@@ -110,14 +112,29 @@ Each dimension agent populates `patterns` as a JSON array string of:
 
 ### Phase 3: Wave 2 — Cross-Reference + Catalog
 
-Single agent receives all wave 1 findings via `prev_context`. Uses same `output_schema` + termination contract above. Tasks:
+Single agent receives all wave 1 findings via `prev_context`. Uses same `output_schema` + termination contract above.
+
+**prev_context filtering**: Only rows with `result_status=="completed"` are forwarded. For each wave 1 row that `failed`, append a `gap_note` line to the cross-ref instruction: `"[GAP] {dimension} scan failed — catalog may be incomplete for this dimension."` The cross-ref agent must not fabricate patterns for missing dimensions.
+
+Tasks:
 - Match against dedup set → mark as `documented`, `known`, or `new`
 - Merge duplicates across dimensions (same pattern found by multiple agents)
 - Flag contradictions with documented conventions
-- Build pattern catalog grouped by dimension
+- Build pattern catalog grouped by dimension; note any gap dimensions
 
 ### Phase 4: Persist
 
+**Preview gate** (unless `-y`/`--yes`):
+1. Build a summary table of all writes that will be performed:
+   - Knowhow file path + pattern count
+   - New patterns to append to `learnings.md` (list names + INS-ids)
+   - If `--save-spec`: spec entries to create
+   - If `--save-wiki`: wiki notes to create
+2. Display the summary to the user via `request_user_input` asking for confirmation (`y` to proceed, `n` to abort, `e` to edit selection).
+3. If user selects `e`, re-display with checkboxes and apply only checked items.
+4. If `-y`/`--yes` flag is set, skip the preview gate and write all items automatically.
+
+**Writes:**
 1. Write `KNW-decompose-{slug}-{date}.md` with full catalog
 2. Append each **new** pattern to `.workflow/specs/learnings.md` (source: "decompose", category: "pattern")
 3. If `--save-spec`: invoke `spec-add` per new pattern
@@ -129,7 +146,7 @@ Single agent receives all wave 1 findings via `prev_context`. Uses same `output_
 |------|----------|-----------|----------|
 | E001 | error | Target path not found | Check path or use module name |
 | E002 | error | No source files in target | Check target has .ts/.js files |
-| W001 | warning | Dimension agent failed — partial results | Proceed with available dimensions |
+| W001 | warning | Dimension agent failed — partial results | Exclude from prev_context, add gap_note, proceed |
 | W002 | warning | coding-conventions.md not found | All patterns marked "new" |
 </error_codes>
 
@@ -138,6 +155,7 @@ Single agent receives all wave 1 findings via `prev_context`. Uses same `output_
 - [ ] 4 dimension agents spawned in parallel via spawn_agents_on_csv
 - [ ] Each finding has: name, dimension, confidence, anchors, description
 - [ ] Cross-reference performed (documented / known / new)
+- [ ] Preview summary shown and user confirmed (or `-y` flag bypassed)
 - [ ] Pattern catalog written to `KNW-decompose-{slug}-{date}.md`
 - [ ] New patterns appended to `.workflow/specs/learnings.md` with stable INS-ids
 - [ ] If --save-spec / --save-wiki: entries created

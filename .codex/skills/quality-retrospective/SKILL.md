@@ -2,7 +2,7 @@
 name: quality-retrospective
 description: Use after completing a phase to extract lessons, patterns, and improvement opportunities
 argument-hint: "[phase|N..M] [--lens technical|process|quality|decision] [--all] [--no-route] [--compare N] [-y]"
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, spawn_agent, wait_agent, close_agent, request_user_input
 ---
 
 <purpose>
@@ -130,7 +130,7 @@ Each artifact's type determines its outputs at `.workflow/{a.path}/`:
 5. **Synthesizer is isolated**: `fork_turns: "none"` -- receives lens results only via message, not full conversation history
 6. **Stable INS-ids**: `INS-{8hex}` from `hash(phase_num + lens + title)` -- re-runs do not create duplicates
 7. **Archive before overwrite**: Move existing retrospective.{md,json} to `.history/` with timestamp before writing new ones
-8. **Spec learnings.md backward-compat**: Append to it only if it already exists -- never create it
+8. **Spec learnings.md**: Create `.workflow/specs/learnings.md` if it does not exist, then append insights
 9. **Route confirmation**: Unless `-y`, present routing table and ask per-group before writing spec/issue/knowhow
 10. **Lessons always written**: Append to `.workflow/specs/learnings.md` regardless of `--no-route` -- routing only controls spec/issue/knowhow creation
 </invariants>
@@ -165,9 +165,6 @@ Validate `--lens` values. If `--compare <M>` present, require single mode.
 Update plan: Stages 1-3 → completed; Stage 4 → in_progress.
 
 ### Stage 4: Context-Agent Fork + Parallel Lens Analysis
-
-**Archive if overwriting**:
-If existing `retrospective.{md,json}` present, move to `{artifact_dir}/.history/` with timestamp suffix before spawning.
 
 **Step 4a: Spawn context agent**
 ```javascript
@@ -253,13 +250,15 @@ If `!AUTO_YES`: present routing table and ask confirmation before routing each g
 
 ### Stage 7: Write Artifacts
 
+**Archive if overwriting**: If existing `retrospective.{md,json}` present, move to `{artifact_dir}/.history/` with timestamp suffix before writing new ones.
+
 Write two files to `{target_dir}/`:
 - **retrospective.json**: phase, slug, timestamp, lenses_run, metrics, findings_by_lens, distilled_insights, routing_summary
 - **retrospective.md**: Header with phase/slug/timestamp, metrics table (tasks completed, test pass rate, review issues, UAT scenarios), findings by lens, distilled insights, routing summary
 
 Append each insight to `.workflow/specs/learnings.md`.
 
-If `.workflow/specs/learnings.md` already exists, append each insight as `<spec-entry>` (category=`learning`, auto-extract keywords, date=today, source=`retrospective`). Never create the file -- only append if it exists.
+If `.workflow/specs/learnings.md` does not exist, create it with a `# Learnings` header. Append each insight as `<spec-entry>` (category=`learning`, auto-extract keywords, date=today, source=`retrospective`).
 
 Update plan: Stages 1-7 → completed; Stage 8 → in_progress.
 

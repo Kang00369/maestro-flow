@@ -1,7 +1,7 @@
 ---
 name: learn-retro
 description: Retrospective of git activity and decision quality
-argument-hint: "[-y|--yes] [-c|--concurrency N] [--continue] \"[--lens git|decision|all] [--days N] [--author <name>] [--area <path>] [--phase N] [--compare]\""
+argument-hint: "[--lens git|decision|all] [--days N] [--author <name>] [--area <path>] [--phase N] [--compare]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
@@ -42,7 +42,9 @@ $ARGUMENTS — lens selection and scope flags.
 **3a: Collect decisions** from wiki, specs, git log, phase context, .workflow/specs/learnings.md.
 **3b: Build decision registry** per decision (id, title, source, rationale, alternatives, evidence).
 
-**3c: Multi-perspective evaluation** via spawn_agents_on_csv (3 parallel agents; filter `wave==1 AND status=="pending"`):
+**3c: Multi-perspective evaluation** — **Confirmation gate**: prompt user via `request_user_input` before spawning wave: "Spawn 3 perspective agents for decision evaluation? (y/n)". On `n`, skip to Phase 4 with decisions listed but unevaluated.
+
+Via spawn_agents_on_csv (3 parallel agents; filter `wave==1 AND status=="pending"`):
 
 | id | perspective | focus |
 |----|------------|-------|
@@ -85,8 +87,11 @@ Do NOT write to tasks.csv, wave-*.csv, results.csv. Do NOT call spawn_agents_on_
 ### Phase 4: Unified Report
 Write `KNW-retro-{date}.md` + `KNW-retro-{date}.json` with metrics, sessions, hotspots, decision health, combined insights, recommended actions.
 
-### Phase 5: Persist
-Append insights to `.workflow/specs/learnings.md` (source: "retro-git" or "retro-decision"). Display summary.
+### Phase 5: Persist (confirmation-gated)
+**Confirmation gate**: prompt user via `request_user_input` — "Append retro insights to learnings.md? (y/n)"
+- `y` → append insights to `.workflow/specs/learnings.md` (source: "retro-git" or "retro-decision")
+- `n` → skip append, display summary only
+Display summary.
 
 **Next steps:** `$learn-follow <path>`, `$quality-auto-test <area>`, `$learn-investigate <question>`
 </execution>
@@ -105,7 +110,8 @@ Append insights to `.workflow/specs/learnings.md` (source: "retro-git" or "retro
 <success_criteria>
 - [ ] Lens selection parsed correctly
 - [ ] Git lens: metrics computed, sessions detected, hotspots identified
-- [ ] Decision lens: decisions collected, 3 agents spawned in parallel, lifecycle classified
+- [ ] Decision lens: decisions collected, user confirmed before wave spawn, 3 agents spawned in parallel (if confirmed), lifecycle classified
 - [ ] Unified report written to KNW-retro-{date}.md + KNW-retro-{date}.json
-- [ ] .workflow/specs/learnings.md appended with insights (stable INS-ids)
+- [ ] User confirmation obtained before learnings append
+- [ ] .workflow/specs/learnings.md appended with insights (stable INS-ids, if confirmed)
 </success_criteria>

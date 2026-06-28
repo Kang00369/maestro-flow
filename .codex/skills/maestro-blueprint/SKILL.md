@@ -50,7 +50,7 @@ maestro-analyze → maestro-roadmap → maestro-plan
 </context>
 
 <interview_protocol>
-Interview the user relentlessly about every aspect of the spec until shared understanding is reached. Walk down each branch of the design tree, resolving dependencies between decisions one-by-one; if a question can be answered by exploring the codebase, explore the codebase instead. Active only in interactive mode; skip when `-y/--yes`, `-c/--continue`, or input is already specific (clear idea + scope).
+Interview the user relentlessly about every aspect of the spec until shared understanding is reached. Walk down each branch of the design tree, resolving dependencies between decisions one-by-one; if a question can be answered by exploring the codebase, explore the codebase instead. Active only in interactive mode; skip ONLY when `-y/--yes` or `-c/--continue` is set.
 
 - Ask one question per turn via request_user_input and wait for the user's feedback before continuing; every question must carry a recommended answer marked `(Recommended)`, 2–4 options total. The user controls termination — keep interviewing until convergence; they can interrupt naturally at any time.
 - Search-first when uncertain: before asking, resolve via `state.json`, existing artifacts, `maestro load --type spec`, codebase exploration (`maestro explore` preferred, fallback Glob/Grep/Read). Never ask what code or memory can verify; never bounce your own ambiguity back to the user — search first, then ask only what truly needs human judgment.

@@ -1,7 +1,7 @@
 ---
 name: learn-second-opinion
 description: Get alternative perspectives -- review, challenge, or consult
-argument-hint: "[-y|--yes] [-c|--concurrency 3] [--continue] \"<target> [--mode review|challenge|consult]\""
+argument-hint: "<target> [--mode review|challenge|consult]"
 allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
 ---
 
@@ -47,7 +47,14 @@ Resolve target to content. Load specs, `maestro search`, prior lessons for conte
 | 3 | strategist | Scalability, extensibility, architecture alignment | coupling, cohesion |
 | 4 | synthesis | Merge verdicts → agreements, disagreements, top 3 recommendations | combined verdict |
 
-Wave 1: 3 persona agents in parallel (filter `wave==1 AND status=="pending"`). Wave 2: synthesis agent with wave 1 findings as prev_context.
+Wave 1: 3 persona agents in parallel (filter `wave==1 AND status=="pending"`).
+
+**Failed persona handling** (between Wave 1 and Wave 2):
+- Exclude rows where `result_status == "failed"` from synthesis input
+- If any persona failed, inject `gap_note` into synthesis prev_context listing missing perspectives
+- If fewer than 2 personas completed, mark overall synthesis as `evidence_incomplete: true` in output
+
+Wave 2: synthesis agent with completed wave 1 findings as prev_context (failed rows excluded).
 
 **output_schema** (both waves):
 
@@ -103,13 +110,14 @@ Interactive loop via request_user_input. Agent studies target, answers questions
 |------|----------|-----------|----------|
 | E001 | error | Target not resolvable | Verify path/ID |
 | E002 | error | Unknown --mode value | Use: review, challenge, consult |
-| W001 | warning | Persona agent failed — partial perspectives | Proceed with available agents |
+| W001 | warning | Persona agent failed — partial perspectives | Exclude failed rows, inject gap_note, mark evidence_incomplete if <2 completed |
 | W003 | warning | Git diff empty for HEAD/staged | Use file path instead |
 </error_codes>
 
 <success_criteria>
 - [ ] Target resolved and context loaded
 - [ ] Mode executed: review (3 parallel agents), challenge (adversarial), or consult (interactive)
+- [ ] Failed persona rows excluded from synthesis input; gap_note injected if any failed; evidence_incomplete marked if <2 completed
 - [ ] Synthesis produced with agreements, disagreements, verdict
 - [ ] Report written to `KNW-opinion-{slug}-{date}.md`
 - [ ] Non-trivial findings appended to `.workflow/specs/learnings.md`

@@ -1,7 +1,7 @@
 ---
 name: maestro-ralph-cli
 description: CLI-delegated lifecycle orchestrator — compose, delegate, analyze, decide in one loop
-argument-hint: "<intent> [-y] [--to <tool>] | status | continue"
+argument-hint: "<intent> [-y] [--to <tool>] [--amend [change]] [--roadmap] | status | continue"
 allowed-tools:
   - Read
   - Write
@@ -51,7 +51,7 @@ All ralph invariants (1-16) apply. Additionally:
 17. **ralph-cli owns the loop** — compose → delegate → analyze → decide 全部在本命令内完成；ralph-cli-execute 只是被委托端的执行包装器
 18. **Delegate via cli-execute** — delegate prompt 首行为 cli-execute 调用，格式由目标工具决定（见 Invocation Notation）
 19. **Parse ---RESULT--- block** — delegate 返回后从输出中解析结构化结果块
-20. **Decision evaluation inline** — decision 节点不 handoff，直接在本循环内评估（仍用 `maestro delegate --role analyze` 做只读分析）
+20. **Decision evaluation inline** — decision 节点不 handoff，直接在本循环内评估（仍用 `maestro delegate --to {session.cli_tool} --mode analysis` 做只读分析）
 21. **No inline skill execution** — 本命令不执行 skill 逻辑；执行由委托端 cli-execute 完成
 </invariants>
 
@@ -141,6 +141,7 @@ S_STEP_DELEGATE:
 (callback resumes here — re-invocation via continue or automatic)
 S_STEP_LOCATE (on re-entry, finds running step with delegate_exec_id):
   → S_STEP_ANALYZE  WHEN: delegate completed
+  → S_HANDLE_FAIL   WHEN: delegate failed (status != completed AND status != running)
   → END             WHEN: delegate still running (STOP)
 
 S_STEP_ANALYZE:
@@ -304,11 +305,11 @@ Same as ralph A_SHOW_STATUS: find latest ralph-cli session, display steps + sub-
 
 ### A_DELEGATE_EVALUATE
 
-Same as ralph: delegate `--role analyze --mode analysis` with quality gate verdict parsing. Runs inline (run_in_background, STOP, callback resume in same loop). Confidence adjustment + decision log to `decisions.ndjson`.
+Same as ralph: delegate `--to {session.cli_tool} --mode analysis` with quality gate verdict parsing. Runs inline (run_in_background, STOP, callback resume in same loop). Confidence adjustment + decision log to `decisions.ndjson`.
 
 ### A_GOAL_AUDIT_EVALUATE
 
-Same as ralph: audit unmet sub-goals against evidence artifacts + done_when criteria. Delegate `--role analyze --mode analysis`. Verdict: `all_met` / `has_unmet`.
+Same as ralph: audit unmet sub-goals against evidence artifacts + done_when criteria. Delegate `--to {session.cli_tool} --mode analysis`. Verdict: `all_met` / `has_unmet`.
 
 ### A_SCOPE_EVALUATE
 
@@ -316,7 +317,7 @@ Same as ralph: read `conclusions.json.scope_verdict` from macro analyze artifact
 
 ### A_REGROUND_EVALUATE
 
-Same as ralph: intent fidelity check against accumulated execution. Delegate `--role analyze --mode analysis`. Verdict: `aligned` / `drifted` + `confidence_score`.
+Same as ralph: intent fidelity check against accumulated execution. Delegate `--to {session.cli_tool} --mode analysis`. Verdict: `aligned` / `drifted` + `confidence_score`.
 
 ### A_STRUCTURAL_EVALUATE
 
@@ -363,15 +364,17 @@ Same as ralph equivalents.
 
 ### Stage Mapping
 
-| Stage | delegate_mode | delegate_role | delegate_rule |
-|-------|---------------|---------------|---------------|
-| analyze, analyze-macro | analysis | analyze | `analysis-analyze-code-patterns` |
-| plan | write | plan | `planning-breakdown-task-steps` |
-| execute | write | implement | `development-implement-feature` |
-| review, business-test | analysis | review | `analysis-review-code-quality` |
-| test, test-gen | write | implement | — |
-| grill, brainstorm | write | brainstorm | — |
-| debug | write | analyze | `analysis-diagnose-bug-root-cause` |
+| Stage | delegate_mode | delegate_rule |
+|-------|---------------|---------------|
+| analyze, analyze-macro | analysis | `analysis-analyze-code-patterns` |
+| plan | write | `planning-breakdown-task-steps` |
+| execute | write | `development-implement-feature` |
+| review, business-test | analysis | `analysis-review-code-quality` |
+| test, test-gen | write | — |
+| grill, brainstorm | write | — |
+| debug | write | `analysis-diagnose-bug-root-cause` |
+
+All delegation uses `--to {session.cli_tool}` (not `--role`). The `cli_tool` is resolved from session context.
 
 ### Delegate Exec ID Prefix
 
@@ -398,7 +401,6 @@ Ralph session schema 全量字段（`boundary_contract`, `execution_criteria`, `
   "steps": [{
     "delegate_exec_id": null,
     "delegate_mode": "write|analysis",
-    "delegate_role": "analyze|plan|implement|review|brainstorm",
     "delegate_rule": null,
     "cli_output_summary": null,
     "artifacts_produced": []

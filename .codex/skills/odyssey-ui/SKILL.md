@@ -7,6 +7,10 @@ allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request
 
 <base>@~/.maestro/workflows/odyssey-base-codex.md</base>
 
+<required_reading>
+Required reading: base (`odyssey-base-codex.md`) before any actions. Load and apply base invariants, execution discipline, and shared actions before proceeding.
+</required_reading>
+
 <purpose>
 survey -> 6-dimension audit -> divergent creative exploration ->
 fix -> verify -> generalize -> discover -> persist.
@@ -208,7 +212,7 @@ TASK: Identify polish opportunities | Suggest delight moments | Evaluate visual 
 MODE: analysis  CONTEXT: @{target_files} | Survey: {token_summary} | Audit: {top_findings}
 EXPECTED: JSON [{idea, category, impact, effort, description}]
 CONSTRAINTS: User-perceptible improvements only
-" --role analyze --mode analysis
+" --to claude --mode analysis
 ```
 Execute with `run_in_background: true`, then wait for callback.
 
@@ -225,7 +229,7 @@ Commit: `"odyssey-ui({slug}): FIX -- improvements applied"`
 
 ### A_VERIFY
 1. Run tests (lint, unit, visual regression)
-2. CLI-assisted: `maestro delegate --role review` -- visual correctness, interaction states, accessibility, responsive
+2. CLI-assisted: `maestro delegate --to claude --mode analysis` -- visual correctness, interaction states, accessibility, responsive
 3. `needs_rework` -> S_FIX. `verified` -> mark G4 done. Update section 5, write `confirmation`.
 
 Commit: `"odyssey-ui({slug}): VERIFY -- visual verification"`
@@ -250,7 +254,7 @@ Commit: `"odyssey-ui({slug}): GENERALIZE -- pattern scan"`
 ### A_DISCOVER, A_RECORD
 Base shared_actions. UI overrides:
 - **A_DISCOVER** routing per base triage logic
-- **A_RECORD** learnings per Knowledge Persistence table
+- **A_RECORD** learnings per Knowledge Persistence table. **Confirmation gate**: Before writing spec entries, present proposed entries to user via `request_user_input` for confirmation. Skip confirmation only if `-y` flag is set.
 
 **Completion summary:**
 ```
@@ -309,6 +313,7 @@ phase=decision pending items MUST request_user_input. No report-only items.
 </success_criteria>
 
 <next_step_routing>
+<!-- suggest-only — do NOT auto-execute. Present these as suggestions to the user. -->
 | Condition | Next |
 |-----------|------|
 | Finding needs deeper debug | `$odyssey-debug "<finding>"` |

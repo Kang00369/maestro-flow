@@ -70,7 +70,7 @@ Prompt for or extract: language (`--lang`), usage context, code content, paramet
 Prompt for or extract: goal, prerequisites, numbered steps, expected outcome, common pitfalls, related entries. Sections: Goal, Prerequisites, Steps, Expected Outcome, Common Pitfalls, Related.
 
 **reference** (REF-{YYYYMMDD}-{slug}.md):
-Source from `--source` flag (offer WebFetch if URL). Extract: key points, applicable scenarios, quick examples. Sections: Source, Key Points, Applicable Scenarios, Quick Examples.
+Source from `--source` flag (fetch URL content via `Bash` curl if provided). Extract: key points, applicable scenarios, quick examples. Sections: Source, Key Points, Applicable Scenarios, Quick Examples.
 
 **decision** (DCS-{YYYYMMDD}-{slug}.md):
 Prompt for or extract: context, decision, alternatives (at least 2), rationale, consequences. Sections: Context, Decision, Alternatives Considered (table), Rationale, Consequences, Related.
@@ -105,11 +105,12 @@ Write to `.workflow/knowhow/{PREFIX}-{YYYYMMDD}-{slug}.md` with YAML frontmatter
 title: {auto or --title}
 description: {one-line summary for search results}
 type: {type}
-category: {type}
 created: {ISO timestamp}
 tags: [{tags}]
 ```
-Plus type-specific: `lang` (template), `source` (reference), `status` (decision), `assetType` + `codePaths` (asset), `codePaths` (blueprint). `category` written when `--category` provided. `description` always written — from `--description` flag or auto-generated from content.
+Plus type-specific: `lang` (template), `source` (reference), `status` (decision), `assetType` + `codePaths` (asset), `codePaths` (blueprint). `description` always written — from `--description` flag or auto-generated from content.
+
+**`category` field**: Only written to frontmatter when `--category` is explicitly provided (e.g. `--category coding`). Do NOT default `category` to the `type` value — `type` and `category` are distinct concepts: `type` is the knowhow content type (template, recipe, tip, etc.), `category` is the spec discovery category (coding, arch, test, debug, review, learning) used for agent injection routing.
 
 ### Step 6: Confirm
 

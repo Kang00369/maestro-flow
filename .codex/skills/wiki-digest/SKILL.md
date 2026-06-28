@@ -26,7 +26,7 @@ $ARGUMENTS — scope and optional flags.
 - `--format full` — Detailed with per-entry summaries
 - `--create-issues` — Auto-create knowledge-gap issues in issues.jsonl
 
-**Output**: `.workflow/knowhow/KNW-digest-{slug}-{date}.md`
+**Output**: `.workflow/knowhow/digest-{slug}-{date}.md`
 </context>
 
 <execution>
@@ -54,10 +54,12 @@ knowhow       █░░░░      ██░░░      ████░
 Empty cells = knowledge gaps.
 
 ### Stage 6: Write Digest
-Produce `digest-{slug}-{date}.md` with themes, heatmap, gaps, unlinked insights, recommended actions.
+Produce `.workflow/knowhow/digest-{slug}-{date}.md` with themes, heatmap, gaps, unlinked insights, recommended actions.
 
 ### Stage 7: Gap → Issue (if --create-issues)
-For each gap: dedup against issues.jsonl, append with `type: "knowledge-gap"`, `source: "wiki-digest"`.
+**Confirmation gate**: Before creating issues, present the list of proposed gap issues to user via `request_user_input` for confirmation. Only create user-approved issues. Skip confirmation only if `-y` flag is also set.
+
+For each approved gap: dedup against issues.jsonl, append with `type: "knowledge-gap"`, `source: "wiki-digest"`.
 
 ### Stage 8: Persist
 Append meta-insights to `specs/learnings.md` (source: "wiki-digest"). Display summary.
@@ -82,6 +84,6 @@ Append meta-insights to `specs/learnings.md` (source: "wiki-digest"). Display su
 - [ ] Cross-reference with specs/learnings.md completed
 - [ ] Coverage heatmap generated
 - [ ] If --create-issues: gap issues created (deduped)
-- [ ] Digest written to `KNW-digest-{slug}-{date}.md`
+- [ ] Digest written to `.workflow/knowhow/digest-{slug}-{date}.md`
 - [ ] Meta-insights appended to specs/learnings.md
 </success_criteria>

@@ -37,8 +37,8 @@ Verify `.workflow/` directory exists — if missing, raise E001.
 If `--full`: skip diff, mark all tracked files as changed.
 
 Otherwise:
-1. Read last sync timestamp from `state.json` field `last_synced`
-2. If `--since` provided, use that as baseline
+1. Read last sync commit from `state.json` field `last_synced_commit` (a git commit hash). If `last_synced_commit` is missing, fall back to `git log --reverse --format=%H | head -1` (first commit) as baseline.
+2. If `--since` provided, use that as baseline (overrides `last_synced_commit`)
 3. Run `git diff --name-only {baseline} HEAD` to get changed files
 
 If no changes and not `--full`, report clean state (W001) and exit.
