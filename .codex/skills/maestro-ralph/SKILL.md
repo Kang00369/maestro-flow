@@ -8,21 +8,29 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
 Closed-loop decision engine for the maestro workflow lifecycle.
 Reads project state → infers position → builds adaptive chain → delegates execution.
 
+### Notation
+
+`Skill(name)` / `Skill(name, args)` = 加载 `~/.codex/skills/{name}/SKILL.md` 或 `.codex/skills/{name}/SKILL.md`（project 覆盖 global），args 填入目标 SKILL.md `<context>` 块的输入参数位。这是 skill 间的内部调用，**不是 CLI 命令**。严禁翻译为 `Bash("maestro {name} {args}")`——CLI 不接受裸 intent。
+
+合法 CLI 子命令仅限结构化操作：`maestro ralph next`、`maestro ralph complete`、`maestro ralph skills`、`maestro delegate`、`maestro explore` 等。
+
 ### Session
 
-`.workflow/.maestro/{session_id}/status.json` — 工作流唯一真源（schema 见 `<appendix>`）。session_id 格式：`ralph-{YYYYMMDD-HHmmss}`（本 skill 创建，自适应链）或 `maestro-{YYYYMMDD-HHmmss}`（`$maestro` coordinator 创建，静态链）。两类都由 `$maestro-ralph-execute` 推进。session-id 省略时取最新 `status=="running"`。
+`.workflow/.maestro/{session_id}/status.json` — 工作流唯一真源（schema 见 `<appendix>`）。session_id 格式：`ralph-{YYYYMMDD-HHmmss}`（本 skill 创建，自适应链）或 `maestro-{YYYYMMDD-HHmmss}`（`Skill(maestro)` coordinator 创建，静态链）。两类都由 `Skill(maestro-ralph-execute)` 推进。session-id 省略时：continue/execute 取最新 `status=="running"`；status 取最新 session（by created_at，不限 status）。
 
 ### Entry points
 
-- **`$maestro-ralph "intent"`** — 新建 session：infer → decompose → build → emit /goal prompt（如有 decomposition）→ dispatch ralph-execute
-- **`$maestro-ralph continue [session-id]`** — 恢复执行；省略=最新 running（首选直接 `$maestro-ralph-execute [session-id]`）
-- **`$maestro-ralph status [session-id]`** — 显示进度；省略=最新 ralph session
+- **`Skill(maestro-ralph, "intent")`** — 新建 session：infer → decompose → build → create_goal（如有 decomposition）→ dispatch ralph-execute
+- **`Skill(maestro-ralph, "continue [session-id]")`** — 用户入口：恢复执行，路由到 S_DISPATCH → `Skill(maestro-ralph-execute)`。省略 session-id 时取最新 `status=="running"` session
+- **`Skill(maestro-ralph, "status [session-id]")`** — 显示进度。省略 session-id 时取最新 session（by created_at，不限 status）
 
-> 推进规则：**step 推进由 `$maestro-ralph-execute` 负责**；ralph 仅在 build / decision 评估时介入。decision 节点由 ralph-execute 自动 `$maestro-ralph` 直调 handoff，无需用户手动切换。
+> **continue vs ralph-execute**：用户说"继续"时走 `Skill(maestro-ralph, "continue")`（用户入口，经 S_DISPATCH handoff）；内部 step 推进链和 decision 回调走 `Skill(maestro-ralph-execute)`（内部 handoff，跳过 ralph 路由层）。两者最终都由 ralph-execute 执行 step。
 
-> **CLI vs Skill 边界**：`maestro` 作为 CLI 二进制只有结构化子命令（`ralph`、`delegate`、`explore` 等），不接受裸 intent。`Bash("maestro \"some intent\"")` 会报错退出。创建 session 和路由 intent 必须通过 `$maestro-ralph` 或 `$maestro` skill 调用。CLI 层仅用于 step 加载（`ralph next`）和完成标记（`ralph complete`）。
+> 推进规则：**step 推进由 `Skill(maestro-ralph-execute)` 负责**；ralph 仅在 build / decision 评估时介入。decision 节点由 ralph-execute 自动 `Skill(maestro-ralph)` 直调 handoff，无需用户手动切换。
 
-Initial decomposition (S_DECOMPOSE): boundary-clarified via ≤3 questions for broad intents (重构/全面/迁移/重写). 写入 status.json 的 `boundary_contract` / `execution_criteria` / `task_decomposition`，附 `/goal` prompt。
+> **CLI vs Skill 边界**：`maestro` 作为 CLI 二进制只有结构化子命令（`ralph`、`delegate`、`explore` 等），不接受裸 intent。`Bash("maestro \"some intent\"")` 会报错退出。创建 session 和路由 intent 必须通过 `Skill(maestro-ralph)` 或 `Skill(maestro)` skill 调用。CLI 层仅用于 step 加载（`ralph next`）和完成标记（`ralph complete`）。
+
+Initial decomposition (S_DECOMPOSE): boundary-clarified via ≤3 questions for broad intents (重构/全面/迁移/重写). 写入 status.json 的 `boundary_contract` / `execution_criteria` / `task_decomposition`，通过 `create_goal` 注册目标。
 
 Step kinds:
 - **执行 step**: ralph-execute 调 `Bash("maestro ralph next")` 加载 SKILL.md + required_reading 全文，按 stdout 内联执行
@@ -33,18 +41,18 @@ Key difference from maestro coordinator:
 - ralph: living chain → decision nodes re-evaluate → chain grows/shrinks dynamically
 
 Session: `.workflow/.maestro/ralph-{YYYYMMDD-HHmmss}/status.json`
-Mutual invocation with `$maestro-ralph-execute` forms a self-perpetuating work loop.
+Mutual invocation with `Skill(maestro-ralph-execute)` forms a self-perpetuating work loop.
 
 ### Execution Flow
 
 ```
- $maestro-ralph "intent" ─▶ ralph        infer → decompose → build chain
+ Skill(maestro-ralph, "intent") ─▶ ralph        infer → decompose → build chain
                               │           resolves command_path per step
                               │           writes status.json
-                              │           emits /goal prompt
+                              │           calls create_goal
                               ▼
                        ralph-execute  ◀─┐ 执行 step → `maestro ralph next` + inline + `ralph complete`
-                              │         │ decision step → $maestro-ralph
+                              │         │ decision step → Skill(maestro-ralph)
                               └─────────┘ CLI writes step.completion_confirmed
                        loop until all completion_confirmed | paused
 ```
@@ -74,20 +82,20 @@ Remaining                        → intent (amend_mode 时为 change_request)
 
 <invariants>
 1. **Ralph never executes steps** — only creates sessions and evaluates decisions
-2. **Handoff via `$maestro-ralph-execute` 直调** — 创建 session 后始终自动 handoff；decision 评估后始终 handoff
+2. **Handoff via `Skill(maestro-ralph-execute)` 直调** — 创建 session 后始终自动 handoff；decision 评估后始终 handoff
 3. **Decision delegates read-only** — `maestro delegate --role analyze --mode analysis`
 4. **执行 step 通过 `maestro ralph next` CLI 加载并内联执行**（详见 invariant 8）
 5. **status.json 是唯一真源** — 不生成 markdown 清单或侧文件
 6. **每个 step 必须 `completion_confirmed: true`** — 由 `maestro ralph complete N --status DONE`（或 DONE_WITH_CONCERNS）写入；CLI 是唯一合法写入路径
 7. **command_path 在 A_BUILD_STEPS 解析** — 通过 `maestro ralph skills --platform codex --json --quiet` 预校验（project 覆盖 global，限定 `.codex/skills/`），命中即写绝对路径到 status.json；未命中标 `command_scope = "missing"`
 8. **执行 step 加载契约** — 由 `maestro ralph next` CLI 在执行期完成：解析 frontmatter + `<required_reading>` + `<deferred_reading>`，自动读取 required 文件全文并拼入 prompt；缺失 required → 退出码 1（E007），pause session。ralph build 阶段只通过 `maestro ralph skills --platform codex` 校验路径存在性，不读 SKILL.md 内容
-9. **Decomposition is outcome-oriented** — sub-goals 为可观测交付，禁止 lifecycle 复刻；`/goal` 用户绑定，ralph 输出提示词后继续 handoff，用户可在执行过程中随时输入 `/goal`
+9. **Decomposition is outcome-oriented** — sub-goals 为可观测交付，禁止 lifecycle 复刻；通过 `create_goal` 绑定目标，`update_goal` 在收敛时释放
 10. **planning_mode governs arg granularity** — `unified` → skill args 无 `{phase}`；`independent` → 含 `{phase}`
 11. **task_decomposition 驱动 steps[] 动态生长** — `post-goal-audit` 按 unmet 子目标插入 scoped mini-loop；字段可选/累加，既有字段不删不改
 12. **Platform** — `session.platform = "codex"`；CLI 调用一律带 `--platform codex`
 13. **Invariant violation = BLOCK** — violating any invariant above blocks the current operation. Do NOT bypass for "efficiency" or "clear intent" reasons. Especially invariants about ralph never executing steps and completion_confirmed by CLI.
 14. **Delegate fallback must be marked** — when A_DELEGATE_EVALUATE verdict parse fails and falls back to "fix", MUST record `parse_failed: true, confidence_score: 0` in decisions.ndjson. Subsequent steps inherit LOW CONFIDENCE flag.
-15. **CLI ≠ Skill** — `maestro` CLI binary 只提供结构化子命令（`ralph next|complete|skills|check|session`、`delegate`、`explore`、`search` 等），**不接受裸 intent**。Session 创建、intent 路由、decision 评估均为 skill 层操作：`$maestro-ralph "intent"` 或 `$maestro "intent"`。**严禁** `Bash("maestro \"intent text\"")` — CLI 会报错退出。
+15. **CLI ≠ Skill** — `maestro` CLI binary 只提供结构化子命令（`ralph next|complete|skills|check|session`、`delegate`、`explore`、`search` 等），**不接受裸 intent**。Session 创建、intent 路由、decision 评估均为 skill 层操作：`Skill(maestro-ralph, "intent")` 或 `Skill(maestro, "intent")`。**严禁** `Bash("maestro \"intent text\"")` — CLI 会报错退出。
 </invariants>
 
 <state_machine>
@@ -170,7 +178,7 @@ S_CONFIRM:
   → END             WHEN: user selects "Cancel"
 
 S_DISPATCH:
-  → END             DO: $maestro-ralph-execute
+  → END             DO: Skill(maestro-ralph-execute)
 
 S_DECISION_EVAL: (decision 节点 == `step.decision` 非空，下述 gate 名取自该字段)
   → S_APPLY_VERDICT WHEN: quality-gate (post-execute, post-business-test, post-review, post-test)
@@ -220,7 +228,7 @@ S_FALLBACK:
 
 ### A_SHOW_STATUS
 
-1. 若 `target_session_id` 提供 → 直接加载 `.workflow/.maestro/{target_session_id}/status.json`；否则取最新 ralph session（by created_at）
+1. 若 `target_session_id` 提供 → 直接加载 `.workflow/.maestro/{target_session_id}/status.json`；否则取最新 session（by created_at，不限 status）
 2. Display: Session, Status, Position, Progress, Current step
 3. List steps: [✓] completion_confirmed, [▸] current, [ ] pending, [◆] decision（`step.decision` 非空）；执行 step 附 `command_scope`(global/project) + `command_path`
 4. If `task_decomposition` present (absent → skip):
@@ -395,7 +403,16 @@ narrow → derive defaults from intent + codebase, skip questions.
 
 **5. Persist** (additive): `boundary_contract`, `execution_criteria`, `task_decomposition`。每个 sub-goal 含 `status: "pending"` + `completion_confirmed: false`。
 
-**6. Stage** the Goal Prompt (Appendix) for A_CREATE_SESSION to emit.
+**6. Register goal** via `create_goal`:
+```
+create_goal({
+  objective: "Ralph {intent} — converge {N} sub-goals within boundary",
+  success_criteria: task_decomposition.map(g => `${g.id}: ${g.done_when}`),
+  constraints: [...execution_criteria,
+    "通过 Skill(maestro-ralph-execute) 推进 step，禁止绕过直接执行 steps[*].skill",
+    "禁止修改 boundary_contract.out_of_scope"]
+})
+```
 
 ### A_BUILD_STEPS
 
@@ -466,7 +483,7 @@ Generate steps from `session.lifecycle_position` to `milestone-complete`（`sess
 1. Validate: 所有 step 的 `command_scope != "missing"`；否则 raise E006 + 列出缺失 skill
 2. Write `.workflow/.maestro/ralph-{YYYYMMDD-HHmmss}/status.json` (Appendix: Session Schema)；含 `platform: "codex"`, `cli_tool: "codex"`
 3. Display chain overview：每步显示 `{index}. {skill} [{type}] [{command_scope}]`
-4. If `task_decomposition` present: display **Goal Prompt block** (Appendix)，不阻塞流程，继续 handoff
+4. If `task_decomposition` present: call `create_goal`（由 A_DECOMPOSE_TASKS 已注册）+ `update_plan`，继续 handoff
 
 ### A_DELEGATE_EVALUATE
 
@@ -663,7 +680,7 @@ GUARD: `task_decomposition` 存在（周期触发，见 build rule 5.5）
    Intent: {session.intent}
    Drift:  {drift_description}
    建议回归: {corrective_action}
-   选项：1) $maestro-ralph continue 忽略漂移继续  2) 手动修正后 continue  3) $maestro-ralph status 查看后决定
+   选项：1) Skill(maestro-ralph, "continue") 忽略漂移继续  2) 手动修正后 continue  3) Skill(maestro-ralph, "status") 查看后决定
    ```
 3. GUARD: auto_confirm 对本动作无效——漂移熔断不可自动跳过
 
@@ -671,7 +688,7 @@ GUARD: `task_decomposition` 存在（周期触发，见 build rule 5.5）
 
 1. Set session status = "paused", write status.json
 2. Display: ◆ 已达最大重试次数，debug 已执行。请人工介入。
-3. Display: $maestro-ralph continue 恢复
+3. Display: Skill(maestro-ralph, "continue") 恢复
 
 ### A_AMEND_GOAL
 
@@ -683,7 +700,7 @@ GUARD: `task_decomposition` 存在（周期触发，见 build rule 5.5）
 | 2. 解析 | `change_request` 非空 → 直接用；为空 → request_user_input（修改/新增/移除/调整边界） | `change_type` + `change_request` |
 | 3. Mini Grill | `maestro delegate --role analyze --mode analysis`：评估影响 | RISK_LEVEL + AFFECTED_GOALS + INVALIDATED_STEPS + NEW_GAPS |
 | 4. 确认 | request_user_input：应用并继续 / 仅改目标 / 取消 | 用户选择 |
-| 5. 应用 | 归档旧目标（`superseded`）→ 写入新目标（`origin: CHG-xxx`）→ 重建链路 → write status.json | handoff $maestro-ralph-execute |
+| 5. 应用 | 归档旧目标（`superseded`）→ 写入新目标（`origin: CHG-xxx`）→ 重建链路 → write status.json | handoff Skill(maestro-ralph-execute) |
 
 GUARD: `RISK_LEVEL == high` → request_user_input 不跳过（auto_confirm 无效）
 GUARD: 已完成（`status: "done"`）的目标不可 supersede（skip + warn）
@@ -827,17 +844,13 @@ maestro-execute {target_phase}                       [goal_ref: G{n}]
 decision:post-goal-audit {retry+1}
 ```
 
-### Goal Prompt Template
+### Goal Management (Codex Built-in)
 
-链路概览后逐字显示（仅当 decomposition 已产出）：
+Decomposition 产出后通过 Codex 内置工具管理目标（由 A_DECOMPOSE_TASKS 步骤 6 调用）：
 
-```
-📋 任务分解完成。可随时复制以下 /goal 设定终止条件（执行过程中输入即可）：
-
-/goal 直到 {session_dir}/status.json 的 task_decomposition[*] 与 steps[*] 全部 completion_confirmed=true 才停。每轮以 status.json 为唯一行动手册，通过 $maestro-ralph-execute 推进 step；decision 节点由其自动 handoff 回 ralph 评估。禁止手动执行 skill 或修改 boundary_contract.out_of_scope。
-```
-
-`/goal` 由用户输入；ralph 输出提示词后继续 handoff，不阻塞。
+- `create_goal` — 注册目标 + success_criteria + constraints
+- `update_plan` — 同步 steps[] 进度到 Codex plan 视图
+- `update_goal` — 收敛时释放（A_APPLY_GOAL_DONE / session completed）；abort/pause 时保持（支持 `Skill(maestro-ralph, "continue")` 恢复）
 
 ### Error Codes
 
@@ -879,7 +892,7 @@ decision:post-goal-audit {retry+1}
 - [ ] planning_mode 显式决定；unified=无 `{phase}`, independent=带 `{phase}`
 - [ ] Chain 必须以 `milestone-complete` 结尾
 - [ ] Decision nodes 由 maestro delegate --role analyze 评估
-- [ ] Ralph 不执行 step，只 evaluate；`$maestro-ralph-execute` 直调 handoff
+- [ ] Ralph 不执行 step，只 evaluate；`Skill(maestro-ralph-execute)` 直调 handoff
 - [ ] session.platform = "codex"；所有 CLI 调用携带 `--platform codex`
 - [ ] Phase-level deferred chaining：plan/execute step 的 `--from`/`--dir` 注入由 A_RESOLVE_ARGS（ralph-execute）运行时完成；build 阶段标记意图，不预知 artifact ID
 - [ ] Phase-level plan step 运行时获得 `--from analyze:{phase_analyze_id}`（由 ralph-execute 从 state.json 查找注入）

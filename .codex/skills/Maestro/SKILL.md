@@ -9,11 +9,17 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
 Sequential pipeline coordinator. Classify intent → decompose (broad lifecycle intents) →
 resolve chain → **directly invoke each skill in-context, one at a time** → report.
 
+### Notation
+
+`Skill(name)` / `Skill(name, args)` = 加载 `~/.codex/skills/{name}/SKILL.md` 或 `.codex/skills/{name}/SKILL.md`（project 覆盖 global），args 填入目标 SKILL.md `<context>` 块的输入参数位。这是 skill 间的内部调用，**不是 CLI 命令**。严禁翻译为 `Bash("maestro {name} {args}")`。
+
+合法 CLI 子命令仅限结构化操作：`maestro ralph next`、`maestro ralph complete`、`maestro delegate`、`maestro explore` 等。
+
 Entry points:
-- **`$maestro "intent"`** — Classify → decompose → chain → execute
-- **`$maestro --continue`** — Resume from first pending step
-- **`$maestro --dry-run "intent"`** — Show chain, no execution
-- **`$maestro --super "intent"`** — Production-ready mode (read maestro-super.md)
+- **`Skill(maestro, "intent")`** — Classify → decompose → chain → execute
+- **`Skill(maestro, "--continue")`** — Resume from first pending step
+- **`Skill(maestro, "--dry-run intent")`** — Show chain, no execution
+- **`Skill(maestro, "--super intent")`** — Production-ready mode (read maestro-super.md)
 
 Codex specifics (parity with maestro-ralph):
 - **No agent spawning** — skills run directly in coordinator context, sequentially.
@@ -38,7 +44,7 @@ $ARGUMENTS — user intent text, or special flags.
 </context>
 
 <invariants>
-1. **Skills invoked DIRECTLY in-context** — coordinator runs `$skill {resolved_args}` itself, sequentially. NO spawn_agents_on_csv, NO wave/CSV/worker.
+1. **Skills invoked DIRECTLY in-context** — coordinator runs `Skill(skill_name, resolved_args)` itself, sequentially. NO spawn_agents_on_csv, NO wave/CSV/worker.
 2. **Coordinator owns the loop** — classify → decompose → resolve chain → for each step: resolve args → invoke skill → read result → persist → next.
 3. **Decomposition contract shared with maestro-ralph** — broad/lifecycle intents run S_DECOMPOSE producing the SAME additive block (`boundary_contract`, `execution_criteria`, `task_decomposition`). Reference maestro-ralph `A_DECOMPOSE_TASKS`
 4. **Goal is tool-created** — `A_DECOMPOSE_TASKS` calls `create_goal` with sub-goal success criteria. `update_goal` on convergence; held while aborted/paused
@@ -49,7 +55,7 @@ $ARGUMENTS — user intent text, or special flags.
 8. **schema 向后兼容** — decomposition 字段可选；`steps[]` 由 post-goal-audit 动态生长（goal_ref tagged）；既有字段不删不改；`waves` 保留空数组
 9. **Sequential execution** — one step at a time in index order; each step's result read before the next starts
 10. **Abort on failure** — failed step → mark remaining skipped → report (goal stays bound for `--continue`)
-11. **CLI ≠ Skill** — 本 skill 通过 `$maestro "intent"` 调用。`maestro` CLI 二进制不接受裸 intent（`Bash("maestro \"intent\"")` 会报错退出）。CLI 层只有结构化子命令：`ralph`、`delegate`、`explore`、`search` 等。
+11. **CLI ≠ Skill** — 本 skill 通过 `Skill(maestro, "intent")` 调用。`maestro` CLI 二进制不接受裸 intent（`Bash("maestro \"intent\"")` 会报错退出）。CLI 层只有结构化子命令：`ralph`、`delegate`、`explore`、`search` 等。
 </invariants>
 
 <state_machine>
@@ -279,7 +285,7 @@ Read `.workflow/state.json` and route by condition:
    ```
    create_goal({ objective: "Maestro {chain}: {intent} — converge {N} sub-goals within boundary",
      success_criteria: task_decomposition.map(g => `${g.id}: ${g.done_when}`),
-     constraints: [...execution_criteria, "stay within boundary_contract; resume via $maestro --continue"] })
+     constraints: [...execution_criteria, "stay within boundary_contract; resume via Skill(maestro, "--continue")"] })
    ```
 
 ### A_CREATE_SESSION
@@ -354,7 +360,7 @@ Direct in-context skill invocation — **replaces the old spawn/wave/CSV mechani
 
    **--from auto-injection**: 当 step 是 `maestro-plan`，args 含 `{phase}` 但无 `--from` 且无 `--dir`，且 `session.context.analysis_dir` 已填充 → 查 state.json 同 phase+milestone 最新 completed analyze artifact → 注入 `--from analyze:{id}`，写 `step.source_artifact_ref`
 2. Mark step `status="running"`, persist status.json + `update_plan` (this step → in_progress)
-3. **Invoke the skill directly**: execute `$skill {resolved_args}` in coordinator context (NO spawn). Read its produced artifacts directly
+3. **Invoke the skill directly**: execute `Skill(skill_name, resolved_args)` in coordinator context (NO spawn). Read its produced artifacts directly
 4. On success: mark step `status="done"`. **Structured completion**: `Bash("maestro ralph complete {idx} --status DONE --summary \"...\" [--decisions \"...\"] [--caveats \"...\"] [--deferred \"...\"]")`（`--summary` MUST，动词开头 ≤100 字）。**Barrier-context update** (when step is a context-producing skill):
    | Skill | Read | Context Updates |
    |-------|------|-----------------|
@@ -379,7 +385,7 @@ S_DECISION_EVAL 入口；镜像 maestro-ralph `A_GOAL_AUDIT_EVALUATE`。Condense
 
 ### A_APPLY_GOAL_FIX
 
-**Dynamic step-growth core** (mirrors maestro-ralph). For each unmet sub-goal (grouped by target_phase), insert before the post-goal-audit node a scoped mini-loop `$maestro-plan --gaps {phase} "G{n}: {gap}" → $maestro-execute {phase}`, each tagged `goal_ref: "G{n}"`, type `"skill"`. Re-append `decision:post-goal-audit {retry+1}`. Reindex, increment retry, persist + `update_plan`. `steps[]` grew.
+**Dynamic step-growth core** (mirrors maestro-ralph). For each unmet sub-goal (grouped by target_phase), insert before the post-goal-audit node a scoped mini-loop `Skill(maestro-plan, "--gaps {phase} G{n}: {gap}") → Skill(maestro-execute, "{phase}")`, each tagged `goal_ref: "G{n}"`, type `"skill"`. Re-append `decision:post-goal-audit {retry+1}`. Reindex, increment retry, persist + `update_plan`. `steps[]` grew.
 
 ### A_APPLY_GOAL_DONE
 
@@ -562,8 +568,8 @@ Chain:    {chain}
 Steps:    {completed}/{total}   Sub-goals: {done}/{total}
 
 STEP RESULTS:
-  [1] $maestro-analyze --gaps  →  ✓  found 3 gaps
-  [2] $maestro-plan --gaps     →  ✓  12 tasks
+  [1] maestro-analyze --gaps  →  ✓  found 3 gaps
+  [2] maestro-plan --gaps     →  ✓  12 tasks
   [◆] post-goal-audit          →  ✓  all sub-goals met
   ...
 

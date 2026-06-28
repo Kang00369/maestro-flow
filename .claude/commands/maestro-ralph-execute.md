@@ -200,19 +200,50 @@ Write enriched args + source_artifact_ref back to status.json.
    </goal_context>
    ```
 3. **Inline execution** — 按 stdout 执行；deferred_reading 按需 Read
-4. **Complete**:
+4. **Extract step signals** (A_EXTRACT_STEP_SIGNALS) — 执行完成后、调 ralph complete 前，提取结构化信号用于组装 completion 参数和下一步上下文：
+
+   **4a. Stage-specific signal extraction:**
+
+   | Stage | 提取什么 | 写入字段 |
+   |-------|---------|---------|
+   | analyze | `conclusions.json` 的 scope_verdict + key_findings; 依赖图摘要 | `--summary`, `--decisions`, context.analysis_dir |
+   | plan | 生成的 TASK-*.json 数量 + 主要模块; 波次划分 | `--summary`, context.plan_dir |
+   | execute | 修改的文件列表; verification.json passed/failed; 新 artifact ID | `--summary`, `--evidence`, context.scratch_dir |
+   | review | review.json verdict + findings 数量 + severity 分布 | `--summary`, `--decisions` |
+   | test | test-results.json pass/fail 统计; uat.md 结果 | `--summary`, `--evidence` |
+   | debug | root cause 描述; 修复了什么 | `--summary`, `--decisions` |
+   | grill | grill-report.md 核心质疑点; 术语表 | `--summary`, `--caveats`, context.grill_id |
+   | brainstorm | 候选方案数量 + 推荐方案 | `--summary`, `--decisions`, context.brainstorm_dir |
+
+   **4b. Compose completion params:**
+
+   | Param | 规则 | 组装方法 |
+   |-------|------|---------|
+   | `--summary` | MUST。动词开头，≤100 字。从 4a 提取的关键产出组合 | `"<动词><做了什么>，<量化结果>"` e.g. `"分析认证模块依赖图，发现 5 处 JWT 内联验证，scope=medium"` |
+   | `--decisions` | SHOULD。每条一个架构/技术决策（可多次 `--decisions`） | 从执行过程中做出的非显而易见的选择提取。e.g. `"选择中间件模式而非装饰器"` `"跳过 session 层重构，留给 G2"` |
+   | `--caveats` | SHOULD。后续 step 必须知道的约束/风险 | 从执行中发现但不属于本步解决的问题。e.g. `"session 存储层与 JWT 有隐式耦合，execute 阶段需处理"` |
+   | `--deferred` | SHOULD。明确推迟到后续的工作（可多次 `--deferred`） | 被主动推迟的项。e.g. `"性能基准测试留到 review 后"` `"错误码国际化不在 scope 内"` |
+
+   **4c. Context-to-next-step propagation checklist:**
+
+   | 信号 | 检查 | 传播到 |
+   |------|------|--------|
+   | PHASE 变更 | 输出含 `PHASE: N` | `session.context.phase` |
+   | Artifact ID | 输出含 `ANL-xxx`/`PLN-xxx`/`BLP-xxx` | `session.analyze_macro_id`/`context.plan_dir` 等 |
+   | Scratch dir | 输出含 `scratch_dir:` 或 `.workflow/scratch/` 路径 | `session.context.scratch_dir` |
+   | Plan dir | plan step 产出目录 | `session.context.plan_dir` |
+   | Grill ID | grill step 产出 ID | `session.context.grill_id` |
+   | Blueprint ID | blueprint step 产出 `BLP-xxx` | `session.blueprint_id` |
+
+   这些信号直接写入 `status.json.context`，下一步的 session_anchor 自动携带。
+
+5. **Complete** — 使用 4b 组装的参数调用：
    - `Bash("maestro ralph complete N --status DONE --summary \"...\" [--evidence <path>] [--decisions \"...\"] [--caveats \"...\"] [--deferred \"...\"]")`
    - `Bash("maestro ralph complete N --status DONE_WITH_CONCERNS --summary \"...\" --concerns \"...\"")`
    - `Bash("maestro ralph retry N")`
    - `Bash("maestro ralph complete N --status BLOCKED --reason \"...\"")`
 
-   | Param | 必填 | 格式 | 示例 |
-   |-------|------|------|------|
-   | `--summary` | MUST | 动词开头，≤100 字 | `"实现搜索 API 分页逻辑，新增 3 端点"` |
-   | `--decisions` | SHOULD（可多次） | 每条一个决策 | `"选择 ELK 布局而非 dagre"` |
-   | `--caveats` | SHOULD | 后续注意事项 | `"X 模块 e2e 暂未覆盖新端点"` |
-   | `--deferred` | SHOULD（可多次） | 推迟工作 | `"性能优化留到 review 后"` |
-5. **Propagate context signals** — 关键信号 (`PHASE: N` / `scratch_dir: path` / `BLP-xxx`) 写入 `status.json.context`
+6. **Propagate context signals** — 按 4c checklist 将关键信号写入 `status.json.context`
 
 完成后 S_LOCATE 触发 `Skill({ skill: "maestro-ralph-execute" })` 自调用。
 

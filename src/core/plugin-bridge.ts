@@ -18,6 +18,7 @@ import {
   rmSync,
 } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { homedir } from 'node:os';
 import { paths } from '../config/paths.js';
 
 // ---------------------------------------------------------------------------
@@ -278,6 +279,11 @@ export function unregisterClaudePlugin(): ExecResult {
   execCli('claude', ['plugin', 'uninstall', PLUGIN_NAME]);
   // Remove marketplace
   const result = execCli('claude', ['plugin', 'marketplace', 'remove', MARKETPLACE_NAME]);
+  // Clean plugin cache — CLI uninstall leaves cached files behind
+  const cacheDir = join(homedir(), '.claude', 'plugins', 'cache', MARKETPLACE_NAME);
+  if (existsSync(cacheDir)) {
+    try { rmSync(cacheDir, { recursive: true, force: true }); } catch { /* skip */ }
+  }
   return result;
 }
 
@@ -300,6 +306,11 @@ export function unregisterCodexPlugin(): ExecResult {
   execCli('codex', ['plugin', 'remove', PLUGIN_NAME]);
   // Remove marketplace
   const result = execCli('codex', ['plugin', 'marketplace', 'remove', MARKETPLACE_NAME]);
+  // Clean plugin cache — CLI remove leaves cached files behind
+  const cacheDir = join(homedir(), '.codex', 'plugins', 'cache', MARKETPLACE_NAME);
+  if (existsSync(cacheDir)) {
+    try { rmSync(cacheDir, { recursive: true, force: true }); } catch { /* skip */ }
+  }
   return result;
 }
 

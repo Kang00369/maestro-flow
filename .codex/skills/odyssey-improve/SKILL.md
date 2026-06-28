@@ -172,7 +172,7 @@ S_RECORD   → END          : complete
 3. `maestro search "<keywords>"` + Glob prior sessions + ARCHITECTURE.md + spec load coding/debug
 4. **Baseline capture**: Record current metrics (test pass rate, bundle size, dependency count, complexity hotspots) to `session.json.baseline_metrics`
 5. Derive `phase_goals[]` from flags
-6. Write `session.json` + `understanding.md` section 1, emit Goal Prompt
+6. Write `session.json` + `understanding.md` section 1, call `create_goal` with phase_goals as success_criteria
 
 Commit: `"odyssey-improve({slug}): INTAKE — target parsed and baseline captured"`
 
@@ -297,7 +297,7 @@ Goals:      {done}/{total} ({skipped} skipped)
 | A_DIAGNOSE ambiguity | request_user_input | best-effort, deferred |
 | A_ESCALATE 3-strike | request_user_input | INCONCLUSIVE |
 
-### Goal Prompt convergence rules
+### Goal convergence rules
 
 ```
 Exhaust all findings (fix/issue/decision) until remaining_actionable == 0
