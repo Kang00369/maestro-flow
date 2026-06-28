@@ -245,3 +245,74 @@ Maestro session 无 decision 节点，纯顺序执行。
 - **retry 2**：达到上限 → 升级到 `post-debug-escalate` → 暂停
 
 升级后 session 状态变为 `paused`，用户处理后 `continue` 恢复。
+
+---
+
+## Ralph CLI — 委托执行模式
+
+Ralph CLI 是 Ralph 的 **CLI 委托执行变体**。核心链路构建逻辑完全相同，但每步通过 `maestro delegate` 委托给外部 CLI 工具执行，而非在当前会话内联执行。
+
+### 与标准 Ralph 的区别
+
+| | Ralph | Ralph CLI |
+|---|-------|-----------|
+| **执行方式** | `maestro ralph next` + 内联执行 | `maestro delegate` 后台委托 |
+| **上下文传递** | session_anchor 自动注入 | 10 段式提示词组装（A_COMPOSE_STEP_PROMPT） |
+| **步间分析** | 直接读产物 | 每步完成后扫描 artifact + 提取信号 |
+| **CLI 工具** | 固定当前平台 | 可选（`--to claude\|codex\|opencode\|agy`，默认 claude） |
+| **Session 前缀** | `ralph-{ts}` | `ralph-cli-{ts}` |
+
+### 使用方式
+
+```bash
+/maestro-ralph-cli "重构认证模块"                # 默认 Claude 执行
+/maestro-ralph-cli --to codex "implement auth"   # 指定 Codex 执行
+/maestro-ralph-cli -y "implement auth"           # 全自动模式
+/maestro-ralph-cli continue                      # 恢复执行
+/maestro-ralph-cli status                        # 查看进度
+```
+
+### 提示词组装引擎
+
+每步委托前，A_COMPOSE_STEP_PROMPT 组装包含 10 个段落的结构化提示词：
+
+```
+PURPOSE  — stage 目标 + 成功标准
+SESSION  — intent / phase / lifecycle / milestone
+BOUNDARY — in_scope / out_of_scope / constraints / definition_of_done
+ACTIVE GOALS — pending sub-goals 及完成条件
+EXECUTION HISTORY — 最近 5 步的 summary / decisions / caveats（滑动窗口）
+ACCUMULATED SIGNALS — 所有步骤的 caveats + deferred（全量聚合）
+ARTIFACTS — stage 专属前序产物注入
+TASK     — 具体执行指令
+EXPECTED — 期望产出格式
+CONSTRAINTS — boundary + execution_criteria
+```
+
+### 执行流程
+
+```
+ralph-cli 构建链 → ralph-cli-execute 组装提示词 → maestro delegate 后台执行
+                                                         ↓
+                                                    STOP 等待 callback
+                                                         ↓
+                                              callback → 分析产物 → ralph complete
+                                                         ↓
+                                              自调用下一步 → 循环
+```
+
+### Session 扩展字段
+
+```json
+{
+  "execution_mode": "cli-delegate",
+  "cli_tool": "claude",
+  "steps": [{
+    "delegate_exec_id": "exe-143025-a1b2",
+    "delegate_mode": "write",
+    "delegate_role": "implement",
+    "cli_output_summary": "实现 12 个文件变更，通过内置验证",
+    "artifacts_produced": ["verification.json"]
+  }]
+}
+```

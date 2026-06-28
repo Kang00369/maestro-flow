@@ -61,6 +61,7 @@ HARD RULES:
 <states>
 S_LOCATE        — 定位 session + 找下一个 pending step   PERSIST: —
 S_RESOLVE_ARGS  — 解析占位符 + 丰富参数                  PERSIST: step.args (enriched)
+S_LOAD_CONTEXT  — 加载前序产出 + 发现                    PERSIST: —
 S_EXECUTE       — 执行当前 step                          PERSIST: step.status = "running", session.current_step
 S_POST_EXEC     — 标记完成 + 传播上下文                   PERSIST: step.completion_*, step.status, session.context
 S_HANDLE_FAIL   — 处理失败                               PERSIST: step.status, session.status
@@ -76,7 +77,10 @@ S_LOCATE:
   → S_FALLBACK      WHEN: no running session
 
 S_RESOLVE_ARGS:
-  → S_EXECUTE       DO: A_RESOLVE_ARGS
+  → S_LOAD_CONTEXT  DO: A_RESOLVE_ARGS
+
+S_LOAD_CONTEXT:
+  → S_EXECUTE       DO: A_LOAD_STEP_CONTEXT
 
 S_EXECUTE:
   → END             WHEN: step.decision != null              DO: A_EXEC_DECISION
@@ -172,6 +176,27 @@ if goal:
 ```
 
 Write enriched args + source_artifact_ref back to status.json.
+
+### A_LOAD_STEP_CONTEXT
+
+加载前序产出和发现，为 inline execution 注入上下文。
+
+1. **Previous step output** — 读前一 completed step 的 `completion_summary` + `completion_caveats` + `completion_decisions` + `completion_deferred`
+2. **Artifacts** — 按 `session.context` 中的路径逐个 Read，提取与当前 step 相关的内容：
+
+   | 当前 stage | 加载什么 | Source |
+   |-----------|---------|--------|
+   | plan | analysis conclusions + scope_verdict | `{context.analysis_dir}/conclusions.json` |
+   | execute | task list + wave assignments | `{context.plan_dir}/TASK-*.json` |
+   | review | changed files + verification results | `{context.scratch_dir}/verification.json` |
+   | test | review findings | `review.json` |
+   | debug | error traces + failing test details | 前一 step 的 `completion_evidence` |
+   | brainstorm | grill report | `{context.grill_id}` report |
+
+3. **Explore if needed** — 产物指向代码位置但缺少上下文 → `maestro explore` 补充（仅 execute/debug/test 且有文件路径引用时）
+4. **Accumulated signals** — 遍历 ALL completed steps → 聚合 caveats + deferred
+
+加载的内容进入会话上下文，后续 inline execution 自动受益。
 
 ### A_EXEC_DECISION
 
