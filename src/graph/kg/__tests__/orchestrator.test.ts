@@ -44,4 +44,36 @@ describe('MaestroGraph extraction orchestrator', () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it('indexes operational documents into the knowledge graph', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'maestro-codebase-docs-'));
+    try {
+      mkdirSync(join(root, 'templates', 'nginx'), { recursive: true });
+      writeFileSync(join(root, 'README.md'), '# Deploy Notes\n\nUse same-origin mode for NAT deployments.\n');
+      writeFileSync(
+        join(root, 'templates', 'nginx', 'pelican-nat-same-origin.conf'),
+        'location = /api/servers { proxy_pass http://127.0.0.1:8080; }\n',
+      );
+
+      const results = await syncKnowledgeGraph(root, {
+        sources: ['codebase'],
+      });
+      const codebaseResult = results.find(result => result.source === 'codebase');
+
+      expect(codebaseResult?.nodesAdded).toBeGreaterThan(0);
+
+      const graph = await MaestroGraph.open(root);
+      try {
+        const matches = graph.searchKnowledge('same-origin', { sourceTypes: ['codebase'], limit: 10 });
+        const matchPaths = matches.map(node => node.filePath).sort();
+
+        expect(matchPaths).toContain(join(root, 'README.md'));
+        expect(matchPaths).toContain(join(root, 'templates', 'nginx', 'pelican-nat-same-origin.conf'));
+      } finally {
+        graph.close();
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
