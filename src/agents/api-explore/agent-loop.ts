@@ -1,7 +1,7 @@
 import type OpenAI from 'openai';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions.js';
 import { callLlm, type LlmConfig } from './llm.js';
-import { executeTool, type ToolSchema } from './tools.js';
+import { executeToolAsync, type ToolSchema } from './tools.js';
 import {
   emitInit,
   emitMessage,
@@ -10,18 +10,21 @@ import {
   emitResult,
 } from './stream-json-emitter.js';
 
+const SAFETY_MAX_TURNS = 100;
+
 export interface AgentLoopParams {
   prompt: string;
   systemPrompt: string;
   client: OpenAI;
   llmConfig: LlmConfig;
   toolSchemas: ToolSchema[];
-  maxTurns: number;
+  maxTurns?: number;
   cwd: string;
 }
 
 export async function agentLoop(params: AgentLoopParams): Promise<string> {
-  const { prompt, systemPrompt, client, llmConfig, toolSchemas, maxTurns, cwd } = params;
+  const { prompt, systemPrompt, client, llmConfig, toolSchemas, cwd } = params;
+  const maxTurns = SAFETY_MAX_TURNS;
 
   emitInit();
 
@@ -39,18 +42,18 @@ export async function agentLoop(params: AgentLoopParams): Promise<string> {
   while (true) {
     turn++;
 
+    if (turn > maxTurns) {
+      messages.push({
+        role: 'user',
+        content: 'Provide your final answer now based on what you have gathered.',
+      });
+    }
+
     if (turn > maxTurns + 1) {
-      const fallback = `Reached maximum turns (${maxTurns}) without a final answer.`;
+      const fallback = `Reached safety limit (${maxTurns} turns). Partial results above.`;
       emitMessage(fallback);
       emitResult({ input_tokens: totalInput, output_tokens: totalOutput });
       return fallback;
-    }
-
-    if (turn === maxTurns + 1) {
-      messages.push({
-        role: 'user',
-        content: 'Maximum turns reached. Please provide your final answer based on what you have gathered so far.',
-      });
     }
 
     let response;
@@ -84,19 +87,21 @@ export async function agentLoop(params: AgentLoopParams): Promise<string> {
 
       for (const tc of response.toolCalls) {
         emitToolUse(tc.name, safeParseJson(tc.arguments), tc.id);
+      }
 
-        let result: string;
-        try {
-          result = executeTool(tc.name, tc.arguments, cwd);
-        } catch (err) {
-          result = `Error: ${err instanceof Error ? err.message : String(err)}`;
-          emitToolResult(tc.id, result, true);
-          messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
-          continue;
-        }
+      const results = await Promise.all(
+        response.toolCalls.map(async (tc) => {
+          try {
+            return { id: tc.id, result: await executeToolAsync(tc.name, tc.arguments, cwd), error: false };
+          } catch (err) {
+            return { id: tc.id, result: `Error: ${err instanceof Error ? err.message : String(err)}`, error: true };
+          }
+        }),
+      );
 
-        emitToolResult(tc.id, result);
-        messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
+      for (const r of results) {
+        emitToolResult(r.id, r.result, r.error);
+        messages.push({ role: 'tool', tool_call_id: r.id, content: r.result });
       }
     } else if (!toolCalled && turn <= 2) {
       // Anti-hallucination: force tool use before answering

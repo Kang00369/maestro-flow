@@ -1,6 +1,9 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve, relative } from 'node:path';
-import { execSync, execFileSync } from 'node:child_process';
+import { execSync, execFileSync, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 export interface ToolSchema {
   type: 'function';
@@ -109,16 +112,42 @@ function runRg(rgArgs: string[]): string {
   });
 }
 
+async function runRgAsync(rgArgs: string[]): Promise<string> {
+  const { stdout } = await execFileAsync('rg', rgArgs, {
+    encoding: 'utf-8',
+    maxBuffer: 2 * 1024 * 1024,
+    timeout: 15_000,
+  });
+  return stdout;
+}
+
+function isNoMatch(err: unknown): boolean {
+  return !!(err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 1);
+}
+
+function isRegexError(msg: string): boolean {
+  return msg.includes('regex parse error') || msg.includes('repetition quantifier') || msg.includes('look-around');
+}
+
 function runRgWithFallback(rgArgs: string[]): string {
   try {
     return runRg(rgArgs);
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 1) {
-      throw err; // no matches — propagate
-    }
-    if (errMsg.includes('regex parse error') || errMsg.includes('repetition quantifier') || errMsg.includes('look-around')) {
+    if (isNoMatch(err)) throw err;
+    if (isRegexError(err instanceof Error ? err.message : String(err))) {
       return runRg(['--pcre2', ...rgArgs]);
+    }
+    throw err;
+  }
+}
+
+async function runRgWithFallbackAsync(rgArgs: string[]): Promise<string> {
+  try {
+    return await runRgAsync(rgArgs);
+  } catch (err) {
+    if (isNoMatch(err)) throw err;
+    if (isRegexError(err instanceof Error ? err.message : String(err))) {
+      return runRgAsync(['--pcre2', ...rgArgs]);
     }
     throw err;
   }
@@ -142,7 +171,7 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function search(args: {
+interface SearchArgs {
   query: string;
   path?: string;
   include?: string;
@@ -150,37 +179,28 @@ function search(args: {
   context?: number;
   limit?: number;
   files_only?: boolean;
-}, cwd: string): string {
+}
+
+function buildSearchRgArgs(args: SearchArgs, cwd: string): { rgArgs: string[]; usePcre2: boolean; searchPath: string } {
   const searchPath = args.path ? resolve(cwd, args.path) : cwd;
   assertWithinCwd(searchPath, cwd);
 
-  // Parse query: support multiple keywords
-  //   "foo bar"     → foo.*bar (AND — both on same line, order-sensitive)
-  //   "foo | bar"   → (foo|bar) (OR)
-  //   "foo, bar"    → (foo|bar) (OR — comma variant)
-  //   raw regex when wrapped in /pattern/
   let pattern: string;
   let usePcre2 = false;
   const q = args.query.trim();
 
   if (q.startsWith('/') && q.endsWith('/')) {
-    // Raw regex mode
     pattern = q.slice(1, -1);
   } else if (q.includes(' | ') || q.includes(', ')) {
-    // OR mode: "foo | bar" or "foo, bar"
     const keywords = q.split(/\s*[|,]\s*/).filter(Boolean).map(escapeRegex);
     pattern = `(${keywords.join('|')})`;
   } else if (/\s\+\s/.test(q)) {
-    // AND mode (all keywords on same line, any order): "foo + bar"
     const keywords = q.split(/\s\+\s/).filter(Boolean).map(escapeRegex);
-    // PCRE2 lookahead: (?=.*foo)(?=.*bar)
     pattern = keywords.map(k => `(?=.*${k})`).join('') + '.*';
     usePcre2 = true;
   } else if (q.includes(' ')) {
-    // Space-separated: treated as sequence (literal phrase match)
     pattern = escapeRegex(q);
   } else {
-    // Single keyword
     pattern = escapeRegex(q);
   }
 
@@ -188,7 +208,7 @@ function search(args: {
   if (usePcre2) rgArgs.push('--pcre2');
   rgArgs.push('-i', '-n');
   if (args.files_only) {
-    rgArgs.length = 0; // reset
+    rgArgs.length = 0;
     if (usePcre2) rgArgs.push('--pcre2');
     rgArgs.push('-i', '-l');
   }
@@ -198,13 +218,27 @@ function search(args: {
   if (args.exclude) rgArgs.push('--glob', `!${args.exclude}`);
   rgArgs.push('--', pattern, searchPath);
 
+  return { rgArgs, usePcre2, searchPath };
+}
+
+function search(args: SearchArgs, cwd: string): string {
+  const { rgArgs, usePcre2 } = buildSearchRgArgs(args, cwd);
   try {
     const output = usePcre2 ? runRg(rgArgs) : runRgWithFallback(rgArgs);
     return formatRgOutput(output, cwd, 0, args.limit ?? 80);
   } catch (err) {
-    if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 1) {
-      return 'No matches found.';
-    }
+    if (isNoMatch(err)) return 'No matches found.';
+    return `Error: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+async function searchAsync(args: SearchArgs, cwd: string): Promise<string> {
+  const { rgArgs, usePcre2 } = buildSearchRgArgs(args, cwd);
+  try {
+    const output = usePcre2 ? await runRgAsync(rgArgs) : await runRgWithFallbackAsync(rgArgs);
+    return formatRgOutput(output, cwd, 0, args.limit ?? 80);
+  } catch (err) {
+    if (isNoMatch(err)) return 'No matches found.';
     return `Error: ${err instanceof Error ? err.message : String(err)}`;
   }
 }
@@ -213,7 +247,7 @@ function search(args: {
 // Grep — advanced regex search
 // ---------------------------------------------------------------------------
 
-function grep(args: {
+interface GrepArgs {
   pattern: string;
   path?: string;
   glob?: string;
@@ -227,7 +261,9 @@ function grep(args: {
   after_context?: number;
   only_matching?: boolean;
   multiline?: boolean;
-}, cwd: string): string {
+}
+
+function buildGrepRgArgs(args: GrepArgs, cwd: string): string[] {
   const searchPath = args.path ? resolve(cwd, args.path) : cwd;
   assertWithinCwd(searchPath, cwd);
 
@@ -248,14 +284,27 @@ function grep(args: {
   if (args.glob) rgArgs.push('--glob', args.glob);
   if (args.type) rgArgs.push('--type', args.type);
   rgArgs.push('--', args.pattern, searchPath);
+  return rgArgs;
+}
 
+function grep(args: GrepArgs, cwd: string): string {
+  const rgArgs = buildGrepRgArgs(args, cwd);
   try {
     const output = runRgWithFallback(rgArgs);
     return formatRgOutput(output, cwd, args.offset ?? 0, args.limit ?? 80);
   } catch (err) {
-    if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 1) {
-      return 'No matches found.';
-    }
+    if (isNoMatch(err)) return 'No matches found.';
+    return `Error: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+async function grepAsync(args: GrepArgs, cwd: string): Promise<string> {
+  const rgArgs = buildGrepRgArgs(args, cwd);
+  try {
+    const output = await runRgWithFallbackAsync(rgArgs);
+    return formatRgOutput(output, cwd, args.offset ?? 0, args.limit ?? 80);
+  } catch (err) {
+    if (isNoMatch(err)) return 'No matches found.';
     return `Error: ${err instanceof Error ? err.message : String(err)}`;
   }
 }
@@ -271,6 +320,17 @@ export function executeTool(name: string, argsJson: string, cwd: string): string
     case 'Glob': return glob(args, cwd);
     case 'Grep': return grep(args, cwd);
     case 'Search': return search(args, cwd);
+    default: return `Unknown tool: ${name}`;
+  }
+}
+
+export async function executeToolAsync(name: string, argsJson: string, cwd: string): Promise<string> {
+  const args = JSON.parse(argsJson || '{}');
+  switch (name) {
+    case 'Read': return readFile(args, cwd);
+    case 'Glob': return glob(args, cwd);
+    case 'Grep': return grepAsync(args, cwd);
+    case 'Search': return searchAsync(args, cwd);
     default: return `Unknown tool: ${name}`;
   }
 }

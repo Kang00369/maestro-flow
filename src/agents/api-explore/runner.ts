@@ -66,7 +66,6 @@ async function runSingleJob(
   dirListing: string,
 ): Promise<ExploreResult> {
   const start = Date.now();
-  const maxTurns = job.maxTurns ?? globalMaxTurns;
   try {
     const { client, config } = createClient(job.llmConfig);
     const systemPrompt = buildSystemPrompt(cwd, dirListing);
@@ -78,7 +77,6 @@ async function runSingleJob(
       client,
       llmConfig: config,
       toolSchemas: TOOL_SCHEMAS,
-      maxTurns,
       cwd,
     });
 
