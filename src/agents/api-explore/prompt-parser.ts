@@ -76,11 +76,11 @@ export function buildExplorePrompt(input: string | StructuredPrompt): string {
     ? (isStructuredPrompt(input) ? parseStructuredPrompt(input) : { find: input })
     : input;
 
-  const parts: string[] = [`Find: ${parsed.find}`];
-  if (parsed.scope) parts.push(`Scope: ${parsed.scope}`);
-  if (parsed.exclude) parts.push(`Exclude: ${parsed.exclude}`);
-  if (parsed.attention) parts.push(`Attention: ${parsed.attention}`);
-  if (parsed.expected) parts.push(`Expected output: ${parsed.expected}`);
+  const parts: string[] = [`**Query**: ${parsed.find}`];
+  if (parsed.scope) parts.push(`**path**: ${parsed.scope}`);
+  if (parsed.exclude) parts.push(`**exclude**: ${parsed.exclude}`);
+  if (parsed.attention) parts.push(`**Note**: ${parsed.attention}`);
+  if (parsed.expected) parts.push(`**Output format**: ${parsed.expected}`);
 
   return parts.join('\n');
 }

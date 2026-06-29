@@ -34,6 +34,7 @@ export async function agentLoop(params: AgentLoopParams): Promise<string> {
   let totalInput = 0;
   let totalOutput = 0;
   let turn = 0;
+  let toolCalled = false;
 
   while (true) {
     turn++;
@@ -66,6 +67,7 @@ export async function agentLoop(params: AgentLoopParams): Promise<string> {
     totalOutput += response.usage.outputTokens;
 
     if (response.toolCalls.length > 0) {
+      toolCalled = true;
       if (response.content) {
         emitMessage(response.content, true);
       }
@@ -96,6 +98,16 @@ export async function agentLoop(params: AgentLoopParams): Promise<string> {
         emitToolResult(tc.id, result);
         messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
       }
+    } else if (!toolCalled && turn <= 2) {
+      // Anti-hallucination: force tool use before answering
+      messages.push({
+        role: 'assistant',
+        content: response.content,
+      });
+      messages.push({
+        role: 'user',
+        content: 'You must call Search before answering. Pick a keyword from the query and search.',
+      });
     } else {
       const content = response.content ?? '';
       emitMessage(content);

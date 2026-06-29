@@ -19,6 +19,25 @@ function assertWithinCwd(target: string, cwd: string): void {
   }
 }
 
+function toRelative(absPath: string, cwd: string): string {
+  const rel = relative(cwd, absPath);
+  return rel || absPath;
+}
+
+function relativizeOutput(output: string, cwd: string): string {
+  const cwdNorm = resolve(cwd).replace(/\\/g, '/');
+  const cwdBack = resolve(cwd).replace(/\//g, '\\');
+  return output
+    .replaceAll(cwdNorm + '/', '')
+    .replaceAll(cwdBack + '\\', '')
+    .replaceAll(cwdNorm, '.')
+    .replaceAll(cwdBack, '.');
+}
+
+// ---------------------------------------------------------------------------
+// Read
+// ---------------------------------------------------------------------------
+
 function readFile(args: { file_path: string; offset?: number; limit?: number }, cwd: string): string {
   assertWithinCwd(args.file_path, cwd);
   const content = readFileSync(args.file_path, 'utf-8');
@@ -36,6 +55,10 @@ function readFile(args: { file_path: string; offset?: number; limit?: number }, 
   return result.join('\n');
 }
 
+// ---------------------------------------------------------------------------
+// Glob
+// ---------------------------------------------------------------------------
+
 function glob(args: { pattern: string; path?: string }, cwd: string): string {
   const dir = args.path ? resolve(cwd, args.path) : cwd;
   assertWithinCwd(dir, cwd);
@@ -46,7 +69,7 @@ function glob(args: { pattern: string; path?: string }, cwd: string): string {
       maxBuffer: 1024 * 1024,
       timeout: 10_000,
     });
-    const files = output.trim().split('\n').filter(Boolean);
+    const files = output.trim().split('\n').filter(Boolean).map(f => toRelative(f.trim(), cwd));
     if (files.length > 100) {
       return files.slice(0, 100).join('\n') + `\n... (${files.length - 100} more files)`;
     }
@@ -56,7 +79,7 @@ function glob(args: { pattern: string; path?: string }, cwd: string): string {
       const entries = readdirSync(dir, { recursive: true, withFileTypes: true });
       const matched = entries
         .filter(e => e.isFile() && e.name.match(globToRegex(args.pattern)))
-        .map(e => resolve(String(e.parentPath ?? e.path), e.name))
+        .map(e => toRelative(resolve(String(e.parentPath ?? e.path), e.name), cwd))
         .slice(0, 100);
       return matched.length > 0 ? matched.join('\n') : 'No files found.';
     } catch (err) {
@@ -74,45 +97,110 @@ function globToRegex(pattern: string): RegExp {
   return new RegExp(escaped);
 }
 
-function grep(args: {
-  pattern: string;
+// ---------------------------------------------------------------------------
+// Ripgrep runner (shared by Grep and Search)
+// ---------------------------------------------------------------------------
+
+function runRg(rgArgs: string[]): string {
+  return execFileSync('rg', rgArgs, {
+    encoding: 'utf-8',
+    maxBuffer: 2 * 1024 * 1024,
+    timeout: 15_000,
+  });
+}
+
+function runRgWithFallback(rgArgs: string[]): string {
+  try {
+    return runRg(rgArgs);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 1) {
+      throw err; // no matches — propagate
+    }
+    if (errMsg.includes('regex parse error') || errMsg.includes('repetition quantifier') || errMsg.includes('look-around')) {
+      return runRg(['--pcre2', ...rgArgs]);
+    }
+    throw err;
+  }
+}
+
+function formatRgOutput(output: string, cwd: string, offset: number, limit: number): string {
+  const raw = relativizeOutput(output.trim(), cwd);
+  const allLines = raw.split('\n');
+  const sliced = allLines.slice(offset, offset + limit);
+  if (allLines.length > offset + limit) {
+    return sliced.join('\n') + `\n... (${allLines.length - offset - limit} more, ${allLines.length} total)`;
+  }
+  return sliced.join('\n') || 'No matches found.';
+}
+
+// ---------------------------------------------------------------------------
+// Search — simple multi-keyword search
+// ---------------------------------------------------------------------------
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function search(args: {
+  query: string;
   path?: string;
-  glob?: string;
-  type?: string;
-  output_mode?: string;
-  head_limit?: number;
-  case_insensitive?: boolean;
+  include?: string;
+  exclude?: string;
   context?: number;
+  limit?: number;
+  files_only?: boolean;
 }, cwd: string): string {
   const searchPath = args.path ? resolve(cwd, args.path) : cwd;
   assertWithinCwd(searchPath, cwd);
 
-  const rgArgs: string[] = [];
-  if (args.case_insensitive) rgArgs.push('-i');
-  if (args.output_mode === 'files_with_matches') {
-    rgArgs.push('-l');
-  } else if (args.output_mode === 'count') {
-    rgArgs.push('-c');
+  // Parse query: support multiple keywords
+  //   "foo bar"     → foo.*bar (AND — both on same line, order-sensitive)
+  //   "foo | bar"   → (foo|bar) (OR)
+  //   "foo, bar"    → (foo|bar) (OR — comma variant)
+  //   raw regex when wrapped in /pattern/
+  let pattern: string;
+  let usePcre2 = false;
+  const q = args.query.trim();
+
+  if (q.startsWith('/') && q.endsWith('/')) {
+    // Raw regex mode
+    pattern = q.slice(1, -1);
+  } else if (q.includes(' | ') || q.includes(', ')) {
+    // OR mode: "foo | bar" or "foo, bar"
+    const keywords = q.split(/\s*[|,]\s*/).filter(Boolean).map(escapeRegex);
+    pattern = `(${keywords.join('|')})`;
+  } else if (/\s\+\s/.test(q)) {
+    // AND mode (all keywords on same line, any order): "foo + bar"
+    const keywords = q.split(/\s\+\s/).filter(Boolean).map(escapeRegex);
+    // PCRE2 lookahead: (?=.*foo)(?=.*bar)
+    pattern = keywords.map(k => `(?=.*${k})`).join('') + '.*';
+    usePcre2 = true;
+  } else if (q.includes(' ')) {
+    // Space-separated: treated as sequence (literal phrase match)
+    pattern = escapeRegex(q);
   } else {
-    rgArgs.push('-n');
+    // Single keyword
+    pattern = escapeRegex(q);
   }
-  if (args.context) rgArgs.push('-C', String(args.context));
-  if (args.glob) rgArgs.push('--glob', args.glob);
-  if (args.type) rgArgs.push('--type', args.type);
-  rgArgs.push('--', args.pattern, searchPath);
+
+  const rgArgs: string[] = [];
+  if (usePcre2) rgArgs.push('--pcre2');
+  rgArgs.push('-i', '-n');
+  if (args.files_only) {
+    rgArgs.length = 0; // reset
+    if (usePcre2) rgArgs.push('--pcre2');
+    rgArgs.push('-i', '-l');
+  }
+  const ctx = args.context ?? 0;
+  if (ctx > 0 && !args.files_only) rgArgs.push('-C', String(ctx));
+  if (args.include) rgArgs.push('--glob', args.include);
+  if (args.exclude) rgArgs.push('--glob', `!${args.exclude}`);
+  rgArgs.push('--', pattern, searchPath);
 
   try {
-    const output = execFileSync('rg', rgArgs, {
-      encoding: 'utf-8',
-      maxBuffer: 1024 * 1024,
-      timeout: 10_000,
-    });
-    const lines = output.trim().split('\n');
-    const limit = args.head_limit ?? 20;
-    if (lines.length > limit) {
-      return lines.slice(0, limit).join('\n') + `\n... (${lines.length - limit} more matches, ${lines.length} total)`;
-    }
-    return lines.join('\n') || 'No matches found.';
+    const output = usePcre2 ? runRg(rgArgs) : runRgWithFallback(rgArgs);
+    return formatRgOutput(output, cwd, 0, args.limit ?? 80);
   } catch (err) {
     if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 1) {
       return 'No matches found.';
@@ -121,66 +209,110 @@ function grep(args: {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Grep — advanced regex search
+// ---------------------------------------------------------------------------
+
+function grep(args: {
+  pattern: string;
+  path?: string;
+  glob?: string;
+  type?: string;
+  output_mode?: string;
+  limit?: number;
+  offset?: number;
+  case_insensitive?: boolean;
+  context?: number;
+  before_context?: number;
+  after_context?: number;
+  only_matching?: boolean;
+  multiline?: boolean;
+}, cwd: string): string {
+  const searchPath = args.path ? resolve(cwd, args.path) : cwd;
+  assertWithinCwd(searchPath, cwd);
+
+  const rgArgs: string[] = [];
+  if (args.case_insensitive) rgArgs.push('-i');
+  if (args.multiline) rgArgs.push('-U', '--multiline-dotall');
+  if (args.output_mode === 'files_with_matches') {
+    rgArgs.push('-l');
+  } else if (args.output_mode === 'count') {
+    rgArgs.push('-c');
+  } else {
+    rgArgs.push('-n');
+    if (args.only_matching) rgArgs.push('-o');
+  }
+  if (args.context) rgArgs.push('-C', String(args.context));
+  if (args.before_context) rgArgs.push('-B', String(args.before_context));
+  if (args.after_context) rgArgs.push('-A', String(args.after_context));
+  if (args.glob) rgArgs.push('--glob', args.glob);
+  if (args.type) rgArgs.push('--type', args.type);
+  rgArgs.push('--', args.pattern, searchPath);
+
+  try {
+    const output = runRgWithFallback(rgArgs);
+    return formatRgOutput(output, cwd, args.offset ?? 0, args.limit ?? 80);
+  } catch (err) {
+    if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 1) {
+      return 'No matches found.';
+    }
+    return `Error: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dispatch
+// ---------------------------------------------------------------------------
+
 export function executeTool(name: string, argsJson: string, cwd: string): string {
   const args = JSON.parse(argsJson || '{}');
   switch (name) {
     case 'Read': return readFile(args, cwd);
     case 'Glob': return glob(args, cwd);
     case 'Grep': return grep(args, cwd);
+    case 'Search': return search(args, cwd);
     default: return `Unknown tool: ${name}`;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Tool schemas
+// ---------------------------------------------------------------------------
 
 export const TOOL_SCHEMAS: ToolSchema[] = [
   {
     type: 'function',
     function: {
-      name: 'Read',
-      description: 'Read a file from the filesystem. Returns content with line numbers.',
+      name: 'Search',
+      description: 'Keyword search with multi-keyword support. Returns relative paths with line numbers. Case insensitive.',
       parameters: {
         type: 'object',
         properties: {
-          file_path: { type: 'string', description: 'Absolute path to the file to read.' },
-          offset: { type: 'integer', description: 'Line number to start from (1-indexed). Optional.' },
-          limit: { type: 'integer', description: 'Number of lines to read. Optional.' },
+          query: { type: 'string', description: 'Search query. Modes: "handleAuth" (single keyword), "error | warn | fatal" (OR), "export + async" (AND — both on same line), "export async function" (exact phrase), /\\bfunc\\w+/ (raw regex wrapped in //).' },
+          path: { type: 'string', description: 'Directory to search in.' },
+          include: { type: 'string', description: 'Include files matching glob (e.g. "*.ts").' },
+          exclude: { type: 'string', description: 'Exclude files matching glob (e.g. "*.test.ts").' },
+          context: { type: 'integer', description: 'Lines of context around each match.' },
+          limit: { type: 'integer', description: 'Max output lines. Default: 80.' },
+          files_only: { type: 'boolean', description: 'Return file paths only, no content.' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'Read',
+      description: 'Read file content with line numbers. Use offset+limit to read a specific section.',
+      parameters: {
+        type: 'object',
+        properties: {
+          file_path: { type: 'string', description: 'Absolute path to the file.' },
+          offset: { type: 'integer', description: 'Start line (1-indexed).' },
+          limit: { type: 'integer', description: 'Number of lines to read.' },
         },
         required: ['file_path'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'Glob',
-      description: 'Find files matching a glob pattern. Returns file paths.',
-      parameters: {
-        type: 'object',
-        properties: {
-          pattern: { type: 'string', description: 'Glob pattern (e.g. "**/*.ts", "src/**/*.js").' },
-          path: { type: 'string', description: 'Directory to search in. Defaults to working directory.' },
-        },
-        required: ['pattern'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'Grep',
-      description: 'Search file contents using regex patterns (ripgrep). Returns matching lines with file paths and line numbers.',
-      parameters: {
-        type: 'object',
-        properties: {
-          pattern: { type: 'string', description: 'Regex pattern to search for.' },
-          path: { type: 'string', description: 'File or directory to search. Defaults to working directory.' },
-          glob: { type: 'string', description: 'Glob filter for files (e.g. "*.ts").' },
-          type: { type: 'string', description: 'File type filter (e.g. "ts", "py").' },
-          output_mode: { type: 'string', enum: ['content', 'files_with_matches', 'count'], description: 'Output format. Default: content.' },
-          head_limit: { type: 'integer', description: 'Max lines to return. Default: 100.' },
-          case_insensitive: { type: 'boolean', description: 'Case insensitive search.' },
-          context: { type: 'integer', description: 'Lines of context around matches.' },
-        },
-        required: ['pattern'],
       },
     },
   },
