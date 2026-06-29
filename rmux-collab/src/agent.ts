@@ -3,14 +3,15 @@ import type { AgentConfig, AgentResult, AgentTool, AskOptions, OutputSegment } f
 import { stripAnsi } from './utils/output-cleaner.js';
 import { execSync } from 'node:child_process';
 
-function rmuxExec(args: string, opts?: { input?: string }): string {
+function rmuxExec(args: string, opts?: { input?: string; timeout?: number; throwOnError?: boolean }): string {
   try {
     return execSync(`rmux ${args}`, {
       encoding: 'utf-8',
-      timeout: 10_000,
+      timeout: opts?.timeout ?? 10_000,
       input: opts?.input,
     }).trim();
   } catch (e: any) {
+    if (opts?.throwOnError) throw e;
     return e.stdout?.trim() ?? '';
   }
 }
@@ -111,7 +112,7 @@ export class Agent {
   get alive(): boolean { return this._alive; }
 
   private sendViaBuffer(text: string): void {
-    const bufName = `collab-${Date.now()}`;
+    const bufName = `collab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     rmuxExec(`load-buffer -b ${bufName} -`, { input: text });
     rmuxExec(`paste-buffer -p -t ${this.target} -b ${bufName}`);
     rmuxExec(`delete-buffer -b ${bufName}`);
@@ -122,7 +123,8 @@ export class Agent {
     if (text.length > threshold) {
       this.sendViaBuffer(text);
     } else {
-      rmuxExec(`send-keys -t ${this.target} -l "${text.replace(/"/g, '\\"')}"`);
+      const escaped = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
+      rmuxExec(`send-keys -t ${this.target} -l "${escaped}"`);
     }
   }
 
@@ -193,14 +195,17 @@ export class Agent {
 
     const markerStr = markerToString(this.completionMarker);
 
-    // Strategy 1: rmux --wait-next-text (atomic wait)
+    // Strategy 1: rmux wait-pane --text (daemon-backed wait, checks history + future)
     try {
-      rmuxExec(`send-keys -t ${this.target} --wait-next-text "${markerStr}" --timeout ${timeout}`);
+      rmuxExec(
+        `wait-pane -t ${this.target} --text "${markerStr}" --timeout ${Math.floor(timeout / 1000)}s`,
+        { timeout: timeout + 5000, throwOnError: true },
+      );
       const current = this.capturePane();
       const raw = this.extractCliResponse(current, beforeText, prompt);
       return this.buildResult(raw, startTime, 'completed', 'exact');
     } catch {
-      // --wait-next-text may not be available, try SDK fallback
+      // wait-pane may not be available or timed out, try SDK fallback
     }
 
     // Strategy 2: SDK expectVisibleText().toContain().timeout()

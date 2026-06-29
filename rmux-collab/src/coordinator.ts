@@ -117,12 +117,13 @@ export class Coordinator {
     return runDialogue(config, opts);
   }
 
-  onAgentEvent(agentName: string, handler: MonitorHandler): void {
+  async onAgentEvent(agentName: string, handler: MonitorHandler): Promise<void> {
     if (!this.monitor) return;
 
     const agent = this.findAgent(agentName);
     if (agent) {
-      this.monitor.registerAgent(agentName, agent.target, handler);
+      const paneId = await agent.pane.id();
+      this.monitor.registerAgent(agentName, paneId, handler);
     }
   }
 
