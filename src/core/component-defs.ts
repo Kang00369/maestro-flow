@@ -508,7 +508,6 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     alwaysGlobal: false,
     category: 'skills',
     platform: 'claude',
-    defaultSelected: false,
     fileFilter: (name) => EXTRA_TEAM_SKILL_NAMES.has(name),
   },
   {
@@ -523,7 +522,6 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     alwaysGlobal: false,
     category: 'skills',
     platform: 'claude',
-    defaultSelected: false,
     fileFilter: (name) => SCHOLAR_SKILL_NAMES.has(name),
   },
   {
@@ -538,7 +536,6 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     alwaysGlobal: false,
     category: 'skills',
     platform: 'claude',
-    defaultSelected: false,
     fileFilter: (name) => META_SKILL_NAMES.has(name),
   },
 ];
