@@ -68,7 +68,7 @@ You implement a single task from the execution plan. Each task is executed atomi
 - Codebase access for implementation
 - **Codebase docs** (if `.workflow/codebase/` exists) — Read `ARCHITECTURE.md` for module boundaries and component relationships before implementing cross-module changes
 - **Wiki prior knowledge** (if `maestro wiki` available) — `maestro wiki search "<task keywords>"` for related decisions/constraints that may affect implementation approach
-- **Codebase search** — use FastContext first for implementation patterns or integration points, then verify returned ranges with `Grep`/`Read`; use `maestro explore` only when explicitly requested or FastContext/KG are unavailable
+- **Codebase search** — use FastContext first for implementation patterns or integration points, then verify returned ranges with `Grep`/`Read`
 
 ## Output
 - Code changes (the actual implementation)

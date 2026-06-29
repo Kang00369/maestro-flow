@@ -19,12 +19,12 @@ Research and codebase exploration for context gathering.
 ## Boundaries
 ### MUST
 - Extract structured seed information from task topic
-- Explore codebase if project detected
+- Locate codebase context with FastContext if project detected
 - Package context for downstream roles
 ### MUST NOT
 - Implement code or modify files
 - Make architectural decisions
-- Skip codebase exploration when project files exist
+- Skip FastContext codebase location when project files exist
 
 ## Phase 2: Seed Analysis
 
@@ -47,7 +47,7 @@ Research and codebase exploration for context gathering.
 
 | Condition | Action |
 |-----------|--------|
-| package.json / Cargo.toml / pyproject.toml / go.mod exists | Explore |
+| package.json / Cargo.toml / pyproject.toml / go.mod exists | FastContext locate |
 | No project files | Skip (codebase_context = null) |
 
 When project detected — use FastContext first and verify returned ranges with Grep/Read:
@@ -61,7 +61,7 @@ mcp__fast-context__fast_context_search({
 })
 ```
 
-**Fallback**: `maestro kg search/context` for known symbols, then Grep/Read. Use `maestro explore` only when explicitly requested or FastContext/KG are unavailable and a high-cost read-only scout is justified.
+**Fallback**: Grep/Read first, then `maestro kg search/context` for known-symbol confirmation.
 
 ### Tech Profile Scan
 

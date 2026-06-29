@@ -7,7 +7,7 @@
 ## Priority
 
 ```
-FastContext semantic locator → MaestroGraph/KG → Grep/Read verification → Glob (files) → maestro explore (explicit high-cost fallback)
+FastContext semantic locator → Grep/Read verification → MaestroGraph/KG for known symbols → Glob (files)
 ```
 
 ## Tool Selection
@@ -16,7 +16,7 @@ FastContext semantic locator → MaestroGraph/KG → Grep/Read verification → 
 |----------|------|
 | Find by intent/behavior | FastContext (`mcp__fast_context__fast_context_search` in Codex, `mcp__fast-context__fast_context_search` in Claude) |
 | Multi-angle codebase scan | Run 2-3 focused FastContext queries, then verify with `Grep`/`Read` |
-| Known symbol or call chain | `maestro kg context/callers/callees` |
+| Known symbol or call chain | FastContext first, then `maestro kg context/callers/callees` for confirmation |
 | Targeted code search (known scope) | FastContext or `Grep` with focused path filters |
 | Known identifier/regex | `Grep` |
 | Find files by name/ext | `Glob` |
@@ -32,10 +32,9 @@ FastContext semantic locator → MaestroGraph/KG → Grep/Read verification → 
 
 ## Fallback
 
-- **FastContext unavailable** → MaestroGraph/KG + Grep + Glob pattern scanning
+- **FastContext unavailable** → Grep + Glob pattern scanning, then MaestroGraph/KG for known symbols
 - **KG unavailable** → Grep + Glob; log degraded mode
 - **Grep insufficient** → Escalate to CLI delegate analysis
-- **maestro explore** → Use only when explicitly requested or when a separate read-only LLM scout is worth the cost; avoid `--all` by default
 
 ## Combined Strategy
 

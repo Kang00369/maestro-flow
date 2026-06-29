@@ -178,7 +178,7 @@ Store → .workflow/issues/discoveries/{SESSION_ID}/exploration-plan.json
 ### Step 9: Gather Codebase Context
 
 ```
-Per dimension (prefer FastContext over maestro explore or raw rg):
+Per dimension (prefer FastContext over raw rg):
   1. FastContext semantic search for "{dimension.description}" per dimension
   2. Fallback: MaestroGraph/KG + rg for dimension.search_patterns
   3. Collect matching files/snippets → {SESSION_ID}/{dimension.name}-context.md

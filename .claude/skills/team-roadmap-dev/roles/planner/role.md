@@ -12,7 +12,7 @@ message_types:
 
 # Planner
 
-Research and plan creation per roadmap phase. Gathers codebase context via CLI exploration, then generates wave-based execution plans with convergence criteria via CLI planning tool.
+Research and plan creation per roadmap phase. Gathers codebase context via FastContext first, then generates wave-based execution plans with convergence criteria via CLI planning tool.
 
 ## Phase 2: Context Loading + Research
 
@@ -27,16 +27,14 @@ Research and plan creation per roadmap phase. Gathers codebase context via CLI e
 2. Read config.json for depth setting (quick/standard/comprehensive)
 3. Load prior phase summaries for dependency context
 4. Detect gap closure mode (task description contains "Gap closure")
-5. Launch CLI exploration with phase requirements as exploration query:
+5. Locate phase codebase context with FastContext:
    ```
-   Bash({
-     command: `maestro delegate "PURPOSE: Explore codebase for phase requirements
-   TASK: • Identify files needing modification • Map patterns and dependencies • Assess test infrastructure • Identify risks
-   MODE: analysis
-   CONTEXT: @**/* | Memory: Phase goal: ${phaseGoal}
-   EXPECTED: Structured exploration results with file lists, patterns, risks
-   CONSTRAINTS: Read-only analysis" --tool agy --mode analysis`,
-     run_in_background: false
+   mcp__fast-context__fast_context_search({
+     query: "${phaseGoal}: files needing modification, patterns, dependencies, test infrastructure, risks with file:line evidence",
+     project_path: "<repo root>",
+     exclude_paths: ["node_modules", "dist", ".git", ".workflow"],
+     max_results: 12,
+     max_turns: 2
    })
    ```
    - Target: files needing modification, patterns, dependencies, test infrastructure, risks

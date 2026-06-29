@@ -108,7 +108,7 @@ $team-lifecycle-v4 --continue "20260518-tlv4-auth-system"
 
 ```csv
 id,title,description,role,pipeline_phase,deps,context_from,wave
-"RESEARCH-001","Domain research","PURPOSE: Research domain, competitors, constraints | Success: Discovery context packaged\nTASK:\n  - Analyze problem space\n  - Explore codebase patterns\n  - Package context\nEXPECTED: spec/discovery-context.json\nCONSTRAINTS: Read-only","analyst","research","","","1"
+"RESEARCH-001","Domain research","PURPOSE: Research domain, competitors, constraints | Success: Discovery context packaged\nTASK:\n  - Analyze problem space\n  - Locate codebase patterns with FastContext\n  - Package context\nEXPECTED: spec/discovery-context.json\nCONSTRAINTS: Read-only","analyst","research","","","1"
 "DRAFT-001","Product brief","PURPOSE: Create product brief | Success: Self-validated document\nTASK:\n  - Apply templates/product-brief.md\n  - Define vision, problem, users, goals\n  - Self-validate against quality-gates.md §3.1\nEXPECTED: spec/product-brief.md\nCONSTRAINTS: Follow template","writer","product-brief","RESEARCH-001","RESEARCH-001","2"
 ```
 

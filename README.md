@@ -107,8 +107,7 @@ maestro search "user authentication"
 maestro load --type spec --category coding
 maestro load --type knowhow --list
 
-# Explore codebase via API endpoints
-maestro explore "Find all database query patterns"
+# Locate codebase context with FastContext first, then verify file ranges
 
 # Manage domain terminology
 maestro domain add "API Gateway" "Unified entry point for all API requests"

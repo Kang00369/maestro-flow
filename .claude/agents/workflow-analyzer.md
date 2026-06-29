@@ -41,7 +41,7 @@ You perform structured multi-dimensional analysis of technical topics, proposals
 - Comparison alternatives (if applicable)
 - **Codebase docs** (if `.workflow/codebase/` exists) — `ARCHITECTURE.md` and `CONCERNS.md` as evidence sources for feasibility/risk/dependency dimensions
 - **Wiki prior knowledge** (if `maestro wiki` available) — `maestro wiki search "<subject keywords>"` for prior decisions and analyses on related topics
-- **Codebase search** — use FastContext first for multi-file evidence across dimensions, then verify returned ranges with `Grep`/`Read`; use `maestro explore` only when explicitly requested or FastContext/KG are unavailable
+- **Codebase search** — use FastContext first for multi-file evidence across dimensions, then verify returned ranges with `Grep`/`Read`
 
 ## Output
 `analysis.md`:

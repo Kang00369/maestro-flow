@@ -49,12 +49,6 @@ export type GraphNode =
   | EvalNode
   | TerminalNode;
 
-export interface ExplorePreStep {
-  queries: string[];
-  maxTurns?: number;
-  endpoint?: string;
-}
-
 export interface CommandNode {
   type: 'command';
   cmd: string;
@@ -69,7 +63,6 @@ export interface CommandNode {
   retry?: RetryPolicy;
   auto_continue_on_failure?: boolean;
   extract?: Record<string, ExtractionRule>;
-  explore?: ExplorePreStep;
 }
 
 export interface RetryPolicy {
@@ -407,4 +400,3 @@ export interface IntentMap {
   patterns: IntentPattern[];
   fallback: IntentRoute;
 }
-

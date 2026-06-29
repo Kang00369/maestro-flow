@@ -202,7 +202,7 @@ Write enriched args + source_artifact_ref back to status.json.
    | debug | error traces + failing test details | 前一 step 的 `completion_evidence` |
    | brainstorm | grill report | `{context.grill_id}` report |
 
-3. **Locate if needed** — 产物指向代码位置但缺少上下文 → FastContext 或 MaestroGraph/KG 补充；`maestro explore` 仅在显式要求或 FastContext/KG 不可用时作为高成本 fallback（仅 execute/debug/test 且有文件路径引用时）
+3. **Locate if needed** — 产物指向代码位置但缺少上下文 → FastContext 补充，随后用 `Grep`/`Read` 和 MaestroGraph/KG 做已知符号确认（仅 execute/debug/test 且有文件路径引用时）
 4. **Accumulated signals** — 遍历 ALL completed steps → 聚合 caveats + deferred
 
 加载的内容进入会话上下文，后续 inline execution 自动受益。

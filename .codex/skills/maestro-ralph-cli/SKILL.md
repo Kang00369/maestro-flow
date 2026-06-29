@@ -194,7 +194,7 @@ Same as Skill(maestro-ralph-execute) A_RESOLVE_ARGS:
    - `review.json` → findings, severity, fix suggestions
    - `completion_evidence` → error traces, test failures
    - `grill-report.md` → challenged assumptions, risks
-4. **Locate if needed** — 产物指向代码位置但缺少上下文 → FastContext 或 MaestroGraph/KG 补充；`maestro explore` 仅在显式要求或 FastContext/KG 不可用时作为高成本 fallback（仅 execute/debug/test 且有文件路径引用时）
+4. **Locate if needed** — 产物指向代码位置但缺少上下文 → FastContext 补充，随后用 `Grep`/`Read` 和 MaestroGraph/KG 做已知符号确认（仅 execute/debug/test 且有文件路径引用时）
 5. **Accumulated signals** — 遍历 ALL completed steps → 聚合 caveats + deferred
 
 输出：`step_context` 结构，供 A_COMPOSE_DELEGATION_PROMPT 消费。

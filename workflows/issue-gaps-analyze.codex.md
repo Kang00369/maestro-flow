@@ -3,7 +3,7 @@
 ## Pipeline
 
 ```
-Load Issues → Classify & Group → Generate tasks.csv → Wave 1: Explore (parallel per issue) → Wave 2: Synthesize (per group) → Write issue.analysis → Output context.md
+Load Issues -> Classify & Group -> Generate tasks.csv -> Wave 1: FastContext locate (parallel per issue) -> Wave 2: Synthesize (per group) -> Write issue.analysis -> Output context.md
 ```
 
 ---
@@ -58,7 +58,7 @@ id,title,description,iss_id,group_id,group_label,deps,context_from,wave,status,f
 **Wave 1 rows** — one per issue:
 
 ```csv
-"1","Explore: ISS-xxx {title}","Root cause exploration for ISS-xxx: {description}. Location: {location}. Severity: {severity}. Fix hint: {fix_direction}. Search keywords: {keywords from title+description+components}. TASK: FastContext keywords first, fallback KG/Grep keywords → read top matches → trace call chain → identify root cause (file:line) → assess impact → list related files → rate confidence → suggest fix. EXPECTED: JSON { root_cause, impact, related_files[], confidence, suggested_approach }. CONSTRAINTS: Evidence-only, use file reads to verify.","ISS-xxx","G1","src/auth","","","1","","","",""
+"1","FastContext: ISS-xxx {title}","Root cause location for ISS-xxx: {description}. Location: {location}. Severity: {severity}. Fix hint: {fix_direction}. Search keywords: {keywords from title+description+components}. TASK: FastContext keywords first, fallback KG/Grep keywords -> read top matches -> trace call chain -> identify root cause (file:line) -> assess impact -> list related files -> rate confidence -> suggest fix. EXPECTED: JSON { root_cause, impact, related_files[], confidence, suggested_approach }. CONSTRAINTS: Evidence-only, use file reads to verify.","ISS-xxx","G1","src/auth","","","1","","","",""
 ```
 
 **Wave 2 rows** — one per group:
@@ -89,7 +89,7 @@ Write `tasks.csv` to session folder.
 
 ---
 
-### Step 4: Wave 1 — Explore (parallel per issue)
+### Step 4: Wave 1 — FastContext Locate (parallel per issue)
 
 Filter `wave == 1 && status == pending`. Write `wave-1.csv`.
 

@@ -70,7 +70,7 @@ Analyze the task for gray areas and ambiguities:
 ### Step 5: Quick Analysis
 
 Rapid codebase exploration focused on the task:
-1. Search for related files using FastContext (`mcp__fast_context__fast_context_search`) first, then MaestroGraph/KG or `Grep`/`Glob`; use `maestro explore` only as an explicit high-cost fallback
+1. Search for related files using FastContext (`mcp__fast_context__fast_context_search`) first, then `Grep`/`Glob` and MaestroGraph/KG for known-symbol confirmation
 2. Identify existing patterns to follow
 3. Map dependencies and integration points
 4. Write analysis findings to `context.md` (append if --discuss created it)

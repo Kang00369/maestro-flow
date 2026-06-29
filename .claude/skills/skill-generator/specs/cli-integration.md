@@ -94,29 +94,22 @@ Execute task:
 - File operations (read/write/edit)
 - Tasks that require tool invocation
 
-### Explore
-
-Code exploration agent for quick codebase understanding.
+### FastContext
 
 ```javascript
-Agent({
-  subagent_type: 'Explore',
-  prompt: `
-Explore src/ directory:
-- Identify main modules
-- Understand directory structure
-- Find entry points
-
-Thoroughness: medium
-  `,
-  run_in_background: false
+mcp__fast-context__fast_context_search({
+  query: 'main modules, directory structure, entry points with file:line evidence',
+  project_path: '<repo root>',
+  exclude_paths: ['node_modules', 'dist', '.git', '.workflow'],
+  max_results: 8,
+  max_turns: 2
 });
 ```
 
 **Applicable Scenarios**:
-- Codebase exploration
+- Fast semantic code location
 - File discovery
-- Structure understanding
+- Structure understanding with follow-up `Grep`/`Read` verification
 
 ### cli-explore-agent
 

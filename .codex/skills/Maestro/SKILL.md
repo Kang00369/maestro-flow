@@ -13,7 +13,7 @@ resolve chain → **directly invoke each skill in-context, one at a time** → r
 
 `Skill(name)` / `Skill(name, args)` = 加载 `~/.codex/skills/{name}/SKILL.md` 或 `.codex/skills/{name}/SKILL.md`（project 覆盖 global），args 填入目标 SKILL.md `<context>` 块的输入参数位。这是 skill 间的内部调用，**不是 CLI 命令**。严禁翻译为 `Bash("maestro {name} {args}")`。
 
-合法 CLI 子命令仅限结构化操作：`maestro ralph next`、`maestro ralph complete`、`maestro delegate`、`maestro explore` 等。
+合法 CLI 子命令仅限结构化操作：`maestro ralph next`、`maestro ralph complete`、`maestro delegate`、`maestro search`、`maestro kg ...` 等。代码定位优先使用 FastContext。
 
 Entry points:
 - **`Skill(maestro, "intent")`** — Classify → decompose → chain → execute
@@ -55,7 +55,7 @@ $ARGUMENTS — user intent text, or special flags.
 8. **schema 向后兼容** — decomposition 字段可选；`steps[]` 由 post-goal-audit 动态生长（goal_ref tagged）；既有字段不删不改；`waves` 保留空数组
 9. **Sequential execution** — one step at a time in index order; each step's result read before the next starts
 10. **Abort on failure** — failed step → mark remaining skipped → report (goal stays bound for `--continue`)
-11. **CLI ≠ Skill** — 本 skill 通过 `Skill(maestro, "intent")` 调用。`maestro` CLI 二进制不接受裸 intent（`Bash("maestro \"intent\"")` 会报错退出）。CLI 层只有结构化子命令：`ralph`、`delegate`、`explore`、`search` 等。
+11. **CLI ≠ Skill** — 本 skill 通过 `Skill(maestro, "intent")` 调用。`maestro` CLI 二进制不接受裸 intent（`Bash("maestro \"intent\"")` 会报错退出）。CLI 层只有结构化子命令：`ralph`、`delegate`、`search`、`kg` 等；代码定位优先使用 FastContext。
 </invariants>
 
 <state_machine>

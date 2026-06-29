@@ -31,11 +31,11 @@ Explore codebase for UI component patterns, state management conventions, and fr
 
 ## Phase 3: Codebase Exploration
 
-Use ACE search for semantic queries:
+Use FastContext for semantic queries:
 
 ```
 (
-  project_root_path="<project-path>",
+  project_path="<project-path>",
   query="<exploration-query>"
 )
 ```

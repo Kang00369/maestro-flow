@@ -1,10 +1,10 @@
 # Code Analysis Action Template
 
-Code analysis action template for integrating code exploration and analysis capabilities into a Skill.
+Code analysis action template for integrating FastContext-based code location and analysis capabilities into a Skill.
 
 ## Purpose
 
-Generate code analysis actions for a Skill, integrating MCP tools (ACE) and Agents for semantic search and in-depth analysis.
+Generate code analysis actions for a Skill, integrating FastContext for semantic search and optional agents for in-depth analysis.
 
 ## Usage Context
 
@@ -12,7 +12,7 @@ Generate code analysis actions for a Skill, integrating MCP tools (ACE) and Agen
 |-------|-------|
 | Optional | Use when Skill requires code exploration and analysis capabilities |
 | Generation Trigger | User selects to add code-analysis action type |
-| Agent Types | Explore, cli-explore-agent, universal-executor |
+| Agent Types | FastContext locator, cli-explore-agent, universal-executor |
 
 ---
 
@@ -34,9 +34,9 @@ interface CodeAnalysisActionConfig {
   // Analysis type
   analysis_type: 'structure' | 'patterns' | 'dependencies' | 'quality' | 'security';
 
-  // Agent config
-  agent: {
-    type: 'Explore' | 'cli-explore-agent' | 'universal-executor';
+  // Agent config (optional; FastContext is used first)
+  agent?: {
+    type: 'fastcontext' | 'cli-explore-agent' | 'universal-executor';
     thoroughness: 'quick' | 'medium' | 'very thorough';
   };
 
@@ -86,25 +86,29 @@ async function execute${toPascalCase(id)}(context) {
 
   console.log(\`Found \${files.length} files to analyze\`);
 
-  // 2. Semantic search using MCP tools (if configured)
+  // 2. Semantic search using FastContext
   ${mcp_tools.length > 0 ? \`
-  const semanticResults = await mcp__ace_tool__search_context({
-    project_root_path: context.projectRoot,
-    query: '\${getQueryForAnalysisType(analysis_type)}'
+  const semanticResults = await mcp__fast-context__fast_context_search({
+    project_path: context.projectRoot,
+    query: '\${getQueryForAnalysisType(analysis_type)} with file:line evidence',
+    exclude_paths: ['node_modules', 'dist', '.git', '.workflow'],
+    max_results: 8,
+    max_turns: 2
   });
   results.push({ type: 'semantic', data: semanticResults });
   \` : '// No MCP tools configured'}
 
-  // 3. Launch Agent for in-depth analysis
-  const agentResult = await Agent({
-    subagent_type: '\${agent.type}',
-    prompt: \`
+  // 3. Optional in-depth analysis after FastContext location
+  if (agent?.type) {
+    const agentResult = await Agent({
+      subagent_type: '\${agent.type}',
+      prompt: \`
 \${generateAgentPrompt(analysis_type, scope)}
-    \`,
-    run_in_background: false
-  });
-
-  results.push({ type: 'agent', data: agentResult });
+      \`,
+      run_in_background: false
+    });
+    results.push({ type: 'agent', data: agentResult });
+  }
 
   // 4. Aggregate results
   const summary = aggregateResults(results);
@@ -246,14 +250,11 @@ scope:
     - "**/node_modules/**"
     - "**/*.test.*"
 analysis_type: structure
-agent:
-  type: Explore
-  thoroughness: medium
+mcp_tools:
+  - fastcontext
 output:
   format: json
   file: structure-analysis.json
-mcp_tools:
-  - 
 \`\`\`
 
 ### 2. Design Pattern Extraction
@@ -290,9 +291,8 @@ scope:
     - "**/package.json"
     - "**/*.ts"
 analysis_type: dependencies
-agent:
-  type: Explore
-  thoroughness: medium
+mcp_tools:
+  - fastcontext
 output:
   format: json
   file: dependency-graph.json
@@ -318,7 +318,7 @@ output:
   format: json
   file: security-report.json
 mcp_tools:
-  - 
+  - fastcontext
 \`\`\`
 
 ---
@@ -340,10 +340,7 @@ const analysisConfig = {
     excludes: ['**/node_modules/**']
   },
   analysis_type: 'structure',
-  agent: {
-    type: 'Explore',
-    thoroughness: 'medium'
-  },
+  mcp_tools: ['fastcontext'],
   output: {
     format: 'json',
     file: 'skill-structure.json'
@@ -388,9 +385,9 @@ const parallelResults = await Promise.all(
 
 | Analysis Type | Recommended Agent | Thoroughness | Reason |
 |-------------|-----------------|--------------|--------|
-| structure | Explore | medium | Quick directory structure retrieval |
+| structure | FastContext | medium | Quick semantic structure retrieval |
 | patterns | cli-explore-agent | very thorough | Requires deep code understanding |
-| dependencies | Explore | medium | Mainly analyzes import statements |
+| dependencies | FastContext | medium | Locate dependency surfaces before exact verification |
 | quality | universal-executor | medium | Requires running analysis tools |
 | security | universal-executor | very thorough | Requires comprehensive scanning |
 
@@ -401,24 +398,16 @@ const parallelResults = await Promise.all(
 ### Semantic Search Enhancement
 
 \`\`\`javascript
-// Use ACE tool for semantic search
-const semanticContext = await mcp__ace_tool__search_context({
-  project_root_path: projectRoot,
-  query: 'authentication logic, user session management'
+// Use FastContext for semantic code location
+const semanticContext = await mcp__fast-context__fast_context_search({
+  project_path: projectRoot,
+  query: 'authentication logic, user session management with file:line evidence',
+  exclude_paths: ['node_modules', 'dist', '.git', '.workflow'],
+  max_results: 8,
+  max_turns: 2
 });
 
-// Use semantic search results as Agent input context
-const agentResult = await Agent({
-  subagent_type: 'Explore',
-  prompt: \`
-Based on following semantic search results, perform in-depth analysis:
-
-\${semanticContext}
-
-Task: Analyze authentication logic implementation details...
-  \`,
-  run_in_background: false
-});
+// Verify FastContext results with Read/Grep before using them as evidence.
 \`\`\`
 
 ### smart_search Integration
@@ -496,13 +485,13 @@ function extractKeyFindings(agentResult) {
    - Configure excludes to ignore irrelevant files
 
 2. **Agent Selection**
-   - Use Explore for quick exploration
+   - Use FastContext for quick semantic location
    - Use cli-explore-agent for in-depth analysis
    - Use universal-executor when execution is required
 
 3. **MCP Tool Combination**
-   - First use  for semantic context
-   - Then use Agent for in-depth analysis
+   - First use FastContext for semantic context
+   - Then use cli-explore-agent or universal-executor for in-depth analysis
    - Finally use smart_search for exact matching
 
 4. **Result Caching**

@@ -99,9 +99,8 @@ Store as `upstream_material` (in-memory).
 
 Use FastContext first to map the codebase surface relevant to the topic. Verify
 returned file ranges with Grep/Read before using them as evidence. If
-FastContext is unavailable, use MaestroGraph/KG for known symbols and focused
-Grep/Read scans. Use `maestro explore` only when explicitly requested or when
-FastContext/KG are unavailable and a high-cost read-only scout is justified.
+FastContext is unavailable, use focused Grep/Read scans and MaestroGraph/KG for
+known symbols.
 
 ```
 FastContext query:

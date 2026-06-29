@@ -4,12 +4,10 @@
     { "name": "claude",   "cmd": "claude",   "primaryModel": "claude-sonnet-4-6",         "tags": ["fullstack"],            "type": "builtin" },
     { "name": "codex",    "cmd": "codex",    "primaryModel": "gpt-5.5",                   "tags": ["fullstack", "backend"], "type": "builtin" },
     { "name": "opencode", "cmd": "opencode", "primaryModel": "",                          "tags": ["fullstack"],            "type": "builtin" },
-    { "name": "agy",      "cmd": "agy",      "primaryModel": "",                          "tags": ["fullstack"],            "type": "builtin" },
-    { "name": "api-explore", "cmd": "node",  "primaryModel": "",                          "tags": ["explore", "readonly"],  "type": "builtin" }
+    { "name": "agy",      "cmd": "agy",      "primaryModel": "",                          "tags": ["fullstack"],            "type": "builtin" }
   ],
   "roleMappings": {
     "analyze":    { "fallbackChain": ["codex", "gemini", "claude"] },
-    "explore":    { "fallbackChain": ["codex", "gemini", "claude"] },
     "review":     { "fallbackChain": ["codex", "gemini", "claude"] },
     "implement":  { "fallbackChain": ["codex", "claude", "gemini"] },
     "plan":       { "fallbackChain": ["codex", "gemini", "claude"] },

@@ -141,7 +141,7 @@ Send state_update:
 | Scenario | Resolution |
 |----------|------------|
 | Source file not found | Search codebase, report if not found |
-| RCA location incorrect | Use ACE search to find correct location |
+| RCA location incorrect | Use FastContext to find correct location |
 | Syntax errors after fix | Iterate fix (max 3 attempts) |
 | Fix too complex | Report complexity, suggest manual intervention |
 | Multiple files need changes | Apply all changes, validate each |

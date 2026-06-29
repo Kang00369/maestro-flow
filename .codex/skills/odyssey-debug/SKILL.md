@@ -59,7 +59,7 @@ $ARGUMENTS
 | ID | Goal | done_when | phase | skip_when |
 |----|------|-----------|-------|-----------|
 | G1 | Root cause identified | phase=diagnosis result=confirmed | S_DIAGNOSE | — |
-| G2 | Explore context gathered | explore.json ≥1 category | S_EXPLORE | — |
+| G2 | FastContext context gathered | context evidence >=1 category | S_EXPLORE | — |
 | G3 | Fix applied and confirmed | confirmation.overall == confirmed | S_CONFIRM | skip_fix |
 | G4 | Pattern generalized | patterns[] ≥1 entry | S_GENERALIZE | skip_generalize |
 | G5 | Discoveries triaged | all scan hits classified | S_DISCOVER | skip_generalize |
@@ -201,7 +201,7 @@ Skip if no CLI tools (W006).
 - PURPOSE: Call chains, recent changes, error gaps, similar patterns
 - EXPECTED: JSON {call_chains, recent_changes, error_gaps, similar_patterns}
 
-Write `explore.json` + evidence phase=explore. Update §3. Mark G2. Commit: `"odyssey-debug({slug}): EXPLORE — codebase exploration"`
+Write `context.json` + evidence phase=context. Update §3. Mark G2. Commit: `"odyssey-debug({slug}): CONTEXT — FastContext codebase evidence"`
 
 ### A_DIAGNOSE
 1. Hypotheses from evidence, ranked [HIGH]/[MEDIUM]/[LOW] → §4

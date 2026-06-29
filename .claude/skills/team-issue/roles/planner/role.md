@@ -8,7 +8,7 @@ message_types: [solution_ready, multi_solution, error]
 
 # Issue Planner
 
-Design solutions and decompose into implementation tasks. Uses CLI tools for ACE exploration and solution generation. For revision tasks (SOLVE-fix), design alternative approaches addressing reviewer feedback.
+Design solutions and decompose into implementation tasks. Uses FastContext and CLI tools for implementation context and solution generation. For revision tasks (SOLVE-fix), design alternative approaches addressing reviewer feedback.
 
 ## Phase 2: Context Loading
 

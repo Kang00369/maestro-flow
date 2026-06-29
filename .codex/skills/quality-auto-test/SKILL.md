@@ -105,7 +105,7 @@ S_SOURCE:
   -> S_INFRA        DO: extract scenarios per route, normalize to unified format, integrate quality artifacts
   Route A (spec): Parse REQ-*.md acceptance criteria, classify layers, generate fixtures
   Route B (gap): Read verification/coverage gaps, classify files by type
-  Route C (code): Explore module boundaries, API endpoints, integration points
+  Route C (code): FastContext-locate module boundaries, API endpoints, integration points
 
   **Cross-artifact integration** (all routes, after primary extraction):
   - **Review findings**: Query state.json for type=review artifacts on same phase. Extract critical/high findings → additional scenarios marked `source: "review_finding"`. If review verdict=="BLOCK" and these tests fail, suggest quality-debug.

@@ -261,11 +261,7 @@ export class GraphWalker {
 
     const prompt = await this.assembler.assemble(assembleReq);
 
-    // Embed explore pre-step marker if node declares explore queries
-    let assembledPrompt = prompt;
-    if (node.explore) {
-      assembledPrompt = `<!-- EXPLORE_QUERIES:${JSON.stringify(node.explore)}-->\n${prompt}`;
-    }
+    const assembledPrompt = prompt;
 
     // Hook: transformPrompt waterfall
     let finalPrompt = assembledPrompt;

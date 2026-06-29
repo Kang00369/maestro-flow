@@ -52,7 +52,7 @@ $ARGUMENTS
 | ID | Goal | done_when | phase | skip_when |
 |----|------|-----------|-------|-----------|
 | G1 | Review completed | all dimensions reviewed | S_REVIEW | — |
-| G2 | Explore context | explore.json populated | S_EXPLORE | — |
+| G2 | FastContext context | context evidence populated | S_EXPLORE | — |
 | G3 | Zero remaining | `remaining_actionable == 0` | S_CONFIRM | skip_fix |
 | G4 | Pattern generalized | patterns[] >= 1 | S_GENERALIZE | skip_generalize |
 | G5 | Discoveries triaged | all hits classified | S_DISCOVER | skip_generalize |

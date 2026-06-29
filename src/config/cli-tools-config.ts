@@ -79,7 +79,7 @@ export interface CliToolsConfig {
 
 /** Fixed set of supported roles. */
 export const DELEGATE_ROLES = [
-  'analyze', 'explore', 'review', 'implement', 'plan', 'brainstorm', 'research',
+  'analyze', 'review', 'implement', 'plan', 'brainstorm', 'research',
 ] as const;
 
 export type DelegateRole = (typeof DELEGATE_ROLES)[number];

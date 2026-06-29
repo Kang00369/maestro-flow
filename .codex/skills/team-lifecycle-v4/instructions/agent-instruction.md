@@ -23,7 +23,7 @@
    const discoveries = Read(`{session}/discoveries.ndjson`)
    ```
 
-2. **Explore domain** (use CLI analysis tools):
+2. **Research domain** (use CLI analysis tools):
    ```
    shell_exec(`maestro delegate "PURPOSE: Research domain for {requirement}
    TASK: • Identify problem statement • Define target users • Extract constraints • Map integration points
@@ -291,14 +291,16 @@
    const epics = Read(`{session}/spec/epics.md`)
    ```
 
-2. **Explore codebase** (use CLI analysis tools):
+2. **Locate codebase context** (FastContext first):
    ```
-   shell_exec(`maestro delegate "PURPOSE: Explore codebase for {requirement}
-   TASK: • Identify relevant files • Find existing patterns • Locate integration points
-   CONTEXT: @**/* | Memory: {requirement}
-   EXPECTED: Exploration findings with file paths and patterns
-   CONSTRAINTS: Read-only analysis" --role explore --mode analysis --rule analysis-trace-code-execution`, { timeout: 30000 })
-   // Execution mapping: @~/.maestro/workflows/shell-exec-protocol.md
+   mcp__fast_context__fast_context_search({
+     query: "{requirement}: relevant files, existing patterns, integration points with file:line evidence",
+     project_path: "<repo root>",
+     exclude_paths: ["node_modules", "dist", ".git", ".workflow"],
+     max_results: 12,
+     max_turns: 2
+   })
+   // Verify returned files with Grep/Read before planning.
    ```
 
 3. **Generate implementation plan**:

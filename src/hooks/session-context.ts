@@ -8,7 +8,6 @@
 
 import { readFileSync, existsSync, readdirSync, writeFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
@@ -84,11 +83,7 @@ export function evaluateSessionContext(data: SessionContextInput): HookOutput | 
   const specsSection = workspaceRoot ? buildSpecsSection(workspaceRoot) : null;
   if (specsSection) sections.push(specsSection);
 
-  // 6. Explore availability
-  const exploreSection = buildExploreSection();
-  if (exploreSection) sections.push(exploreSection);
-
-  // 7. Git context (lightweight)
+  // 6. Git context (lightweight)
   const gitSection = buildGitSection(cwd);
   if (gitSection) sections.push(gitSection);
 
@@ -391,43 +386,6 @@ function buildSpecsSection(cwd: string): string | null {
 
     const items = files.map(f => `- ${f.replace('.md', '')}`);
     return `## Available Specs\n${items.join('\n')}\n(Auto-injected per agent type via spec-injector hook)`;
-  } catch {
-    return null;
-  }
-}
-
-function buildExploreSection(): string | null {
-  const configPath = join(homedir(), '.maestro', 'api-explore.json');
-  if (!existsSync(configPath)) return null;
-
-  try {
-    const raw = JSON.parse(readFileSync(configPath, 'utf8')) as {
-      baseUrl?: string; apiKey?: string; model?: string;
-      endpoints?: Record<string, { baseUrl?: string; apiKey?: string; model?: string; maxTurns?: number }>;
-      maxTurns?: number; concurrency?: number;
-    };
-
-    const endpoints: string[] = [];
-
-    if (raw.baseUrl && raw.apiKey && raw.model) {
-      endpoints.push(`default(${raw.model})`);
-    }
-
-    if (raw.endpoints) {
-      for (const [name, ep] of Object.entries(raw.endpoints)) {
-        if (ep.baseUrl && ep.apiKey && ep.model) {
-          const turns = ep.maxTurns ? `,${ep.maxTurns}t` : '';
-          endpoints.push(`${name}(${ep.model}${turns})`);
-        }
-      }
-    }
-
-    if (endpoints.length === 0) return null;
-
-    const parts = [`## Explore`, `Endpoints: ${endpoints.join(', ')}`];
-    if (raw.concurrency) parts.push(`Concurrency: ${raw.concurrency}`);
-    if (raw.maxTurns) parts.push(`MaxTurns: ${raw.maxTurns}`);
-    return parts.join(' | ');
   } catch {
     return null;
   }

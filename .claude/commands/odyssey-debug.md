@@ -151,14 +151,14 @@ Glob latest session → read `session.json` → jump to `current_state`.
 
 Update §2. Commit: `"odyssey-debug({slug}): ARCHAEOLOGY — git history analysis"`
 
-### A_EXPLORE
+### A_CONTEXT
 Skip if no CLI tools (W006).
 
-`maestro delegate --role explore --mode analysis` (`run_in_background: true`):
+`maestro delegate --role analyze --mode analysis` (`run_in_background: true`):
 - PURPOSE: Call chains, recent changes, error gaps, similar patterns
 - EXPECTED: JSON {call_chains, recent_changes, error_gaps, similar_patterns}
 
-Write `explore.json` + evidence phase=explore. Update §3. Mark G2. Commit: `"odyssey-debug({slug}): EXPLORE — codebase exploration"`
+Write `context.json` + evidence phase=context. Update §3. Mark G2. Commit: `"odyssey-debug({slug}): CONTEXT — FastContext codebase evidence"`
 
 ### A_DIAGNOSE
 1. Hypotheses from evidence, ranked [HIGH]/[MEDIUM]/[LOW] → §4

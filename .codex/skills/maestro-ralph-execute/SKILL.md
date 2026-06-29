@@ -12,7 +12,7 @@ Each invocation: locate session → find next step → resolve args → execute 
 
 `Skill(name)` / `Skill(name, args)` = 加载 `~/.codex/skills/{name}/SKILL.md` 或 `.codex/skills/{name}/SKILL.md`（project 覆盖 global），args 填入目标 SKILL.md `<context>` 块的输入参数位。这是 skill 间的内部调用，**不是 CLI 命令**。严禁翻译为 `Bash("maestro {name} {args}")`。
 
-合法 CLI 子命令仅限结构化操作：`maestro ralph next`、`maestro ralph complete`、`maestro ralph retry`、`maestro delegate`、`maestro explore` 等。
+合法 CLI 子命令仅限结构化操作：`maestro ralph next`、`maestro ralph complete`、`maestro ralph retry`、`maestro delegate`、`maestro search`、`maestro kg ...` 等。代码定位优先使用 FastContext。
 
 Mutual invocation with `Skill(maestro-ralph)` forms a self-perpetuating work loop.
 
@@ -203,7 +203,7 @@ Write enriched args + source_artifact_ref back to status.json.
    | debug | error traces + failing test details | 前一 step 的 `completion_evidence` |
    | brainstorm | grill report | `{context.grill_id}` report |
 
-3. **Locate if needed** — 产物指向代码位置但缺少上下文 → FastContext 或 MaestroGraph/KG 补充；`maestro explore` 仅在显式要求或 FastContext/KG 不可用时作为高成本 fallback（仅 execute/debug/test 且有文件路径引用时）
+3. **Locate if needed** — 产物指向代码位置但缺少上下文 → FastContext 补充，随后用 `Grep`/`Read` 和 MaestroGraph/KG 做已知符号确认（仅 execute/debug/test 且有文件路径引用时）
 4. **Accumulated signals** — 遍历 ALL completed steps → 聚合 caveats + deferred
 
 加载的内容进入会话上下文，后续 inline execution 自动受益。

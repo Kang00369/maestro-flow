@@ -206,7 +206,7 @@ EXPECTED: JSON { call_chains: [{ entry, chain: [file:line...] }], recent_changes
 CONSTRAINTS: Focus on code paths related to the symptoms | Max 20 entries per category
 
 Symptoms: ${symptom_summary}
-" --role explore --mode analysis',
+" --role analyze --mode analysis',
   run_in_background: true
 })
 ```

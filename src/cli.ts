@@ -98,7 +98,6 @@ if (requestedCommand && requestedCommand in commandLoaders) {
   console.error('  Or use a CLI subcommand directly:');
   console.error('    maestro ralph next|complete|skills|check|session');
   console.error('    maestro delegate "prompt" --to <tool>');
-  console.error('    maestro explore "prompt"');
   console.error();
   process.exit(1);
 } else {

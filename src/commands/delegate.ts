@@ -322,7 +322,7 @@ export function registerDelegateCommand(program: Command): void {
 
   delegate
     .option('--to <tool>', 'CLI tool to delegate to (gemini, qwen, codex, claude, opencode)')
-    .option('--role <role>', 'Capability role for auto tool selection (analyze, explore, review, implement, plan, brainstorm, research)')
+    .option('--role <role>', 'Capability role for auto tool selection (analyze, review, implement, plan, brainstorm, research)')
     .option('--mode <mode>', 'Execution mode (analysis or write)', 'analysis')
     .option('--model <model>', 'Model override')
     .option('--cd <dir>', 'Working directory')

@@ -1,1 +1,5 @@
-{ "name": "mcp__ace-tool__search_context" }
+{
+  "name": "FastContext",
+  "codex": "mcp__fast_context__fast_context_search",
+  "claude": "mcp__fast-context__fast_context_search"
+}

@@ -31,7 +31,7 @@ Scan codebase from multiple perspectives (bug, security, test-coverage, code-qua
 
 | Complexity | Condition | Strategy |
 |------------|-----------|----------|
-| Low | < 5 changed files, no specific keywords | ACE search + Grep inline |
+| Low | < 5 changed files, no specific keywords | FastContext + Grep inline |
 | Medium | 5-15 files or specific perspective requested | CLI fan-out (3 core perspectives) |
 | High | > 15 files or full-project scan | CLI fan-out (all perspectives) |
 
@@ -39,7 +39,7 @@ Scan codebase from multiple perspectives (bug, security, test-coverage, code-qua
 
 **Low complexity**: Use `mcp__fast-context__fast_context_search` for quick pattern-based scan.
 
-**Medium/High complexity**: Use 2-3 focused FastContext queries, then verify with Grep/Read. Use `maestro explore` only when explicitly requested or FastContext/KG are unavailable and a high-cost read-only scout is justified.
+**Medium/High complexity**: Use 2-3 focused FastContext queries, then verify with Grep/Read.
 
 Build one query per active perspective:
 ```text

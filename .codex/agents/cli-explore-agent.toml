@@ -92,14 +92,12 @@ Use Bash to verify FastContext/KG results and to collect exact file:line evidenc
 
 ### Fallbacks
 
-1. `maestro kg search/context/callers/callees` for known symbols.
-2. Bash `rg`/`find` for exact identifiers and file discovery.
-3. `maestro explore` only when explicitly requested or FastContext/KG are
-   unavailable and a separate high-cost read-only LLM scout is justified.
-4. `maestro delegate` only when deeper analysis is needed after location.
+1. Bash `rg`/`find` for exact identifiers and file discovery.
+2. `maestro kg search/context/callers/callees` for known symbols.
+3. `maestro delegate --role analyze` only when deeper analysis is needed after FastContext location.
 
 ```bash
-maestro delegate "PURPOSE: {from prompt} TASK: {from prompt} MODE: analysis" --role explore --mode analysis
+maestro delegate "PURPOSE: {from prompt} TASK: {from prompt} MODE: analysis" --role analyze --mode analysis
 ```
 
 ### Dual-Source Synthesis
@@ -172,9 +170,8 @@ Brief summary: task completion status, key findings, generated file paths
 ## Rules
 
 ### ALWAYS
-- Prefer FastContext over `maestro explore` and raw Grep/rg for semantic code search
+- Prefer FastContext over raw Grep/rg for semantic code search
 - Verify FastContext/KG hits with exact file reads or `rg`
-- Use `maestro explore` only as an explicit high-cost fallback
 - Read schema file FIRST before generating output (if schema specified)
 - Copy field names EXACTLY from schema (case-sensitive)
 - Include file:line references in findings

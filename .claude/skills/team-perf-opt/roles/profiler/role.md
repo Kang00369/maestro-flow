@@ -31,7 +31,7 @@ Profile application performance to identify CPU, memory, I/O, network, and rende
 | CLI entry / bin/ directory | CLI Tool | Startup time, throughput, memory peak |
 | No detection | Generic | All profiling dimensions |
 
-3. Use ACE search or CLI tools to map performance-critical code paths within target scope
+3. Use FastContext or CLI tools to map performance-critical code paths within target scope
 4. Detect available profiling tools (test runners, benchmark harnesses, linting tools)
 
 ## Phase 3: Performance Profiling

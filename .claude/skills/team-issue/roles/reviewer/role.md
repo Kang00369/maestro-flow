@@ -37,7 +37,7 @@ Review each solution across three weighted dimensions:
 | File Coverage | Solution covers all affected files from explorer context |
 | Dependency Awareness | Considers dependency cascade effects |
 | API Compatibility | Maintains backward compatibility |
-| Pattern Conformance | Follows existing code patterns (ACE semantic validation) |
+| Pattern Conformance | Follows existing code patterns (FastContext semantic validation) |
 
 **Risk Assessment (30%)**:
 

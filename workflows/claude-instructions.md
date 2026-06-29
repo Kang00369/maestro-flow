@@ -19,9 +19,8 @@ concluding.
 
 Priority:
 1. FastContext semantic locator for natural-language code search and unknown symbols.
-2. MaestroGraph (`maestro kg search/context/callers/callees`) for known symbols, call chains, and knowledge-linked context.
-3. `Grep`/`Read`/Maestro file tools for exact verification.
-4. `maestro explore` only when the user explicitly asks for it, or when FastContext/KG are unavailable and a separate high-cost read-only LLM scout is truly needed. Do not use `--all` by default.
+2. `Grep`/`Read`/Maestro file tools for exact verification of returned ranges.
+3. MaestroGraph (`maestro kg search/context/callers/callees`) for known-symbol and call-chain confirmation after FastContext.
 
 Example:
 
@@ -124,15 +123,14 @@ When a task matches a specialized Maestro skill, invoke that skill instead of re
 | Persisting code knowledge into knowhow | `codify-to-knowhow` / `manage-knowhow-capture` |
 | Unclear skill selection | `/maestro-help skills` |
 
-## Explore vs Delegate Boundary
+## Locator vs Delegate Boundary
 
 | Scenario | Tool | Reason |
 |----------|------|--------|
 | Single focused or multi-angle code location | FastContext + `Grep`/`Read` verification | Lower cost and better semantic file targeting |
 | Known symbol or call-chain lookup | `maestro kg context/callers/callees` | Graph-backed symbol context |
-| Explicit high-cost read-only scout | `maestro explore` | Only on request or FastContext/KG unavailable |
 | Deep implementation, long analysis, or writes | `maestro delegate` | Session-backed and chainable |
-| Broad research over more than 5 files | `maestro delegate --role explore/research` | Preserves main-session context |
+| Broad research over more than 5 files | FastContext seed queries, then `maestro delegate --role research` if needed | Preserves main-session context |
 
 Keep the main session focused on planning, review, and interaction. Delegate heavy work with `--async`; Maestro reports completion through the MCP channel and the `delegate-monitor` hook.
 

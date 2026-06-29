@@ -58,7 +58,7 @@ Verify returned files with Grep/Read → extract relevant_files, patterns, key_f
 **Fallback: `maestro delegate`** (when FastContext/KG/Grep results are insufficient):
 
 ```bash
-maestro delegate "PURPOSE: Explore codebase for <topic> from <perspective> perspective
+maestro delegate "PURPOSE: Analyze FastContext-located codebase evidence for <topic> from <perspective> perspective
 TASK: Search for topic-related patterns | Identify key files and relationships | Extract architectural insights
 EXPECTED: JSON with relevant_files, patterns, key_findings
 CONSTRAINTS: Focus on <perspective> angle
@@ -69,8 +69,8 @@ CONSTRAINTS: Focus on <perspective> angle
 
 | Check | Method | Action on Failure |
 |-------|--------|-------------------|
-| Output file exists | Read output path | Create empty result, run ACE fallback |
-| Has relevant_files | Array length > 0 | Trigger ACE supplementary search |
+| Output file exists | Read output path | Create empty result, run FastContext fallback |
+| Has relevant_files | Array length > 0 | Trigger FastContext supplementary search |
 | Has key_findings | Array length > 0 | Note partial results, proceed |
 
 Write validated exploration to `<session>/explorations/exploration-<num>.json`.

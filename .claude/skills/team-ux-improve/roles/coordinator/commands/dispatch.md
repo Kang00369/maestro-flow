@@ -59,7 +59,7 @@ TaskCreate({
   description: "PURPOSE: Scan UI components to identify interaction issues (unresponsive buttons, missing feedback, state not refreshing) | Success: Complete issue report with file:line references and severity classification
 TASK:
   - Detect framework (React/Vue) from project structure
-  - Scan UI components for interaction patterns using ACE search and file analysis
+  - Scan UI components for interaction patterns using FastContext and file analysis
   - Identify missing feedback mechanisms (loading states, error handling, success confirmation)
   - Detect unresponsive actions (event binding issues, async handling problems)
   - Check state update patterns (mutation vs reactive updates)

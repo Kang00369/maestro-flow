@@ -49,7 +49,7 @@ Implement optimization changes following the strategy plan. For FIX tasks, apply
    - **Independent pipeline**: Read `<session>/artifacts/pipelines/{P}/optimization-plan.md`
 
 4. For FIX: parse review/benchmark feedback for specific issues to address
-5. Use ACE search or CLI tools to load implementation context for target files
+5. Use FastContext or CLI tools to load implementation context for target files
 6. For inner loop (single mode only): load context_accumulator from prior IMPL/FIX tasks
 
 ## Phase 3: Code Implementation

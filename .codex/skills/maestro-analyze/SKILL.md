@@ -46,7 +46,7 @@ Interview the user relentlessly until shared understanding is reached. Active on
 **Text topic**: always interview from scope onward — text topics are never auto-classified as "unambiguous".
 
 - One decision per turn via request_user_input with 2–4 options + a (Recommended) default. The user controls termination — keep interviewing until convergence; they can interrupt naturally at any time.
-- Search-first when uncertain: before asking, resolve via `state.json`, `roadmap.md`, `issues.jsonl`, `maestro load --type spec`, `maestro search`, Grep, Read, or — for open-ended multi-file scans — `maestro delegate ... --role explore`. Never ask what code or memory can verify; never bounce your own ambiguity back to the user — search first, then ask only what truly needs human judgment.
+- Search-first when uncertain: before asking, resolve via `state.json`, `roadmap.md`, `issues.jsonl`, `maestro load --type spec`, `maestro search`, FastContext, Grep, or Read; for open-ended multi-file scans, seed with FastContext and use `maestro delegate ... --role analyze` only if still needed. Never ask what code or memory can verify; never bounce your own ambiguity back to the user — search first, then ask only what truly needs human judgment.
 - Writeback cadence: each settled decision is immediately appended/updated in `context.md` "Interview Decisions" (and mirrored into `analysis.md` in full mode). Do NOT batch writeback to the end — partial decisions must already be on disk before the next question.
 - Walk the decision dependency tree strictly: scope → depth → dimensions → Go/No-Go threshold. Do not open the next branch until the current one is settled.
 - Scope guard: only ask about decisions owned by `analyze`. Do not prejudge plan/execute concerns.
@@ -63,9 +63,9 @@ Exit: when all decision points are settled (or user explicitly signals to procee
 
 ```csv
 id,title,description,dimension,analysis_type,deps,context_from,wave,status,findings,score,recommendations,error
-"1","Explore: Architecture","Explore codebase for architecture patterns: module boundaries, dependency graph, design patterns. 3-layer: module discovery, structure tracing, code anchor extraction.","architecture","explore","","","1","","","","",""
-"2","Explore: Implementation","Explore codebase for implementation patterns: code structure, error handling, type safety. Extract code anchors with file:line.","implementation","explore","","","1","","","","",""
-"3","Explore: Performance","Explore codebase for performance: hot paths, resource utilization, concurrency, bottlenecks.","performance","explore","","","1","","","","",""
+"1","FastContext: Architecture","Locate architecture patterns with FastContext first, then verify module boundaries, dependency graph, and design patterns via Grep/Read/KG.","architecture","locate","","","1","","","","",""
+"2","FastContext: Implementation","Locate implementation patterns with FastContext first, then verify code structure, error handling, and type safety with file:line anchors.","implementation","locate","","","1","","","","",""
+"3","FastContext: Performance","Locate performance-relevant code with FastContext first, then verify hot paths, resource utilization, concurrency, and bottlenecks.","performance","locate","","","1","","","","",""
 "4","Score: Feasibility","Score feasibility (0-100): technical difficulty, team capability, time estimate, tooling.","feasibility","score","1;2;3","1;2;3","2","","","","",""
 "5","Score: Impact","Score impact (0-100): user value, business value, tech debt reduction, DX.","impact","score","1;2;3","1;2;3","2","","","","",""
 "6","Score: Risk","Score risk (0-100): failure modes, security, scalability, regression.","risk","score","1;2;3","1;2;3","2","","","","",""

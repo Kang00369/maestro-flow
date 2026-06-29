@@ -19,7 +19,7 @@ Research and codebase exploration for context gathering.
 ## Boundaries
 ### MUST
 - Extract structured seed information from task topic
-- Explore codebase if project detected
+- Locate codebase context with FastContext if project detected
 - Package context for downstream roles
 ### MUST NOT
 - Implement code or modify files
@@ -51,17 +51,19 @@ Research and codebase exploration for context gathering.
 
 | Condition | Action |
 |-----------|--------|
-| package.json / Cargo.toml / pyproject.toml / go.mod exists | Explore |
+| package.json / Cargo.toml / pyproject.toml / go.mod exists | FastContext locate |
 | No project files | Skip (codebase_context = null) |
 
 When project detected:
 ```
-shell_exec(`maestro delegate "PURPOSE: Explore codebase for context
-TASK: * Identify tech stack * Map architecture patterns * Document conventions * List integration points
-MODE: analysis
-CONTEXT: @**/*
-EXPECTED: JSON with: tech_stack[], architecture_patterns[], conventions[], integration_points[]" --role explore --mode analysis`, { timeout: 30000 })
-// Execution mapping: @~/.maestro/workflows/shell-exec-protocol.md
+mcp__fast_context__fast_context_search({
+  query: "tech stack, framework detection, architecture patterns and conventions with file:line evidence",
+  project_path: "<repo root>",
+  exclude_paths: ["node_modules", "dist", ".git", ".workflow"],
+  max_results: 12,
+  max_turns: 2
+})
+// Verify returned files with Grep/Read before packaging context.
 // NEVER skip — codebase context is required for downstream roles
 ```
 

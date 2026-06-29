@@ -20,9 +20,8 @@ Maestro file tools before editing or concluding.
 
 Priority:
 1. FastContext semantic locator for natural-language code search and unknown symbols.
-2. MaestroGraph (`maestro kg search/context/callers/callees`) for known symbols, call chains, and knowledge-linked context.
-3. Grep/Read/Maestro file tools for exact verification.
-4. `maestro explore` only when the user explicitly asks for it, or when FastContext/KG are unavailable and a separate high-cost read-only LLM scout is truly needed. Do not use `--all` by default.
+2. Grep/Read/Maestro file tools for exact verification of returned ranges.
+3. MaestroGraph (`maestro kg search/context/callers/callees`) for known-symbol and call-chain confirmation after FastContext.
 
 
 ## Knowledge System

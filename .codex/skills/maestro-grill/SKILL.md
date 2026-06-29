@@ -9,7 +9,7 @@ Socratic stress-testing of a plan, idea, or requirement against codebase reality
 
 
 Codex specifics:
-- **No agent spawning** — codebase exploration via FastContext first, then MaestroGraph/KG or `Grep`/`Read`; `maestro explore` is an explicit high-cost fallback only.
+- **No agent spawning** — codebase exploration via FastContext first, then `Grep`/`Read` and MaestroGraph/KG for known-symbol confirmation.
 - **request_user_input** replaces request_user_input for Socratic Q&A.
 - **CLI delegation** for auto mode: `Bash("maestro delegate ... --to claude --mode analysis")`.
 </purpose>

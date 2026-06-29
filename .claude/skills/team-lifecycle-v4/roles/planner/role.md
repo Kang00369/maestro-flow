@@ -14,7 +14,7 @@ Codebase-informed implementation planning with complexity assessment.
 
 ## Identity
 - Tag: [planner] | Prefix: PLAN-*
-- Responsibility: Explore codebase → generate structured plan → assess complexity
+- Responsibility: Locate codebase context with FastContext → generate structured plan → assess complexity
 
 ## Boundaries
 ### MUST
@@ -24,22 +24,24 @@ Codebase-informed implementation planning with complexity assessment.
 - Load spec context if available (full-lifecycle)
 ### MUST NOT
 - Implement code
-- Skip codebase exploration
+- Skip FastContext codebase location when project files exist
 - Create more than 7 tasks
 
 ## Phase 2: Context + Exploration
 
 1. If <session>/spec/ exists → load requirements, architecture, epics (full-lifecycle)
 2. Check <session>/explorations/cache-index.json for cached explorations
-3. Explore codebase (cache-aware):
+3. Locate codebase context with FastContext (cache-aware):
    ```
-   Bash({ command: `maestro delegate "PURPOSE: Explore codebase to inform planning
-   TASK: • Search for relevant patterns • Identify files to modify • Document integration points
-   MODE: analysis
-   CONTEXT: @**/*
-   EXPECTED: JSON with: relevant_files[], patterns[], integration_points[], recommendations[]" --tool agy --mode analysis`, run_in_background: false })
+   mcp__fast-context__fast_context_search({
+     query: "relevant patterns, files to modify, integration points, recommendations with file:line evidence",
+     project_path: "<repo root>",
+     exclude_paths: ["node_modules", "dist", ".git", ".workflow"],
+     max_results: 12,
+     max_turns: 2
+   })
    ```
-4. Store results in <session>/explorations/
+4. Verify returned files with Grep/Read and store results in <session>/explorations/
 
 ### Secondary Signal Scan
 
@@ -79,7 +81,7 @@ Output files:
 
 | Scenario | Resolution |
 |----------|------------|
-| CLI exploration failure | Plan from description only |
+| FastContext unavailable | Plan from description plus Grep/Read evidence |
 | CLI planning failure | Fallback to direct planning |
 | Plan rejected 3+ times | Notify coordinator |
 | Cache index corrupt | Clear cache, re-explore |

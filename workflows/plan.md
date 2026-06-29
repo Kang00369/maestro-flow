@@ -187,7 +187,7 @@ When `--tdd` is active:
    CONTEXT: @**/*
    EXPECTED: JSON { patterns: [{ name, files, description }], dependencies: [{ module, depends_on[] }], conflict_risks: [{ file, reason }] }
    CONSTRAINTS: Focus on ${phase_goal} scope | Max 10 entries per category
-   " --role explore --mode analysis',
+   " --role analyze --mode analysis',
      run_in_background: true
    })
    ```

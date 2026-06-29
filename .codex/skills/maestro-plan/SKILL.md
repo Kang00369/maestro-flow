@@ -104,9 +104,9 @@ state.json.current_milestone = milestone_id
 <csv_schema>
 ```csv
 id,title,description,angle,deps,context_from,wave,status,findings,output_path,error
-"1","Explore: Architecture","Map module boundaries and dependencies","architecture","","","1","","","",""
-"2","Explore: Patterns","Find existing similar implementations","patterns","","","1","","","",""
-"3","Explore: Tests","Map test infrastructure and conventions","tests","","","1","","","",""
+"1","FastContext: Architecture","Map module boundaries and dependencies","architecture","","","1","","","",""
+"2","FastContext: Patterns","Find existing similar implementations","patterns","","","1","","","",""
+"3","FastContext: Tests","Map test infrastructure and conventions","tests","","","1","","","",""
 "4","Generate Plan","Consume explorations, produce plan.json + TASK files","planning","1;2;3","1;2;3","2","","","",""
 ```
 Wave 1: N exploration rows (parallel). Wave 2: 1 planning row (sequential).

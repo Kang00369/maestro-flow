@@ -14,7 +14,7 @@ Codebase-informed implementation planning with complexity assessment.
 
 ## Identity
 - Tag: [planner] | Prefix: PLAN-*
-- Responsibility: Explore codebase -> generate structured plan -> assess complexity
+- Responsibility: Locate codebase context with FastContext -> generate structured plan -> assess complexity
 
 ## Boundaries
 ### MUST
@@ -34,15 +34,17 @@ Codebase-informed implementation planning with complexity assessment.
    - Read `tasks.json` for current task assignments and status
    - Read `discoveries/*.json` for prior exploration/analysis results from other roles
 3. Check <session>/explorations/cache-index.json for cached explorations
-4. Explore codebase (cache-aware):
+4. Locate codebase context with FastContext (cache-aware):
    ```
-   shell_exec(`maestro delegate "PURPOSE: Explore codebase to inform planning
-   TASK: * Search for relevant patterns * Identify files to modify * Document integration points
-   MODE: analysis
-   CONTEXT: @**/*
-   EXPECTED: JSON with: relevant_files[], patterns[], integration_points[], recommendations[]" --role explore --mode analysis`, { timeout: 30000 })
-   // Execution mapping: @~/.maestro/workflows/shell-exec-protocol.md
-   // NEVER skip — delegate result is required for plan generation
+   mcp__fast_context__fast_context_search({
+     query: "relevant patterns, files to modify, integration points, recommendations with file:line evidence",
+     project_path: "<repo root>",
+     exclude_paths: ["node_modules", "dist", ".git", ".workflow"],
+     max_results: 12,
+     max_turns: 2
+   })
+   // Verify returned files with Grep/Read; use `maestro kg context/callers/callees` only for known-symbol confirmation.
+   // NEVER skip — codebase context is required for plan generation
    ```
 5. Store results in <session>/explorations/
 

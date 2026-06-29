@@ -31,7 +31,7 @@ Scan codebase from multiple perspectives (bug, security, test-coverage, code-qua
 
 | Complexity | Condition | Strategy |
 |------------|-----------|----------|
-| Low | < 5 changed files, no specific keywords | ACE search + Grep inline |
+| Low | < 5 changed files, no specific keywords | FastContext + Grep inline |
 | Medium | 5-15 files or specific perspective requested | CLI fan-out (3 core perspectives) |
 | High | > 15 files or full-project scan | CLI fan-out (all perspectives) |
 

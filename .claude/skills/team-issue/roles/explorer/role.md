@@ -42,23 +42,23 @@ Bash("ccw issue status <issueId> --json")
 
 | Score | Complexity | Strategy |
 |-------|------------|----------|
-| >= 4 | High | Deep exploration via CLI tool |
-| 2-3 | Medium | Hybrid: ACE search + selective CLI |
-| 0-1 | Low | Direct ACE search only |
+| >= 4 | High | FastContext multi-query + selective CLI analysis if needed |
+| 2-3 | Medium | Hybrid: FastContext + selective CLI |
+| 0-1 | Low | Direct FastContext only |
 
 **Exploration execution**:
 
 | Complexity | Execution |
 |------------|-----------|
-| Low | Direct ACE search: `(project_root_path, query)` |
-| Medium/High | CLI exploration: `Bash("maestro delegate \\\"<exploration_prompt>\" --to agy --mode analysis", { run_in_background: false })` |
+| Low | Direct FastContext: `(project_path, query)` |
+| Medium/High | FastContext multi-query first, then `maestro delegate --role analyze` only if evidence is insufficient |
 
-**CLI exploration prompt template**:
+**FastContext-first prompt template**:
 
 ```
-PURPOSE: Explore codebase for issue <issueId> to identify relevant files, dependencies, and impact scope; success = comprehensive context report written to <session>/explorations/context-<issueId>.json
+PURPOSE: Locate codebase context for issue <issueId> to identify relevant files, dependencies, and impact scope; success = comprehensive context report written to <session>/explorations/context-<issueId>.json
 
-TASK: • Run ccw tool exec get_modules_by_depth '{}' • Execute ACE searches for issue keywords • Map file dependencies and integration points • Assess impact scope • Find existing patterns • Check git log for related changes
+TASK: • Run ccw tool exec get_modules_by_depth '{}' • Execute FastContext searches for issue keywords • Map file dependencies and integration points • Assess impact scope • Find existing patterns • Check git log for related changes
 
 MODE: analysis
 
@@ -96,7 +96,7 @@ After exploration, scan findings for context-aware trigger signals (based on det
 ## Phase 4: Context Report & Wisdom Contribution
 
 1. Write context report to `<session>/explorations/context-<issueId>.json`
-2. If file not found from agent, build minimal report from ACE results
+2. If file not found from agent, build minimal report from FastContext results
 3. Update `<session>/wisdom/.msg/meta.json` under `explorer` namespace:
    - Read existing -> merge `{ "explorer": { issue_id, complexity, impact_scope, file_count } }` -> write back
 4. Contribute discoveries to `<session>/wisdom/learnings.md` if new patterns found

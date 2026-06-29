@@ -144,11 +144,11 @@ Update section 2. Commit: `"odyssey-review({slug}): ARCHAEOLOGY — git history 
 ### A_EXPLORE
 Skip if no CLI tools (W006).
 
-`maestro delegate --role explore --mode analysis` (`run_in_background: true`):
+`maestro delegate --role analyze --mode analysis` (`run_in_background: true`):
 - PURPOSE: Call chains, recent changes, error gaps, similar patterns
 - EXPECTED: JSON {call_chains, recent_changes, error_gaps, similar_patterns}
 
-Write `explore.json` + evidence phase=explore. Update section 3. Mark G2. Commit: `"odyssey-review({slug}): EXPLORE — codebase exploration"`
+Write `context.json` + evidence phase=context. Update section 3. Mark G2. Commit: `"odyssey-review({slug}): CONTEXT — FastContext codebase evidence"`
 
 ### A_REVIEW
 Spawn N parallel Agents, one per dimension:
