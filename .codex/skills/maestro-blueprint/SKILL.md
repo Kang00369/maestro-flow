@@ -2,7 +2,7 @@
 name: maestro-blueprint
 description: Generate formal specification package (Product Brief, PRD, Architecture, Epics) through 7-phase document chain (P0 Spec Study → P1 Discovery → P1.5 Req Expansion → P2 Product Brief → P3 PRD → P4 Architecture → P5 Epics → P6 Readiness Check)
 argument-hint: "<idea or @file> [-y] [-c] [--from <source>]"
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, spawn_agents_on_csv, request_user_input
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, spawn_agents_on_csv, request_user_input, mcp__fast_context__fast_context_search
 ---
 <purpose>
 Formal specification document chain producing a complete specification package through 7 sequential phases (P0–P6, plus P1.5 requirement expansion) with multi-CLI analysis and interactive refinement. Pure documentation — no code generation, no roadmap generation.
@@ -53,7 +53,7 @@ maestro-analyze → maestro-roadmap → maestro-plan
 Interview the user relentlessly about every aspect of the spec until shared understanding is reached. Walk down each branch of the design tree, resolving dependencies between decisions one-by-one; if a question can be answered by exploring the codebase, explore the codebase instead. Active only in interactive mode; skip ONLY when `-y/--yes` or `-c/--continue` is set.
 
 - Ask one question per turn via request_user_input and wait for the user's feedback before continuing; every question must carry a recommended answer marked `(Recommended)`, 2–4 options total. The user controls termination — keep interviewing until convergence; they can interrupt naturally at any time.
-- Search-first when uncertain: before asking, resolve via `state.json`, existing artifacts, `maestro load --type spec`, codebase exploration (`maestro explore` preferred, fallback Glob/Grep/Read). Never ask what code or memory can verify; never bounce your own ambiguity back to the user — search first, then ask only what truly needs human judgment.
+- Search-first when uncertain: before asking, resolve via `state.json`, existing artifacts, `maestro load --type spec`, FastContext (`mcp__fast_context__fast_context_search`), then MaestroGraph/KG or `Grep`/`Read`. Use `maestro explore` only when explicitly requested or FastContext/KG are unavailable and a high-cost read-only scout is justified. Never ask what code or memory can verify; never bounce your own ambiguity back to the user — search first, then ask only what truly needs human judgment.
 - Writeback cadence: each settled decision is immediately persisted into `blueprint-config.json` before the next question. Do NOT batch writeback to the end — partial decisions must already be on disk.
 - Walk the decision dependency tree depth-first: scope → spec type → focus areas → requirement priorities. Do not open the next branch until the current one is settled.
 - Scope guard: only decide the shape of the specification. Do not pre-resolve roadmap phases or plan tasks — those belong to downstream commands.

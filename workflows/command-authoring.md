@@ -203,8 +203,9 @@ The following rules apply to all commands with an interview_protocol. Commands r
 1. Project state files: state.json, roadmap.md, project.md
 2. Current session artifacts already produced
 3. Knowledge base: `maestro spec load` / `maestro wiki search`
-4. Codebase: Glob / Grep / Read
-5. Open-ended exploration: `Agent(subagent_type: Explore)` / `maestro delegate --role explore`
+4. Codebase semantic location: FastContext first, then MaestroGraph/KG for known symbols
+5. Exact verification: Glob / Grep / Read
+6. Open-ended high-cost scout: `maestro explore` or `maestro delegate --role explore` only when explicitly needed
 
 Principle: **never ask what code or memory can answer**; never bounce your own ambiguity back to the user.
 

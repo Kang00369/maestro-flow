@@ -2,7 +2,7 @@
 name: team-tech-debt
 description: Team tech debt identification and remediation
 argument-hint: "[scope] [-y|--yes] [-c|--concurrency N] [--continue] [--mode scan|remediate|targeted]"
-allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
+allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input, mcp__fast_context__fast_context_search
 ---
 
 <purpose>

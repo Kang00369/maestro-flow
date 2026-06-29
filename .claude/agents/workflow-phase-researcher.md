@@ -8,6 +8,7 @@ allowed-tools:
   - Grep
   - WebFetch
   - Write
+  - mcp__fast-context__fast_context_search
 ---
 
 # Phase Researcher

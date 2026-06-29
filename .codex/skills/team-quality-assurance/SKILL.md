@@ -2,7 +2,7 @@
 name: team-quality-assurance
 description: Team QA combining issue discovery and testing
 argument-hint: "[scope] [-y|--yes] [-c|--concurrency N] [--continue] [--mode discovery|testing|full]"
-allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
+allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input, mcp__fast_context__fast_context_search
 ---
 
 <purpose>

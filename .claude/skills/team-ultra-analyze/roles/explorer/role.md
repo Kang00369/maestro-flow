@@ -41,24 +41,21 @@ Explore codebase structure through cli-explore-agent, collecting structured cont
 
 ## Phase 3: Codebase Exploration
 
-**Primary: `maestro explore`** (structured multi-prompt):
+**Primary: FastContext** (focused semantic queries, verified with Grep/Read):
 
-```bash
-maestro explore \
-  "FIND: <topic> patterns and implementations
-SCOPE: src/
-ATTENTION: <perspective>-specific concerns
-EXPECTED: file:line evidence with relevance" \
-  "FIND: module boundaries and relationships for <topic>
-SCOPE: src/
-EXCLUDE: tests, generated code
-EXPECTED: dependency pairs and architectural insights" \
-  --max-turns 3 --json
+```text
+mcp__fast-context__fast_context_search({
+  query: "<topic> patterns, implementations, module boundaries, and relationships from <perspective> perspective; return file:line evidence",
+  project_path: "<repo root>",
+  exclude_paths: ["node_modules", "dist", ".git", ".workflow", "tests"],
+  max_results: 12,
+  max_turns: 3
+})
 ```
 
-Parse JSON results → extract relevant_files, patterns, key_findings.
+Verify returned files with Grep/Read → extract relevant_files, patterns, key_findings.
 
-**Fallback: `maestro delegate`** (when explore results insufficient):
+**Fallback: `maestro delegate`** (when FastContext/KG/Grep results are insufficient):
 
 ```bash
 maestro delegate "PURPOSE: Explore codebase for <topic> from <perspective> perspective

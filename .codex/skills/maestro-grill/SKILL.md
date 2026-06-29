@@ -2,14 +2,14 @@
 name: maestro-grill
 description: Use when stress-testing a plan, idea, or requirement against codebase reality before brainstorming
 argument-hint: "<topic|plan> [-y] [-c] [--from <source>] [--depth shallow|standard|deep]"
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input, mcp__fast_context__fast_context_search
 ---
 <purpose>
 Socratic stress-testing of a plan, idea, or requirement against codebase reality. Walks every branch of the decision tree one question at a time — challenging vague terminology against existing code, probing edge cases with concrete scenarios, and verifying assumptions with code evidence. Produces a verified context package (grill-report.md + terminology.md + context-package.json) for downstream brainstorm/analyze/roadmap consumption.
 
 
 Codex specifics:
-- **No agent spawning** — codebase exploration via `maestro explore` (preferred, fallback Glob/Grep/Read).
+- **No agent spawning** — codebase exploration via FastContext first, then MaestroGraph/KG or `Grep`/`Read`; `maestro explore` is an explicit high-cost fallback only.
 - **request_user_input** replaces request_user_input for Socratic Q&A.
 - **CLI delegation** for auto mode: `Bash("maestro delegate ... --to claude --mode analysis")`.
 </purpose>

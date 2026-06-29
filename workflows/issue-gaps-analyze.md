@@ -68,8 +68,8 @@ For each group:
   Merge keywords from all issues in group: title, description, location, affected_components.
   Deduplicate keywords.
 
-  Standard depth: maestro explore per group (keywords as prompt), fallback grep; flag analysis as [LOW CONFIDENCE] (grep fallback, semantic depth lost).
-  Deep depth: maestro explore multi-prompt + semantic Agent search (error handling,
+  Standard depth: FastContext per group (keywords + issue description as prompt), fallback KG/Grep; flag analysis as [LOW CONFIDENCE] when semantic lookup is unavailable.
+  Deep depth: FastContext multi-query + KG/Grep verification (error handling,
     data flow, deps), merge results.
 
   Build GROUP_CONTEXT: related files, key snippets (max 50 lines), dependency chain.

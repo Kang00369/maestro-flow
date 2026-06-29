@@ -58,7 +58,7 @@ id,title,description,iss_id,group_id,group_label,deps,context_from,wave,status,f
 **Wave 1 rows** — one per issue:
 
 ```csv
-"1","Explore: ISS-xxx {title}","Root cause exploration for ISS-xxx: {description}. Location: {location}. Severity: {severity}. Fix hint: {fix_direction}. Search keywords: {keywords from title+description+components}. TASK: maestro explore keywords (preferred) or grep keywords → read top matches → trace call chain → identify root cause (file:line) → assess impact → list related files → rate confidence → suggest fix. EXPECTED: JSON { root_cause, impact, related_files[], confidence, suggested_approach }. CONSTRAINTS: Evidence-only, use file reads to verify.","ISS-xxx","G1","src/auth","","","1","","","",""
+"1","Explore: ISS-xxx {title}","Root cause exploration for ISS-xxx: {description}. Location: {location}. Severity: {severity}. Fix hint: {fix_direction}. Search keywords: {keywords from title+description+components}. TASK: FastContext keywords first, fallback KG/Grep keywords → read top matches → trace call chain → identify root cause (file:line) → assess impact → list related files → rate confidence → suggest fix. EXPECTED: JSON { root_cause, impact, related_files[], confidence, suggested_approach }. CONSTRAINTS: Evidence-only, use file reads to verify.","ISS-xxx","G1","src/auth","","","1","","","",""
 ```
 
 **Wave 2 rows** — one per group:

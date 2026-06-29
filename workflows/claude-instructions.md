@@ -9,95 +9,31 @@
 
 **Strictly follow the cli-tools.json configuration**
 
-## Explore
+## Code Location
 
-`maestro explore` takes priority over Glob, Grep, and Read. When locating files or searching code patterns, call `maestro explore` first and stop to wait for results.
+For locating files or code patterns, use FastContext first. In Claude the MCP
+tool name is `mcp__fast-context__fast_context_search`. Keep queries focused, set
+`project_path`, exclude generated directories, then inspect returned files and
+line ranges with `Grep`, `Read`, or Maestro file tools before editing or
+concluding.
 
-```bash
-maestro explore "FIND: <target + condition>\nSCOPE: <paths>" [more prompts...] [options]
+Priority:
+1. FastContext semantic locator for natural-language code search and unknown symbols.
+2. MaestroGraph (`maestro kg search/context/callers/callees`) for known symbols, call chains, and knowledge-linked context.
+3. `Grep`/`Read`/Maestro file tools for exact verification.
+4. `maestro explore` only when the user explicitly asks for it, or when FastContext/KG are unavailable and a separate high-cost read-only LLM scout is truly needed. Do not use `--all` by default.
+
+Example:
+
+```text
+mcp__fast-context__fast_context_search({
+  query: "where JWT middleware validates tokens",
+  project_path: "/path/to/project",
+  exclude_paths: ["node_modules", "dist", ".git", ".workflow"],
+  max_results: 8,
+  max_turns: 2
+})
 ```
-
-Lightweight read-only codebase search. 1 prompt = 1 agent. Not for write-mode/long sessions — use `delegate`.
-
-| Option | Description |
-|--------|-------------|
-| `-e, --endpoint <names>` | Endpoint name(s), comma-separated |
-| `--all` | Fan out each prompt to all endpoints |
-| `--max-turns <n>` | Max agent turns per job |
-| `-f, --file <path>` | Load prompts from JSON or text file |
-| `--cd <dir>` | Working directory |
-| `--json` | Output results as JSON |
-
-### Context Injection
-
-Explore agent 无项目认知，调用前注入上下文：
-
-| 注入项 | 写入字段 | 内容 |
-|--------|----------|------|
-| 结构 | SCOPE | 相关目录的具体路径（非通配泛扫） |
-| 领域 | SCOPE | `maestro search` 已返回的关键文件路径 |
-| 约束 | ATTENTION | 框架、语言、命名惯例 |
-
-```
-FIND: authentication middleware that validates JWT tokens
-SCOPE: src/middleware/, src/auth/, src/api/routes/
-ATTENTION: Express.js, middleware files named *.middleware.ts
-```
-
-### Prompt Structure
-
-**FIND + SCOPE 为最低标准。** 每个字段一句陈述句，禁止嵌套条件。
-
-| Field | Required | Rule |
-|-------|----------|------|
-| `FIND` | **Yes** | 可判定的具体目标（什么 + 判定条件） |
-| `SCOPE` | **Yes** | 明确路径或 glob，禁止 `**/*` 泛扫 |
-| `EXCLUDE` | No | 要跳过的文件类型或目录 |
-| `ATTENTION` | No | 框架、命名惯例、已知陷阱 |
-| `EXPECTED` | Recommended | 输出格式：`file:line` 列表 / 摘要 / JSON |
-
-```
-FIND: Functions that call db.query() with string concatenation instead of $1/$2
-SCOPE: src/db/**/*.ts, src/api/**/*.ts
-EXCLUDE: **/*.test.ts
-EXPECTED: file:line list with the SQL string
-```
-
-### Cross-Search
-
-对重要搜索，用 2-3 个不同角度的 prompt 并发，结果由 Claude 交叉验证。
-
-**按角度拆分，不按关键词拆分：**
-
-| 角度 | Prompt A | Prompt B |
-|------|----------|----------|
-| 定义 vs 调用 | 找函数定义 | 找调用点 |
-| 正例 vs 反例 | 找正确用法 | 找遗漏用法 |
-| 入口 vs 实现 | 找 export/路由 | 找内部逻辑 |
-| 按文件类型 | .ts 中的用法 | .vue 中的用法 |
-
-```bash
-maestro explore \
-  "FIND: All functions exported from auth module\nSCOPE: src/auth/\nEXPECTED: function name + file:line" \
-  "FIND: All imports from auth module\nSCOPE: src/**/*.ts\nEXCLUDE: src/auth/\nEXPECTED: import path + file:line" \
-  --json
-```
-
-**结果置信度：**
-- 双命中 → 高置信，直接使用
-- 单命中 → 用 Grep/Read 二次确认
-- 零命中 → 换角度重搜或目标不存在
-
-### Execution
-
-Multi-prompt — background；single lookup — foreground：
-
-```
-Bash({ command: "maestro explore \"p1\" \"p2\" --json", run_in_background: true })
-Bash({ command: "maestro explore \"FIND: ...\nSCOPE: ...\"" })
-```
-
-Session: `maestro explore show` / `maestro explore output <id>`
 
 ## Knowledge System
 
@@ -192,8 +128,9 @@ When a task matches a specialized Maestro skill, invoke that skill instead of re
 
 | Scenario | Tool | Reason |
 |----------|------|--------|
-| Multi-angle read-only scan with 3+ prompts | `maestro explore` | Lightweight and sessionless |
-| Single focused lookup | `maestro explore` | Sufficient for narrow discovery |
+| Single focused or multi-angle code location | FastContext + `Grep`/`Read` verification | Lower cost and better semantic file targeting |
+| Known symbol or call-chain lookup | `maestro kg context/callers/callees` | Graph-backed symbol context |
+| Explicit high-cost read-only scout | `maestro explore` | Only on request or FastContext/KG unavailable |
 | Deep implementation, long analysis, or writes | `maestro delegate` | Session-backed and chainable |
 | Broad research over more than 5 files | `maestro delegate --role explore/research` | Preserves main-session context |
 

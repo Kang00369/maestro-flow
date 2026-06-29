@@ -50,20 +50,18 @@ Research and codebase exploration for context gathering.
 | package.json / Cargo.toml / pyproject.toml / go.mod exists | Explore |
 | No project files | Skip (codebase_context = null) |
 
-When project detected — prefer `maestro explore` multi-prompt:
-```bash
-maestro explore \
-  "FIND: tech stack and framework detection
-SCOPE: package.json, Cargo.toml, pyproject.toml, go.mod, src/
-EXPECTED: tech_stack list with versions" \
-  "FIND: architecture patterns and conventions
-SCOPE: src/
-EXCLUDE: tests, node_modules
-EXPECTED: patterns list with file:line evidence" \
-  --max-turns 3 --json
+When project detected — use FastContext first and verify returned ranges with Grep/Read:
+```text
+mcp__fast-context__fast_context_search({
+  query: "tech stack, framework detection, architecture patterns and conventions with file:line evidence",
+  project_path: "<repo root>",
+  exclude_paths: ["node_modules", "dist", ".git", ".workflow"],
+  max_results: 12,
+  max_turns: 2
+})
 ```
 
-**Fallback**: `maestro delegate "PURPOSE: Explore codebase for context ..." --tool agy --mode analysis`
+**Fallback**: `maestro kg search/context` for known symbols, then Grep/Read. Use `maestro explore` only when explicitly requested or FastContext/KG are unavailable and a high-cost read-only scout is justified.
 
 ### Tech Profile Scan
 

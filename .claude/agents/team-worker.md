@@ -9,6 +9,7 @@ allowed-tools:
   - Glob
   - Grep
   - SendMessage
+  - mcp__fast-context__fast_context_search
 ---
 
 # Team Worker

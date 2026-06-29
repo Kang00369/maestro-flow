@@ -39,19 +39,17 @@ Scan codebase from multiple perspectives (bug, security, test-coverage, code-qua
 
 **Low complexity**: Use `mcp__fast-context__fast_context_search` for quick pattern-based scan.
 
-**Medium/High complexity**: Multi-prompt `maestro explore` (preferred for read-only scan):
+**Medium/High complexity**: Use 2-3 focused FastContext queries, then verify with Grep/Read. Use `maestro explore` only when explicitly requested or FastContext/KG are unavailable and a high-cost read-only scout is justified.
 
-Build one prompt per active perspective:
-```bash
-maestro explore \
-  "FIND: <perspective1> issues and anti-patterns
-SCOPE: <scan-scope>
-ATTENTION: common <perspective1> problems
-EXPECTED: severity + file:line + description" \
-  "FIND: <perspective2> issues and anti-patterns
-SCOPE: <scan-scope>
-EXPECTED: severity + file:line + description" \
-  --max-turns 3 --json
+Build one query per active perspective:
+```text
+mcp__fast-context__fast_context_search({
+  query: "<perspective> issues and anti-patterns in <scan-scope>; return severity + file:line + description",
+  project_path: "<repo root>",
+  exclude_paths: ["node_modules", "dist", ".git", ".workflow"],
+  max_results: 10,
+  max_turns: 2
+})
 ```
 
 **Fallback** (when deeper analysis needed per perspective): `maestro delegate "<prompt>" --role analyze --mode analysis`

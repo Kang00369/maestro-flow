@@ -178,9 +178,9 @@ Store → .workflow/issues/discoveries/{SESSION_ID}/exploration-plan.json
 ### Step 9: Gather Codebase Context
 
 ```
-Per dimension (prefer maestro explore over rg):
-  1. maestro explore "{dimension.description}" per dimension, parallel
-  2. Fallback: Semantic search via {search_tool} + rg for dimension.search_patterns
+Per dimension (prefer FastContext over maestro explore or raw rg):
+  1. FastContext semantic search for "{dimension.description}" per dimension
+  2. Fallback: MaestroGraph/KG + rg for dimension.search_patterns
   3. Collect matching files/snippets → {SESSION_ID}/{dimension.name}-context.md
 ```
 
@@ -189,7 +189,7 @@ Per dimension (prefer maestro explore over rg):
 ```
 Up to 3 rounds (exit early if no new gaps/findings):
   Round 1: Analyze context → identify issues + coverage gaps
-  Round 2: maestro explore for gap patterns → search adjacent files → merge findings
+  Round 2: FastContext/KG for gap patterns → search adjacent files → merge findings
   Round 3: Final sweep on uncovered high-severity patterns + cross-module interactions
 
 Log per round → {SESSION_ID}/exploration-log.md:

@@ -2,7 +2,7 @@
 name: maestro-ralph-cli
 description: CLI-delegated lifecycle orchestrator — compose, delegate, analyze, decide in one loop
 argument-hint: "<intent> [-y] [--to <tool>] | status | continue"
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, request_user_input, mcp__fast_context__fast_context_search
 ---
 <purpose>
 CLI-delegated variant of maestro-ralph. Same chain-building logic — but this command owns the full orchestration loop: compose prompt → delegate to CLI (via ralph-cli-execute wrapper) → STOP → callback → analyze structured result → mark complete → decide next → loop.
@@ -194,7 +194,7 @@ Same as Skill(maestro-ralph-execute) A_RESOLVE_ARGS:
    - `review.json` → findings, severity, fix suggestions
    - `completion_evidence` → error traces, test failures
    - `grill-report.md` → challenged assumptions, risks
-4. **Explore if needed** — 产物指向代码位置但缺少上下文 → `maestro explore` 补充（仅 execute/debug/test 且有文件路径引用时）
+4. **Locate if needed** — 产物指向代码位置但缺少上下文 → FastContext 或 MaestroGraph/KG 补充；`maestro explore` 仅在显式要求或 FastContext/KG 不可用时作为高成本 fallback（仅 execute/debug/test 且有文件路径引用时）
 5. **Accumulated signals** — 遍历 ALL completed steps → 聚合 caveats + deferred
 
 输出：`step_context` 结构，供 A_COMPOSE_DELEGATION_PROMPT 消费。

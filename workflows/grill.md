@@ -97,13 +97,14 @@ Store as `upstream_material` (in-memory).
 
 ### 2.3: Codebase Scan
 
-MANDATORY, NOT SUBSTITUTABLE by manual Read/Grep: spawn `Agent(subagent_type: Explore)` to map the codebase surface relevant to the topic:
+Use FastContext first to map the codebase surface relevant to the topic. Verify
+returned file ranges with Grep/Read before using them as evidence. If
+FastContext is unavailable, use MaestroGraph/KG for known symbols and focused
+Grep/Read scans. Use `maestro explore` only when explicitly requested or when
+FastContext/KG are unavailable and a high-cost read-only scout is justified.
 
 ```
-Agent(
-  subagent_type="Explore",
-  prompt="""
-  Search breadth: medium
+FastContext query:
   Find code relevant to: {topic}
   Report:
   1. Existing modules/files that overlap with this topic
@@ -111,9 +112,6 @@ Agent(
   3. Patterns already established (error handling, data flow, API style)
   4. Dependencies and integration points
   Return structured findings — file paths, symbol names, pattern descriptions.
-  """,
-  description="Codebase scan for grill context"
-)
 ```
 
 Store as `codebase_context`. W001 on failure: continue without code grounding; flag grill output as [LOW CONFIDENCE] (no code grounding).
@@ -315,7 +313,7 @@ CONSTRAINTS: Answer based on code evidence only, flag uncertainty" --role analyz
 
 After each answer, verify against codebase:
 - "We'll use X pattern" → Grep for existing X usage, confirm consistency
-- "This won't affect Y" → Explore call chains to verify isolation
+- "This won't affect Y" → Trace call chains to verify isolation
 - Contradiction found → immediately challenge with code evidence
 
 **4.5: Record Decision**
@@ -491,4 +489,3 @@ Next steps:
   /maestro-analyze "{topic}" --from grill:{artifact_id}      — Deep analysis with grilled constraints
   /maestro-roadmap --from grill:{artifact_id}                — Direct to roadmap (if scope is clear)
 ```
-

@@ -16,15 +16,15 @@ When spawned with `<files_to_read>`, read ALL listed files before any analysis.
 4. **Structured Output** — Schema-compliant JSON generation with validation
 
 **Analysis Modes**:
-- `quick-scan` → `maestro explore` single prompt (fast)
-- `deep-scan` → `maestro explore` multi-prompt parallel (thorough)
-- `dependency-map` → Multi-prompt + Bash graph construction (comprehensive)
+- `quick-scan` → FastContext focused query + Bash verification
+- `deep-scan` → 2-3 FastContext angles + Bash/KG verification
+- `dependency-map` → FastContext locator + Bash/KG graph construction
 
 ## 4-Phase Execution Workflow
 
 ```
 Phase 1: Task Understanding → parse scope, output requirements, schema
-Phase 2: Analysis Execution → maestro explore + Bash structural scan
+Phase 2: Analysis Execution → FastContext + Bash/KG structural scan
 Phase 3: Schema Validation → read schema, validate structure
 Phase 4: Output Generation → agent report + file output
 ```
@@ -48,37 +48,37 @@ Phase 4: Output Generation → agent report + file output
 
 ## Phase 2: Analysis Execution
 
-### Primary: `maestro explore` (preferred)
+### Primary: FastContext (preferred)
 
-**Quick-scan** — single targeted prompt:
+Use `mcp__fast_context__fast_context_search` when available. Keep queries concrete,
+set `project_path`, exclude generated directories, and verify returned ranges with
+Bash/rg before using them as evidence.
 
-```bash
-maestro explore "FIND: <target from prompt>
-SCOPE: src/
-EXCLUDE: test files, node_modules, generated code
-EXPECTED: file:line evidence list" --max-turns 3
+**Quick-scan** — single targeted query:
+
+```text
+mcp__fast_context__fast_context_search({
+  query: "<target from prompt>; return file:line evidence",
+  project_path: "<repo root>",
+  exclude_paths: ["node_modules", "dist", ".git", ".workflow"],
+  max_results: 8,
+  max_turns: 2
+})
 ```
 
-**Deep-scan** — multi-prompt parallel for multi-angle coverage:
+**Deep-scan** — multiple focused angles:
 
-```bash
-maestro explore \
-  "FIND: <structural patterns>
-SCOPE: src/
-EXPECTED: file:line list" \
-  "FIND: <design intent / architecture>
-SCOPE: src/
-EXPECTED: pattern descriptions with file evidence" \
-  --max-turns 3 --json
+```text
+FastContext query 1: "<structural patterns> with file:line evidence"
+FastContext query 2: "<design intent / architecture> with file evidence"
 ```
 
-**Dependency-map** — combine explore + Bash:
+**Dependency-map** — combine FastContext + Bash/KG:
 
 ```bash
-maestro explore "FIND: import/export relationships
-SCOPE: src/
-ATTENTION: circular dependencies, tight coupling
-EXPECTED: dependency pairs with file:line" --max-turns 4 --json
+mcp__fast_context__fast_context_search({ query: "import/export relationships, circular dependencies, tight coupling", project_path: "<repo root>", max_results: 12, max_turns: 3 })
+maestro kg callers <symbol>
+maestro kg callees <symbol>
 ```
 
 ### Secondary: Bash structural scan (supplement only)
@@ -88,9 +88,15 @@ rg "^export (class|interface|function) " --type ts -n | head -30
 rg "^import .* from " -n | head -30
 ```
 
-Use Bash only when `maestro explore` results need structural verification.
+Use Bash to verify FastContext/KG results and to collect exact file:line evidence.
 
-### Fallback: `maestro delegate` (only when explore unavailable)
+### Fallbacks
+
+1. `maestro kg search/context/callers/callees` for known symbols.
+2. Bash `rg`/`find` for exact identifiers and file discovery.
+3. `maestro explore` only when explicitly requested or FastContext/KG are
+   unavailable and a separate high-cost read-only LLM scout is justified.
+4. `maestro delegate` only when deeper analysis is needed after location.
 
 ```bash
 maestro delegate "PURPOSE: {from prompt} TASK: {from prompt} MODE: analysis" --role explore --mode analysis
@@ -98,7 +104,7 @@ maestro delegate "PURPOSE: {from prompt} TASK: {from prompt} MODE: analysis" --r
 
 ### Dual-Source Synthesis
 
-1. Explore results: Semantic findings → `discovery_source: "explore"`
+1. FastContext/KG results: Semantic or graph findings → `discovery_source: "fastcontext"` / `"kg"`
 2. Bash results: Precise file:line locations → `discovery_source: "bash-scan"`
 3. Merge with source attribution and generate for each file:
    - `rationale`: WHY the file was selected (specific, >10 chars)
@@ -123,7 +129,7 @@ maestro delegate "PURPOSE: {from prompt} TASK: {from prompt} MODE: analysis" --r
 Every file entry MUST have:
 - `rationale` (required, minLength 10): Specific reason tied to the exploration topic
 - `role` (required, enum): modify_target / dependency / pattern_reference / test_target / type_definition / integration_point / config / context_only
-- `discovery_source` (recommended): explore / bash-scan / dependency-trace / manual
+- `discovery_source` (recommended): fastcontext / kg / bash-scan / dependency-trace / explore-fallback / manual
 - `key_code` (required for relevance >= 0.7): Array of {symbol, location?, description}
 - `topic_relation` (required for relevance >= 0.7): Connection from exploration angle perspective
 
@@ -166,8 +172,9 @@ Brief summary: task completion status, key findings, generated file paths
 ## Rules
 
 ### ALWAYS
-- Prefer `maestro explore` over raw Grep/rg for code search
-- Use structured prompt format (FIND/SCOPE/EXCLUDE/ATTENTION/EXPECTED)
+- Prefer FastContext over `maestro explore` and raw Grep/rg for semantic code search
+- Verify FastContext/KG hits with exact file reads or `rg`
+- Use `maestro explore` only as an explicit high-cost fallback
 - Read schema file FIRST before generating output (if schema specified)
 - Copy field names EXACTLY from schema (case-sensitive)
 - Include file:line references in findings

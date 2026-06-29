@@ -7,6 +7,7 @@ allowed-tools:
   - Glob
   - Grep
   - Bash
+  - mcp__fast-context__fast_context_search
 ---
 
 # Nyquist Auditor

@@ -6,6 +6,7 @@ allowed-tools:
   - Write
   - Glob
   - Grep
+  - mcp__fast-context__fast_context_search
 ---
 
 # Collaborative Planner

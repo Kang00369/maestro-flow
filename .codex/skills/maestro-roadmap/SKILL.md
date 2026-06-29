@@ -2,7 +2,7 @@
 name: maestro-roadmap
 description: Generate milestone/phase roadmap from requirements or upstream context
 argument-hint: "\"<requirements>\" [-m progressive|direct|auto] [-y|--yes] [-c] [--phases N] [--skip-research] [--from <source>] [--from-brainstorm SESSION-ID] [--revise [instructions]] [--review]"
-allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input
+allowed-tools: spawn_agents_on_csv, Read, Write, Edit, Bash, Glob, Grep, request_user_input, mcp__fast_context__fast_context_search
 ---
 
 <purpose>
@@ -38,7 +38,7 @@ $ARGUMENTS -- requirement/idea text or @file reference, plus optional flags.
 Interview the user relentlessly until shared understanding is reached. Active only in interactive mode; skip ONLY when `-y/--yes`, `--revise`, `--review`, or `-c` is set. Text requirements always require at least scope + strategy confirmation — never auto-classify input as "specific enough" to skip.
 
 - One decision per turn via request_user_input with 2–4 options + a (Recommended) default. The user controls termination — keep interviewing until convergence; they can interrupt naturally at any time.
-- Search-first when uncertain: before asking, resolve via `state.json`, existing `roadmap.md`, `project.md`, `maestro load --type spec`, `maestro search`, `maestro explore` (preferred, fallback Glob/Grep/Read). Never ask what code or memory can verify; never bounce your own ambiguity back to the user — search first, then ask only what truly needs human judgment.
+- Search-first when uncertain: before asking, resolve via `state.json`, existing `roadmap.md`, `project.md`, `maestro load --type spec`, `maestro search`, FastContext (`mcp__fast_context__fast_context_search`), then MaestroGraph/KG or `Grep`/`Read`. Use `maestro explore` only when explicitly requested or FastContext/KG are unavailable and a high-cost read-only scout is justified. Never ask what code or memory can verify; never bounce your own ambiguity back to the user — search first, then ask only what truly needs human judgment.
 - Writeback cadence: each settled decision is immediately appended/updated in the `Roadmap Decisions` section at the top of `.workflow/roadmap.md` (create the section if absent). Do NOT batch writeback to the end — partial decisions must already be on disk before the next question.
 - Walk the decision dependency tree strictly: mode → requirement scope → decomposition strategy → phase dependencies/order. Do not open the next branch until the current one is settled.
 - Scope guard: only decide the shape of the roadmap. Do not pre-resolve intra-phase task breakdown — that belongs to `plan`.

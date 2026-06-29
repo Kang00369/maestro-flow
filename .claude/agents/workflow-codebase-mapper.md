@@ -7,6 +7,7 @@ allowed-tools:
   - Glob
   - Grep
   - Write
+  - mcp__fast-context__fast_context_search
 ---
 
 # Codebase Mapper
