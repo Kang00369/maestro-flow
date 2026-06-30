@@ -466,3 +466,16 @@ registerNotice({
   ],
   actions: [],
 });
+
+registerNotice({
+  version: '0.5.44',
+  title: 'Ralph Agent 编排器 + rmux-collab 协作系统 + explore 增强',
+  highlights: [
+    '新增 Claude Agent 专属 ralph 编排器 + 执行器命令',
+    'rmux-collab 多 Agent 频道协作系统：atomic send+wait + 结构化 AgentResult',
+    'explore 重构：去除 maxTurns 限制、并行 tool calls、async ripgrep',
+    'graph 模块迁移至 node:sqlite，消除 better-sqlite3 deprecated 警告',
+    'search daemon 类型去重 + 过度获取级联修复 + MCP fallback 对齐',
+  ],
+  actions: [],
+});
