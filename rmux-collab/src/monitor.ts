@@ -43,7 +43,8 @@ export class AgentMonitor {
 
     this.client = await this.rmux.control();
 
-    this.processEvents().catch(() => {
+    this.processEvents().catch((err) => {
+      console.error('[rmux-collab] Monitor event loop failed:', err instanceof Error ? err.message : err);
       this.running = false;
     });
   }
@@ -56,7 +57,8 @@ export class AgentMonitor {
         if (!this.running) break;
         this.dispatchEvent(event);
       }
-    } catch {
+    } catch (err) {
+      console.error('[rmux-collab] Monitor stream error:', err instanceof Error ? err.message : err);
       this.running = false;
     }
   }
@@ -80,15 +82,18 @@ export class AgentMonitor {
       handler.onOutput?.(monitorEvent);
       handler.onActivity?.({ ...monitorEvent, type: 'activity' });
     } else if (event instanceof ControlExit) {
-      for (const [agentName, handler] of this.handlers) {
-        handler.onExit?.({
-          paneId: '',
-          agentName,
-          type: 'exit',
-          timestamp: Date.now(),
-        });
+      const exitPaneId = 'paneId' in event ? String((event as any).paneId) : '';
+      if (exitPaneId) {
+        const agentName = this.paneToAgent.get(exitPaneId);
+        if (agentName) {
+          const handler = this.handlers.get(agentName);
+          handler?.onExit?.({ paneId: exitPaneId, agentName, type: 'exit', timestamp: Date.now() });
+        }
+      } else {
+        for (const [agentName, handler] of this.handlers) {
+          handler.onExit?.({ paneId: '', agentName, type: 'exit', timestamp: Date.now() });
+        }
       }
-      this.running = false;
     }
   }
 

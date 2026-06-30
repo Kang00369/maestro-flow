@@ -1,20 +1,7 @@
 import type { Pane } from '@rmux/sdk';
 import type { AgentConfig, AgentResult, AgentTool, AskOptions, OutputSegment } from './types.js';
-import { stripAnsi } from './utils/output-cleaner.js';
-import { execSync } from 'node:child_process';
-
-function rmuxExec(args: string, opts?: { input?: string; timeout?: number; throwOnError?: boolean }): string {
-  try {
-    return execSync(`rmux ${args}`, {
-      encoding: 'utf-8',
-      timeout: opts?.timeout ?? 10_000,
-      input: opts?.input,
-    }).trim();
-  } catch (e: any) {
-    if (opts?.throwOnError) throw e;
-    return e.stdout?.trim() ?? '';
-  }
-}
+import { findSessionFile, findSessionByPid, scanForSession, getLastMessageUuid, readLastAssistantMessage } from './session-reader.js';
+import { rmuxExec, sleep, findChildPids } from './utils/rmux.js';
 
 export function getDefaultMarker(tool: AgentTool): string | RegExp {
   switch (tool) {
@@ -77,19 +64,21 @@ function matchesMarker(text: string, marker: string | RegExp): boolean {
   return marker.test(text);
 }
 
-function markerToString(marker: string | RegExp): string {
-  if (typeof marker === 'string') return marker;
-  // Extract a simple literal from the regex for CLI usage
-  const src = marker.source;
-  if (src.includes('❯')) return '❯';
-  if (src.includes('$')) return '$';
-  if (src.includes('>')) return '>';
-  return '>';
-}
-
 let sentinelCounter = 0;
 function nextSentinel(): string {
   return `__RD${++sentinelCounter}__`;
+}
+
+function stripStatusBar(text: string): string {
+  return text.split('\n').filter(l => {
+    const t = l.trim();
+    if (!t) return true;
+    if (/Opus|Sonnet|Haiku.*\d+[kKmM]/.test(t)) return false;
+    if (/bypass permissions/.test(t)) return false;
+    if (/⏵⏵/.test(t)) return false;
+    if (/^\d+[kKmM]\s*(tokens|in|out)/.test(t)) return false;
+    return true;
+  }).join('\n');
 }
 
 export class Agent {
@@ -100,16 +89,61 @@ export class Agent {
 
   private completionMarker: string | RegExp;
   private _alive = true;
+  private sessionFilePath: string | null = null;
+  private sessionFromPid = false;
+  private panePid: number | null = null;
+  readonly launchTimestamp: number;
 
-  constructor(pane: Pane, config: AgentConfig, target?: string) {
+  constructor(pane: Pane, config: AgentConfig, target?: string, launchTimestamp?: number) {
     this.pane = pane;
     this.name = config.name;
     this.config = config;
     this.target = target ?? pane.target;
     this.completionMarker = config.completionMarker ?? getDefaultMarker(config.tool);
+    this.launchTimestamp = launchTimestamp ?? Date.now();
+  }
+
+  private discoverPanePid(): number | null {
+    if (this.panePid) return this.panePid;
+    // display-message -p targets the exact pane, unlike list-panes which lists all in the window
+    const raw = rmuxExec(`display -p -t ${this.target} "#{pane_pid}"`);
+    const pid = parseInt(raw.trim(), 10);
+    if (!isNaN(pid) && pid > 0) this.panePid = pid;
+    return this.panePid;
+  }
+
+  private findChildPids(parentPid: number): number[] {
+    return findChildPids(parentPid);
+  }
+
+  private discoverSessionFile(): string | null {
+    if (this.sessionFilePath && this.sessionFromPid) return this.sessionFilePath;
+
+    // Priority 1: PID chain — pane shell → child processes → session file
+    const panePid = this.discoverPanePid();
+    if (panePid) {
+      const children = this.findChildPids(panePid);
+      for (const childPid of children) {
+        const path = findSessionByPid(childPid);
+        if (path) { this.sessionFilePath = path; this.sessionFromPid = true; return path; }
+        for (const grandPid of this.findChildPids(childPid)) {
+          const gPath = findSessionByPid(grandPid);
+          if (gPath) { this.sessionFilePath = gPath; this.sessionFromPid = true; return gPath; }
+        }
+      }
+    }
+
+    // Priority 2: timestamp + cwd scan — cached after first successful discovery
+    if (this.sessionFilePath) return this.sessionFilePath;
+    const cwd = this.config.cwd ?? process.env.USERPROFILE ?? process.env.HOME ?? '';
+    const fallback = scanForSession(this.launchTimestamp - 5_000, cwd)
+      ?? findSessionFile(cwd, this.launchTimestamp - 30_000);
+    if (fallback) this.sessionFilePath = fallback;
+    return fallback;
   }
 
   get alive(): boolean { return this._alive; }
+  get resolvedSessionFile(): string | null { return this.sessionFilePath; }
 
   private sendViaBuffer(text: string): void {
     const bufName = `collab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -123,7 +157,7 @@ export class Agent {
     if (text.length > threshold) {
       this.sendViaBuffer(text);
     } else {
-      const escaped = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
+      const escaped = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`').replace(/'/g, "'\\''");
       rmuxExec(`send-keys -t ${this.target} -l "${escaped}"`);
     }
   }
@@ -138,6 +172,10 @@ export class Agent {
 
   async interrupt(): Promise<void> {
     await this.pane.sendKeys('C-c');
+  }
+
+  markDead(): void {
+    this._alive = false;
   }
 
   async kill(): Promise<void> {
@@ -189,71 +227,96 @@ export class Agent {
     const startTime = Date.now();
     const beforeText = this.capturePane();
 
-    this.sendKeysLiteral(prompt, pasteThreshold);
+    // Snapshot the session cursor BEFORE sending (if already discovered)
+    const preSessionPath = isCliAgent(this.config.tool) ? this.discoverSessionFile() : null;
+    const beforeUuid = preSessionPath ? getLastMessageUuid(preSessionPath) : null;
+
+    // CLI agents use readline — newlines trigger premature submission
+    const flatPrompt = prompt.replace(/\n+/g, ' ').replace(/\s{2,}/g, ' ');
+    this.sendKeysLiteral(flatPrompt, pasteThreshold);
     await sleep(SEND_ENTER_DELAY);
     this.sendKeysRaw('C-m');
 
-    const markerStr = markerToString(this.completionMarker);
-
-    const promptSnippet = prompt.trim().slice(0, 20);
-
-    // Strategy 1: rmux wait-pane --quiet (daemon-backed wait for output to stabilize after change)
-    try {
-      // First wait for content to change (agent starts processing)
-      const changeDeadline = Date.now() + Math.min(timeout, 30_000);
-      let changed = false;
-      while (Date.now() < changeDeadline) {
-        await sleep(500);
-        const check = this.capturePane();
-        if (check.length > beforeText.length + 20 && check !== beforeText) {
-          changed = true;
-          break;
-        }
-      }
-      if (!changed) throw new Error('no new content');
-
-      // Then wait for output to stabilize
-      const remaining = Math.max(5, Math.floor((timeout - (Date.now() - startTime)) / 1000));
-      rmuxExec(
-        `wait-pane -t ${this.target} --quiet --stable-for 2s --timeout ${remaining}s`,
-        { timeout: (remaining + 5) * 1000, throwOnError: true },
-      );
-      const current = this.capturePane();
-      const raw = this.extractCliResponse(current, beforeText, prompt);
-      return this.buildResult(raw, startTime, 'completed', 'exact');
-    } catch {
-      // wait-pane may not be available or timed out, try polling
-    }
-
-    // Strategy 2: Polling with marker + stability (proven reliable)
-    const deadline = Date.now() + timeout;
-    let stableCount = 0;
-    let lastSnap = '';
+    // Unified polling loop: session file (exact) + TUI capture (observed) — first to succeed wins
+    const isClI = isCliAgent(this.config.tool);
+    let sessionPath = preSessionPath;
+    let cursor = beforeUuid;
+    const deadline = startTime + timeout;
+    let tuiStableCount = 0;
+    let lastTuiSnap = '';
+    let sawContentGrowth = false;
 
     while (Date.now() < deadline) {
-      await sleep(2000);
+      await sleep(1500);
+
+      // --- Session file path: structured data, no TUI noise ---
+      if (isClI) {
+        if (!sessionPath || !this.sessionFromPid) {
+          const discovered = this.discoverSessionFile();
+          if (discovered) {
+            if (discovered !== sessionPath) {
+              cursor = getLastMessageUuid(discovered);
+            }
+            sessionPath = discovered;
+          }
+        }
+        if (sessionPath) {
+          try {
+            const response = readLastAssistantMessage(sessionPath, cursor ?? undefined);
+            if (response && response.text) {
+              const segments: OutputSegment[] = [];
+              if (response.toolCalls.length > 0) {
+                segments.push({ kind: 'tool_call', content: response.toolCalls.join(', ') });
+              }
+              segments.push({ kind: 'final', content: response.text });
+              return {
+                agent: this.name,
+                status: 'completed',
+                confidence: 'exact',
+                output: response.text,
+                raw: response.text,
+                segments,
+                duration_ms: Date.now() - startTime,
+              };
+            }
+          } catch {
+            this.sessionFilePath = null;
+            sessionPath = null;
+          }
+        }
+      }
+
+      // --- TUI path: pane capture with marker + stability ---
       const current = this.capturePane();
       const lines = current.split('\n').filter(l => l.trim());
-
       if (lines.length === 0) continue;
 
-      const hasNewContent = current.length > beforeText.length;
-      const markerFound = lines.some(l => matchesMarker(l.trim(), this.completionMarker));
+      if (current.length > beforeText.length) sawContentGrowth = true;
 
-      if (hasNewContent && markerFound && current.includes(prompt.trim().slice(0, 20))) {
-        if (current === lastSnap) {
-          stableCount++;
-          if (stableCount >= 1) {
+      const contentLines = lines.filter(l => {
+        const t = l.trim();
+        return !(/Opus|Sonnet|Haiku.*\d+[kKmM]/.test(t) || /⏵⏵|bypass permissions/.test(t) || /^[─━═]{4,}$/.test(t));
+      });
+      const lastContentLine = contentLines[contentLines.length - 1]?.trim() ?? '';
+      const markerOnLastLine = matchesMarker(lastContentLine, this.completionMarker);
+
+      if (sawContentGrowth && markerOnLastLine) {
+        const stable = stripStatusBar(current);
+        if (stable === lastTuiSnap) {
+          tuiStableCount++;
+          if (tuiStableCount >= 2) {
             const raw = this.extractCliResponse(current, beforeText, prompt);
-            return this.buildResult(raw, startTime, 'completed', 'observed');
+            if (raw.trim().length > 0) {
+              return this.buildResult(raw, startTime, 'completed', 'observed');
+            }
           }
         } else {
-          stableCount = 0;
-          lastSnap = current;
+          tuiStableCount = 0;
+          lastTuiSnap = stable;
         }
       } else {
-        stableCount = 0;
-        lastSnap = current;
+        tuiStableCount = 0;
+        lastTuiSnap = stripStatusBar(current);
       }
     }
 
@@ -267,19 +330,22 @@ export class Agent {
     const lines = current.split('\n').filter(l => l.trim());
     const beforeLines = beforeText.split('\n').filter(l => l.trim());
 
-    const promptSnippet = prompt.trim().slice(0, 30);
-    const echoIdx = lines.findLastIndex(l => l.includes(promptSnippet));
+    const promptSnippet = prompt.trim().slice(0, 80);
+    const echoIdx = lines.findLastIndex(l => l.includes(promptSnippet.slice(0, 50)) || l.includes(promptSnippet));
     const startIdx = echoIdx >= 0 ? echoIdx + 1 : beforeLines.length;
 
     const resultLines = lines.slice(startIdx).filter(l => {
       const t = l.trim();
       if (!t) return false;
       if (matchesMarker(t, this.completionMarker)) return false;
-      if (/^[─━═┄┅┈┉─]{4,}$/.test(t)) return false;
+      if (/^[─━═┄┅┈┉╭╮╰╯│┄┅┈┉─]{4,}$/.test(t)) return false;
+      if (/^[│╭╮╰╯]/.test(t)) return false;
       if (t.startsWith('⏵') || t.startsWith('←')) return false;
-      if (/^[✻✓◉⏵▶].*(?:for \d+s|Crunched|Worked|Cogitated|Unravelling|Pondering)/.test(t)) return false;
+      if (/^[✻✓◉⏵▶●✢].*(?:for \d+s|Crunched|Worked|Cogitated|Unravelling|Pondering|Infusing|Dilly)/.test(t)) return false;
+      if (/^[●✢✻]\s/.test(t)) return false;
       if (/Opus|Sonnet|Haiku.*\d+[kKmM]\s*[|│]/.test(t)) return false;
       if (/[░▒▓█]{3,}/.test(t)) return false;
+      if (/bypass permissions on/.test(t)) return false;
       return true;
     });
     return resultLines.join('\n');
@@ -341,7 +407,8 @@ export class Agent {
 
   async send(prompt: string): Promise<void> {
     if (isCliAgent(this.config.tool)) {
-      this.sendKeysLiteral(prompt);
+      const flatPrompt = prompt.replace(/\n+/g, ' ').replace(/\s{2,}/g, ' ');
+      this.sendKeysLiteral(flatPrompt);
       await sleep(SEND_ENTER_DELAY);
       this.sendKeysRaw('C-m');
     } else {
@@ -358,6 +425,3 @@ export class Agent {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}

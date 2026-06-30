@@ -33,11 +33,14 @@ export interface AgentResult {
 
 // ===== Channel =====
 
+export type ChannelLayout = 'split' | 'separate';
+
 export interface ChannelConfig {
   name: string;
   agents: AgentConfig[];
   cwd?: string;
   visible?: boolean;
+  layout?: ChannelLayout;
 }
 
 // ===== Coordinator =====

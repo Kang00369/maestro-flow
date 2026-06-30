@@ -17,18 +17,19 @@ export async function withRetry(
   config: RetryConfig,
 ): Promise<AgentResult> {
   const shouldRetry = config.shouldRetry ?? defaultShouldRetry;
+  const maxRetries = Math.max(0, config.maxRetries);
   let lastResult: AgentResult | undefined;
 
-  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     lastResult = await fn();
     if (!shouldRetry(lastResult)) {
       return lastResult;
     }
-    if (attempt < config.maxRetries) {
+    if (attempt < maxRetries) {
       const delay = Math.min(config.baseDelay * Math.pow(2, attempt), config.maxDelay);
       await sleep(delay);
     }
   }
 
-  return lastResult!;
+  return lastResult as AgentResult;
 }

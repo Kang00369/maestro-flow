@@ -7,7 +7,6 @@ import type {
   DialogueConfig,
   DialogueMessage,
   AskOptions,
-  InteractionLog,
 } from './types.js';
 import { Channel } from './channel.js';
 import { Agent } from './agent.js';
@@ -15,7 +14,7 @@ import { Logger } from './utils/logger.js';
 import { AgentMonitor } from './monitor.js';
 import type { MonitorHandler } from './monitor.js';
 import { withRetry } from './middleware/retry.js';
-import { pipeline as runPipeline } from './patterns/pipeline.js';
+import { pipeline as runPipeline, type PipelineOptions } from './patterns/pipeline.js';
 import { dialogue as runDialogue } from './patterns/dialogue.js';
 
 export class Coordinator {
@@ -71,6 +70,14 @@ export class Coordinator {
     return ch;
   }
 
+  get channelNames(): string[] {
+    return [...this.channels.keys()];
+  }
+
+  hasChannel(name: string): boolean {
+    return this.channels.has(name);
+  }
+
   async ask(
     channelName: string,
     agentName: string,
@@ -105,16 +112,42 @@ export class Coordinator {
   async pipeline(
     stages: PipelineStage[],
     initialPrompt: string,
-    opts?: AskOptions,
+    opts?: PipelineOptions,
   ): Promise<string> {
-    return runPipeline(stages, initialPrompt, opts);
+    const pipelineOpts: PipelineOptions = {
+      ...opts,
+      onStageComplete: (stage, agentName, result) => {
+        this.logger.record({
+          channel: '_pipeline', agent: agentName, direction: 'receive',
+          content: result.output, duration_ms: result.duration_ms,
+          status: result.status, confidence: result.confidence,
+        });
+        opts?.onStageComplete?.(stage, agentName, result);
+      },
+    };
+    this.logger.record({
+      channel: '_pipeline', agent: stages[0]?.agent.name ?? 'unknown',
+      direction: 'send', content: initialPrompt,
+    });
+    return runPipeline(stages, initialPrompt, pipelineOpts);
   }
 
   async dialogue(
     config: DialogueConfig,
     opts?: AskOptions,
   ): Promise<DialogueMessage[]> {
-    return runDialogue(config, opts);
+    this.logger.record({
+      channel: '_dialogue', agent: config.agents.map(a => a.name).join(','),
+      direction: 'send', content: config.topic,
+    });
+    const messages = await runDialogue(config, opts);
+    for (const msg of messages) {
+      this.logger.record({
+        channel: '_dialogue', agent: msg.from, direction: 'receive',
+        content: msg.content,
+      });
+    }
+    return messages;
   }
 
   async onAgentEvent(agentName: string, handler: MonitorHandler): Promise<void> {
