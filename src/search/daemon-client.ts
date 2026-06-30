@@ -6,46 +6,12 @@
 import { connect } from 'node:net';
 import { join } from 'node:path';
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
-import type { WikiEntry } from '#maestro-dashboard/wiki/wiki-types.js';
 
-const DAEMON_FILE = 'search-daemon.json';
+export type { DaemonInfo, DaemonSearchRequest, DaemonSearchResponse } from './daemon-types.js';
+export { getDaemonPath, readDaemonInfo, isDaemonAlive } from './daemon-types.js';
 
-export interface DaemonInfo {
-  pid: number;
-  port: number;
-  startedAt: string;
-}
-
-export function getDaemonPath(workflowRoot: string): string {
-  return join(workflowRoot, DAEMON_FILE);
-}
-
-export function readDaemonInfo(workflowRoot: string): DaemonInfo | null {
-  const p = getDaemonPath(workflowRoot);
-  if (!existsSync(p)) return null;
-  try {
-    return JSON.parse(readFileSync(p, 'utf-8'));
-  } catch { return null; }
-}
-
-export function isDaemonAlive(info: DaemonInfo): boolean {
-  try { process.kill(info.pid, 0); return true; } catch { return false; }
-}
-
-export interface DaemonSearchRequest {
-  action: 'search' | 'invalidate';
-  query?: string;
-  limit?: number;
-  skipEmbedding?: boolean;
-}
-
-export interface DaemonSearchResponse {
-  ok: boolean;
-  results?: Array<{ entry: WikiEntry; score: number }>;
-  embeddingUsed?: boolean;
-  embeddingDocs?: number;
-  error?: string;
-}
+import { getDaemonPath, readDaemonInfo, isDaemonAlive } from './daemon-types.js';
+import type { DaemonSearchRequest, DaemonSearchResponse } from './daemon-types.js';
 
 export function queryDaemon(port: number, req: DaemonSearchRequest): Promise<DaemonSearchResponse> {
   return new Promise((resolve, reject) => {
@@ -86,7 +52,7 @@ export function stopDaemon(workflowRoot: string): boolean {
 }
 
 const SPAWN_LOCK_FILE = 'search-daemon-spawning';
-const SPAWN_LOCK_TTL_MS = 30_000;
+const SPAWN_LOCK_TTL_MS = 60_000;
 
 export async function spawnDaemon(workflowRoot: string): Promise<void> {
   const existing = readDaemonInfo(workflowRoot);

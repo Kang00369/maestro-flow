@@ -6,82 +6,19 @@
  * Idle timeout: auto-shutdown after 30 min of inactivity.
  */
 
-import { createServer, type Server, connect } from 'node:net';
+import { createServer, type Server } from 'node:net';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { writeFileSync, unlinkSync } from 'node:fs';
 import { WikiIndexer, type WikiIndexerConfig } from '#maestro-dashboard/wiki/wiki-indexer.js';
-import type { WikiEntry } from '#maestro-dashboard/wiki/wiki-types.js';
+
+export type { DaemonInfo, DaemonSearchRequest, DaemonSearchResponse } from './daemon-types.js';
+export { getDaemonPath, readDaemonInfo, isDaemonAlive } from './daemon-types.js';
+
+import { getDaemonPath, readDaemonInfo, isDaemonAlive } from './daemon-types.js';
+import type { DaemonInfo, DaemonSearchRequest, DaemonSearchResponse } from './daemon-types.js';
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
-const DAEMON_FILE = 'search-daemon.json';
-
-export interface DaemonInfo {
-  pid: number;
-  port: number;
-  startedAt: string;
-}
-
-export function getDaemonPath(workflowRoot: string): string {
-  return join(workflowRoot, DAEMON_FILE);
-}
-
-export function readDaemonInfo(workflowRoot: string): DaemonInfo | null {
-  const p = getDaemonPath(workflowRoot);
-  if (!existsSync(p)) return null;
-  try {
-    return JSON.parse(readFileSync(p, 'utf-8'));
-  } catch { return null; }
-}
-
-export function isDaemonAlive(info: DaemonInfo): boolean {
-  try { process.kill(info.pid, 0); return true; } catch { return false; }
-}
-
-// ── Client ──────────────────────────────────────────────────────────────
-
-export interface DaemonSearchRequest {
-  action: 'search' | 'invalidate';
-  query?: string;
-  limit?: number;
-  skipEmbedding?: boolean;
-}
-
-export interface DaemonSearchResponse {
-  ok: boolean;
-  results?: Array<{ entry: WikiEntry; score: number }>;
-  embeddingUsed?: boolean;
-  embeddingDocs?: number;
-  error?: string;
-}
-
-export function queryDaemon(port: number, req: DaemonSearchRequest): Promise<DaemonSearchResponse> {
-  return new Promise((resolve, reject) => {
-    const socket = connect(port, '127.0.0.1');
-    let buf = '';
-    socket.setTimeout(5000);
-    socket.on('connect', () => { socket.write(JSON.stringify(req) + '\n'); });
-    socket.on('data', (chunk) => { buf += chunk.toString(); });
-    socket.on('end', () => {
-      try { resolve(JSON.parse(buf)); } catch { reject(new Error('bad response')); }
-    });
-    socket.on('error', reject);
-    socket.on('timeout', () => { socket.destroy(); reject(new Error('timeout')); });
-  });
-}
-
-export async function tryDaemonSearch(
-  workflowRoot: string,
-  query: string,
-  limit: number,
-  skipEmbedding?: boolean,
-): Promise<DaemonSearchResponse | null> {
-  const info = readDaemonInfo(workflowRoot);
-  if (!info || !isDaemonAlive(info)) return null;
-  try {
-    return await queryDaemon(info.port, { action: 'search', query, limit, skipEmbedding });
-  } catch { return null; }
-}
 
 // ── Server ──────────────────────────────────────────────────────────────
 
@@ -89,7 +26,6 @@ export async function startDaemon(
   workflowRoot: string,
   config: WikiIndexerConfig,
 ): Promise<{ port: number; server: Server }> {
-  // Check existing daemon
   const existing = readDaemonInfo(workflowRoot);
   if (existing && isDaemonAlive(existing)) {
     throw new Error(`Daemon already running (pid=${existing.pid}, port=${existing.port})`);
@@ -97,7 +33,6 @@ export async function startDaemon(
 
   const indexer = new WikiIndexer(config);
 
-  // Pre-warm: build wiki/BM25 index synchronously, then start TCP server immediately
   await indexer.rebuild();
 
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -120,7 +55,6 @@ export async function startDaemon(
     });
   });
 
-  // Warm embedding in background — don't block TCP server startup
   indexer.getEmbeddingIndex().catch(() => null);
 
   return new Promise((res, reject) => {
@@ -189,7 +123,6 @@ export async function spawnDaemon(workflowRoot: string): Promise<void> {
   const existing = readDaemonInfo(workflowRoot);
   if (existing && isDaemonAlive(existing)) return;
 
-  // Clean stale PID file
   if (existing) try { unlinkSync(getDaemonPath(workflowRoot)); } catch {}
 
   const { spawn: spawnProc } = await import('node:child_process');

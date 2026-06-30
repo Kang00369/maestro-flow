@@ -14,7 +14,7 @@
  */
 
 import type { Command } from 'commander';
-import { resolve, join } from 'node:path';
+import { resolve } from 'node:path';
 
 import { truncate, extractSnippet, highlightTerms } from '../utils/cli-format.js';
 import type { WikiIndexer } from '#maestro-dashboard/wiki/wiki-indexer.js';
@@ -95,7 +95,7 @@ export function getLastSearchMeta(): SearchMeta { return _lastSearchMeta; }
 
 export async function runUnifiedSearch(q: string, opts: UnifiedSearchOptions & { skipEmbedding?: boolean }): Promise<SearchResult[]> {
   const limit = opts.limit > 0 ? opts.limit : 20;
-  const candidateLimit = Math.max(limit * 3, 60);
+  const candidateLimit = Math.max(limit * 2, 40);
 
   // Try daemon first (warm ONNX model, no cold-start penalty)
   const workflowRoot = resolve('.workflow');
@@ -230,7 +230,10 @@ async function runKgSearch(q: string, limit: number): Promise<{ results: KgSearc
     } finally {
       mg.close();
     }
-  } catch {
+  } catch (e: unknown) {
+    if (process.env.MAESTRO_DEBUG === '1') {
+      console.error(`[search] KG search failed: ${e instanceof Error ? e.message : e}`);
+    }
     return { results: [], summary: {} };
   }
 }
@@ -246,7 +249,7 @@ async function runCodeSearch(q: string, limit: number): Promise<CodeSearchResult
     const mg = await MaestroGraph.open(resolve('.'));
     try {
       const results = mg.searchCode(q, { limit });
-      return results.map((n: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+      return results.map((n: { id: string; kind: string; name: string; filePath: string; _bm25Score?: number; signature?: string }) => ({
         id: n.id,
         kind: n.kind,
         name: n.name,
@@ -257,7 +260,10 @@ async function runCodeSearch(q: string, limit: number): Promise<CodeSearchResult
     } finally {
       mg.close();
     }
-  } catch {
+  } catch (e: unknown) {
+    if (process.env.MAESTRO_DEBUG === '1') {
+      console.error(`[search] code search failed: ${e instanceof Error ? e.message : e}`);
+    }
     return [];
   }
 }
@@ -584,7 +590,7 @@ export function registerSearchCommand(program: Command): void {
         const linkedWorkspaces = resolved.filter(lw => lw.valid).map(lw => ({ name: lw.name, workflowRoot: lw.workflowRoot, shareTypes: lw.share }));
         const indexer = new WikiIndexer({ workflowRoot, linkedWorkspaces });
         const t0 = Date.now();
-        const { results, embeddingUsed, embeddingDocs } = await indexer.searchWithMeta('warmup', 1);
+        const { embeddingUsed, embeddingDocs } = await indexer.searchWithMeta('warmup', 1);
         if (embeddingUsed) {
           console.log(`Index rebuilt: ${embeddingDocs} docs (${Date.now() - t0}ms)`);
         } else {

@@ -17,7 +17,7 @@ import {
   cwdToClaudeProjectSlug,
 } from './virtual-wiki-adapters.js';
 import { homedir } from 'node:os';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import type {
   WikiEntry,
   WikiFilters,
@@ -368,15 +368,16 @@ export class WikiIndexer {
       this.getSearchIndex(),
       options?.skipEmbedding ? null : this.getEmbeddingIndex(),
     ]);
-    const bm25Results = searchBM25Planned(bm25, query, limit * 2);
+    const internalLimit = Math.ceil(limit * 1.5);
+    const bm25Results = searchBM25Planned(bm25, query, internalLimit);
 
     if (embIdx && embIdx.docIds.length > 0) {
       try {
         const { embedQuery, vectorSearch, vectorSearchZvec, mergeHybrid } = await import('./embedding.js');
         const qVec = await embedQuery(query);
-        let rawVecResults = await vectorSearchZvec(qVec, this.workflowRoot, limit * 2);
+        let rawVecResults = await vectorSearchZvec(qVec, this.workflowRoot, internalLimit);
         if (rawVecResults.length === 0) {
-          rawVecResults = vectorSearch(qVec, embIdx, limit * 2);
+          rawVecResults = vectorSearch(qVec, embIdx, internalLimit);
         }
 
         // Deduplicate chunk results back to parent docId (keep highest score per doc)
@@ -397,7 +398,7 @@ export class WikiIndexer {
           vecResults = Array.from(bestPerDoc.values());
         }
 
-        const merged = mergeHybrid(bm25Results, vecResults, limit * 3);
+        const merged = mergeHybrid(bm25Results, vecResults, internalLimit * 2);
         let out: Array<{ entry: WikiEntry; score: number }> = [];
         for (const r of merged) {
           const entry = index.byId[r.docId];
@@ -413,7 +414,7 @@ export class WikiIndexer {
     }
 
     let out: Array<{ entry: WikiEntry; score: number }> = [];
-    for (const r of bm25Results.slice(0, limit * 3)) {
+    for (const r of bm25Results.slice(0, internalLimit)) {
       const entry = index.byId[r.docId];
       if (entry) out.push({ entry, score: r.score });
     }
@@ -637,7 +638,7 @@ export class WikiIndexer {
 
     // knowhow/*.md — recursive scan supports both flat and sub-folder layouts
     const knowhowEntries = await this.scanKnowhowDir(join(this.workflowRoot, 'knowhow'));
-    for (const { name, absPath, entry } of knowhowEntries) {
+    for (const { name, entry } of knowhowEntries) {
       if (entry) {
         // Only derive category from file prefix if no frontmatter category
         if (!entry.category) {
@@ -767,7 +768,6 @@ export class WikiIndexer {
       const glossary = JSON.parse(raw);
       if (!Array.isArray(glossary.terms)) return [];
 
-      const now = new Date().toISOString();
       let glossaryStat: Awaited<ReturnType<typeof stat>>;
       try { glossaryStat = await stat(glossaryPath); } catch { return []; }
       const fileDate = new Date(glossaryStat.mtimeMs).toISOString();

@@ -98,11 +98,17 @@ export async function handler(params: Record<string, unknown>): Promise<CcwToolR
     // Daemon unavailable — fall through to direct search
   }
 
-  // Fallback: direct WikiIndexer search
+  // Fallback: direct WikiIndexer search (skip embedding to avoid ONNX cold-start)
+  // Spawn daemon in background so future searches get embedding.
+  try {
+    const { spawnDaemon } = await import('../search/daemon-client.js');
+    spawnDaemon(workflowRoot).catch(() => {});
+  } catch { /* best-effort */ }
+
   try {
     const indexer = await getIndexer(workflowRoot);
     const { results: rawResults, embeddingUsed } = await indexer.searchWithMeta(query, limit, {
-      skipEmbedding,
+      skipEmbedding: true,
     });
 
     const results = rawResults.map((r) => ({
