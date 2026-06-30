@@ -2,9 +2,9 @@
 // 跨源边自动发现 — MaestroGraph 核心价值
 // 参考: plan-maestrograph.md D2.3 (IN-clause), D3.5 (置信度打分), D2.5 (传播限制)
 
-import type Database from 'better-sqlite3';
+import type { DatabaseSync } from 'node:sqlite';
 import type { UnifiedEdge, EdgeProvenance } from '../db/types.js';
-import { makeNodeId } from '../db/connection.js';
+import { makeNodeId, sqliteTransaction } from '../db/connection.js';
 import { appendFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 
@@ -37,7 +37,7 @@ export interface KnowledgeResolutionResult {
   durationMs: number;
 }
 
-export function resolveKnowledgeEdges(db: Database.Database, options?: { projectPath?: string }): KnowledgeResolutionResult {
+export function resolveKnowledgeEdges(db: DatabaseSync, options?: { projectPath?: string }): KnowledgeResolutionResult {
   const startMs = Date.now();
   const allEdges: UnifiedEdge[] = [];
 
@@ -57,7 +57,7 @@ export function resolveKnowledgeEdges(db: Database.Database, options?: { project
   // (已由 domain-extractor 在提取时建立, 此处补充遗漏)
 
   // 幂等写入：先清除旧的 knowledge-resolver 边，再插入新边
-  db.transaction(() => {
+  sqliteTransaction(db, () => {
     db.prepare(`DELETE FROM edges WHERE provenance = 'knowledge-resolver'`).run();
     if (allEdges.length > 0) {
       const stmt = db.prepare(
@@ -72,7 +72,7 @@ export function resolveKnowledgeEdges(db: Database.Database, options?: { project
         );
       }
     }
-  })();
+  });
 
   // D6.1: resolution.jsonl 可观测性日志
   if (options?.projectPath && allEdges.length > 0) {
@@ -95,11 +95,11 @@ export function resolveKnowledgeEdges(db: Database.Database, options?: { project
 // 置信度打分: base=0.5, generic=-0.3, exported+0.15, keyword match+0.2, many-code-name-降权-0.2
 // D2.3: 使用应用层 alias 展开 + IN-clause 批量匹配, 不用 json_each JOIN
 // ---------------------------------------------------------------------------
-function resolveDefinesEdges(db: Database.Database): UnifiedEdge[] {
+function resolveDefinesEdges(db: DatabaseSync): UnifiedEdge[] {
   // 应用层展开 alias → 扁平化匹配列表
   const domainNodes = db.prepare(
     `SELECT id, name, aliases, keywords FROM nodes WHERE source_type = 'domain' AND status = 'active'`
-  ).all() as Array<{ id: string; name: string; aliases: string | null; keywords: string | null }>;
+  ).all() as unknown as Array<{ id: string; name: string; aliases: string | null; keywords: string | null }>;
 
   const allAliases: Array<{ domainId: string; alias: string; keywords: string[] }> = [];
   for (const domain of domainNodes) {
@@ -122,7 +122,7 @@ function resolveDefinesEdges(db: Database.Database): UnifiedEdge[] {
        WHERE source_type = 'codegraph' AND name IN (${placeholders})
          AND kind IN ('class', 'interface', 'struct', 'type_alias', 'enum')
          AND file_path NOT LIKE '%node_modules%'`
-    ).all(...batch.map(b => b.alias)) as Array<{
+    ).all(...batch.map(b => b.alias)) as unknown as Array<{
       id: string; name: string; kind: string; file_path: string; is_exported: number;
     }>;
 
@@ -133,7 +133,7 @@ function resolveDefinesEdges(db: Database.Database): UnifiedEdge[] {
       const cntPlaceholders = distinctNames.map(() => '?').join(',');
       const countRows = db.prepare(
         `SELECT name, COUNT(*) as n FROM nodes WHERE name IN (${cntPlaceholders}) AND source_type = 'codegraph' GROUP BY name`
-      ).all(...distinctNames) as Array<{ name: string; n: number }>;
+      ).all(...distinctNames) as unknown as Array<{ name: string; n: number }>;
       for (const row of countRows) nameCounts.set(row.name, row.n);
     }
 
@@ -167,10 +167,10 @@ function resolveDefinesEdges(db: Database.Database): UnifiedEdge[] {
 // Rule 2: constrains — spec_entry → code node
 // D2.3: keywords 匹配使用 IN-clause, 不用 json_each JOIN
 // ---------------------------------------------------------------------------
-function resolveConstrainsEdges(db: Database.Database): UnifiedEdge[] {
+function resolveConstrainsEdges(db: DatabaseSync): UnifiedEdge[] {
   const specNodes = db.prepare(
     `SELECT id, keywords, category FROM nodes WHERE source_type = 'spec' AND status = 'active'`
-  ).all() as Array<{ id: string; keywords: string | null; category: string | null }>;
+  ).all() as unknown as Array<{ id: string; keywords: string | null; category: string | null }>;
 
   // 收集所有 spec 的 keywords，建立 keyword → spec 映射
   const keywordToSpecs = new Map<string, Array<{ id: string; keywords: string[] }>>();
@@ -203,7 +203,7 @@ function resolveConstrainsEdges(db: Database.Database): UnifiedEdge[] {
        WHERE source_type = 'codegraph'
          AND kind IN ('function', 'method', 'class', 'interface')
          AND (name IN (${namePlaceholders}) OR ${pathClauses})`
-    ).all(...batch, ...batch) as Array<{
+    ).all(...batch, ...batch) as unknown as Array<{
       id: string; name: string; kind: string; file_path: string;
     }>;
     allCodeMatches.push(...matches);
@@ -238,10 +238,10 @@ function resolveConstrainsEdges(db: Database.Database): UnifiedEdge[] {
 // Rule 3: documents — knowhow → code node
 // keywords 匹配代码符号名
 // ---------------------------------------------------------------------------
-function resolveDocumentsEdges(db: Database.Database): UnifiedEdge[] {
+function resolveDocumentsEdges(db: DatabaseSync): UnifiedEdge[] {
   const knowhowNodes = db.prepare(
     `SELECT id, keywords, name FROM nodes WHERE source_type = 'knowhow' AND status = 'active'`
-  ).all() as Array<{ id: string; keywords: string | null; name: string }>;
+  ).all() as unknown as Array<{ id: string; keywords: string | null; name: string }>;
 
   // 收集所有 search terms，建立 term → knowhow 映射
   const termToKnowhows = new Map<string, string[]>();
@@ -273,7 +273,7 @@ function resolveDocumentsEdges(db: Database.Database): UnifiedEdge[] {
       `SELECT id, name, kind FROM nodes
        WHERE source_type = 'codegraph'
          AND name IN (${placeholders})`
-    ).all(...batch) as Array<{ id: string; name: string; kind: string }>;
+    ).all(...batch) as unknown as Array<{ id: string; name: string; kind: string }>;
     allCodeMatches.push(...matches);
   }
 
@@ -311,7 +311,7 @@ export interface RelatedNode {
 }
 
 export function expandRelated(
-  db: Database.Database,
+  db: DatabaseSync,
   seedNodeIds: string[],
   opts: { maxDepth?: number },
 ): RelatedNode[] {
@@ -327,7 +327,7 @@ export function expandRelated(
       const neighbors = db.prepare(
         `SELECT target AS id, kind FROM edges WHERE source = ?
          UNION SELECT source AS id, kind FROM edges WHERE target = ?`
-      ).all(nodeId, nodeId) as Array<{ id: string; kind: string }>;
+      ).all(nodeId, nodeId) as unknown as Array<{ id: string; kind: string }>;
 
       for (const n of neighbors) {
         if (!visited.has(n.id)) {

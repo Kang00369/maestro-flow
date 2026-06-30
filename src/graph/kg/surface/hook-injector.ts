@@ -4,10 +4,8 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { createRequire } from 'node:module';
+import { DatabaseSync } from 'node:sqlite';
 import { getKgDatabasePath } from '../db/connection.js';
-
-const esmRequire = createRequire(import.meta.url);
 import { buildContext, getAgentCategories } from '../query/context-builder.js';
 import type { BuiltContext, ContextSection } from '../query/context-builder.js';
 import { precheckKg } from './mcp-tools.js';
@@ -179,9 +177,8 @@ function quickHealthCheck(projectPath: string): boolean {
   }
 
   try {
-    const Database = esmRequire('better-sqlite3');
     const dbPath = getKgDatabasePath(projectPath);
-    const db = new Database(dbPath, { readonly: true });
+    const db = new DatabaseSync(dbPath, { readOnly: true });
     const qc = db.prepare('PRAGMA quick_check(1)').get();
     const ok = qc && (qc as Record<string, unknown>).quick_check === 'ok';
     db.close();

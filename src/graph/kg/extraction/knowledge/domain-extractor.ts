@@ -120,15 +120,18 @@ export function extractDomain(
 }
 
 // 删除级联清理 (D3.2)
-export function purgeDomainTerm(db: import('better-sqlite3').Database, termId: string): void {
+export function purgeDomainTerm(db: import('node:sqlite').DatabaseSync, termId: string): void {
   const nodeId = makeNodeId('domain', termId);
-  db.transaction(() => {
+  db.exec('BEGIN');
+  try {
     db.prepare('DELETE FROM nodes WHERE id = ?').run(nodeId);
-    // edges 的 source/target 侧由 ON DELETE CASCADE 自动清理
-    // 但也需清理 target 侧的非 CASCADE 残留
     db.prepare('DELETE FROM edges WHERE source = ?').run(nodeId);
     db.prepare('DELETE FROM edges WHERE target = ?').run(nodeId);
-  })();
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
 }
 
 // 辅助函数

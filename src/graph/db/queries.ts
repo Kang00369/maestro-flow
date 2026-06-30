@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3';
+import type { StatementSync } from 'node:sqlite';
 import type { DatabaseConnection } from './connection.js';
 import type {
   EnhancedNode, EnhancedEdge, FileRecord, UnresolvedReference,
@@ -111,13 +111,13 @@ function rowToFile(row: FileRow): FileRecord {
 
 export class QueryBuilder {
   private conn: DatabaseConnection;
-  private stmtCache = new Map<string, Database.Statement>();
+  private stmtCache = new Map<string, StatementSync>();
 
   constructor(conn: DatabaseConnection) {
     this.conn = conn;
   }
 
-  private stmt(sql: string): Database.Statement {
+  private stmt(sql: string): StatementSync {
     let s = this.stmtCache.get(sql);
     if (!s) {
       s = this.conn.raw.prepare(sql);
@@ -129,7 +129,7 @@ export class QueryBuilder {
   // ── Node CRUD ──────────────────────────────────────────────────────
 
   getNodeById(id: string): EnhancedNode | null {
-    const row = this.stmt('SELECT * FROM nodes WHERE id = ?').get(id) as NodeRow | undefined;
+    const row = this.stmt('SELECT * FROM nodes WHERE id = ?').get(id) as unknown as NodeRow | undefined;
     return row ? rowToNode(row) : null;
   }
 
@@ -139,7 +139,7 @@ export class QueryBuilder {
     const placeholders = ids.map(() => '?').join(',');
     const rows = this.conn.raw.prepare(
       `SELECT * FROM nodes WHERE id IN (${placeholders})`
-    ).all(...ids) as NodeRow[];
+    ).all(...ids) as unknown as NodeRow[];
     for (const row of rows) {
       result.set(row.id, rowToNode(row));
     }
@@ -149,14 +149,14 @@ export class QueryBuilder {
   getNodesByFile(filePath: string): EnhancedNode[] {
     const rows = this.stmt(
       'SELECT * FROM nodes WHERE file_path = ?'
-    ).all(filePath) as NodeRow[];
+    ).all(filePath) as unknown as NodeRow[];
     return rows.map(rowToNode);
   }
 
   getNodesByKind(kind: NodeKind): EnhancedNode[] {
     const rows = this.stmt(
       'SELECT * FROM nodes WHERE kind = ?'
-    ).all(kind) as NodeRow[];
+    ).all(kind) as unknown as NodeRow[];
     return rows.map(rowToNode);
   }
 
@@ -204,10 +204,10 @@ export class QueryBuilder {
       const placeholders = kinds.map(() => '?').join(',');
       return (this.conn.raw.prepare(
         `SELECT * FROM edges WHERE source = ? AND kind IN (${placeholders})`
-      ).all(nodeId, ...kinds) as EdgeRow[]).map(rowToEdge);
+      ).all(nodeId, ...kinds) as unknown as EdgeRow[]).map(rowToEdge);
     }
     return (this.stmt('SELECT * FROM edges WHERE source = ?')
-      .all(nodeId) as EdgeRow[]).map(rowToEdge);
+      .all(nodeId) as unknown as EdgeRow[]).map(rowToEdge);
   }
 
   getIncomingEdges(nodeId: string, kinds?: EdgeKind[]): EnhancedEdge[] {
@@ -215,10 +215,10 @@ export class QueryBuilder {
       const placeholders = kinds.map(() => '?').join(',');
       return (this.conn.raw.prepare(
         `SELECT * FROM edges WHERE target = ? AND kind IN (${placeholders})`
-      ).all(nodeId, ...kinds) as EdgeRow[]).map(rowToEdge);
+      ).all(nodeId, ...kinds) as unknown as EdgeRow[]).map(rowToEdge);
     }
     return (this.stmt('SELECT * FROM edges WHERE target = ?')
-      .all(nodeId) as EdgeRow[]).map(rowToEdge);
+      .all(nodeId) as unknown as EdgeRow[]).map(rowToEdge);
   }
 
   insertEdge(edge: EnhancedEdge): void {
@@ -254,12 +254,12 @@ export class QueryBuilder {
   // ── File CRUD ──────────────────────────────────────────────────────
 
   getFile(path: string): FileRecord | null {
-    const row = this.stmt('SELECT * FROM files WHERE path = ?').get(path) as FileRow | undefined;
+    const row = this.stmt('SELECT * FROM files WHERE path = ?').get(path) as unknown as FileRow | undefined;
     return row ? rowToFile(row) : null;
   }
 
   getAllFiles(): FileRecord[] {
-    return (this.stmt('SELECT * FROM files').all() as FileRow[]).map(rowToFile);
+    return (this.stmt('SELECT * FROM files').all() as unknown as FileRow[]).map(rowToFile);
   }
 
   upsertFile(file: FileRecord): void {
@@ -320,7 +320,7 @@ export class QueryBuilder {
   }
 
   getUnresolvedReferencesCount(): number {
-    const row = this.stmt('SELECT COUNT(*) as c FROM unresolved_refs').get() as { c: number };
+    const row = this.stmt('SELECT COUNT(*) as c FROM unresolved_refs').get() as unknown as { c: number };
     return row.c;
   }
 
@@ -332,7 +332,7 @@ export class QueryBuilder {
   ): EnhancedNode[] {
     const limit = options?.limit ?? 20;
     const conditions: string[] = [];
-    const params: unknown[] = [];
+    const params: (string | number | null)[] = [];
 
     if (options?.kinds && options.kinds.length > 0) {
       conditions.push(`kind IN (${options.kinds.map(() => '?').join(',')})`);
@@ -366,7 +366,7 @@ export class QueryBuilder {
         LIMIT ?
       `;
       try {
-        const rows = this.conn.raw.prepare(sql).all(ftsQuery, ...params, limit) as NodeRow[];
+        const rows = this.conn.raw.prepare(sql).all(ftsQuery, ...params, limit) as unknown as NodeRow[];
         if (rows.length > 0) return rows.map(rowToNode);
       } catch {
         // FTS5 match failure — fall through to LIKE
@@ -383,38 +383,38 @@ export class QueryBuilder {
       const pattern = `%${query.toLowerCase()}%`;
       const likeRows = this.conn.raw.prepare(likeSql).all(
         pattern, pattern, pattern, ...params, limit
-      ) as NodeRow[];
+      ) as unknown as NodeRow[];
       return likeRows.map(rowToNode);
     }
 
     // No text query — just filters
     if (conditions.length === 0) {
-      return (this.stmt('SELECT * FROM nodes LIMIT ?').all(limit) as NodeRow[]).map(rowToNode);
+      return (this.stmt('SELECT * FROM nodes LIMIT ?').all(limit) as unknown as NodeRow[]).map(rowToNode);
     }
     const sql = `SELECT * FROM nodes WHERE ${conditions.join(' AND ')} LIMIT ?`;
-    return (this.conn.raw.prepare(sql).all(...params, limit) as NodeRow[]).map(rowToNode);
+    return (this.conn.raw.prepare(sql).all(...params, limit) as unknown as NodeRow[]).map(rowToNode);
   }
 
   // ── Statistics ─────────────────────────────────────────────────────
 
   getStats(dbSizeBytes?: number): GraphStats {
-    const nodeCount = (this.stmt('SELECT COUNT(*) as c FROM nodes').get() as { c: number }).c;
-    const edgeCount = (this.stmt('SELECT COUNT(*) as c FROM edges').get() as { c: number }).c;
-    const fileCount = (this.stmt('SELECT COUNT(*) as c FROM files').get() as { c: number }).c;
+    const nodeCount = (this.stmt('SELECT COUNT(*) as c FROM nodes').get() as unknown as { c: number }).c;
+    const edgeCount = (this.stmt('SELECT COUNT(*) as c FROM edges').get() as unknown as { c: number }).c;
+    const fileCount = (this.stmt('SELECT COUNT(*) as c FROM files').get() as unknown as { c: number }).c;
     const unresolvedRefCount = this.getUnresolvedReferencesCount();
 
     const nodesByKind: Record<string, number> = {};
-    for (const row of this.stmt('SELECT kind, COUNT(*) as c FROM nodes GROUP BY kind').all() as Array<{ kind: string; c: number }>) {
+    for (const row of this.stmt('SELECT kind, COUNT(*) as c FROM nodes GROUP BY kind').all() as unknown as Array<{ kind: string; c: number }>) {
       nodesByKind[row.kind] = row.c;
     }
 
     const edgesByKind: Record<string, number> = {};
-    for (const row of this.stmt('SELECT kind, COUNT(*) as c FROM edges GROUP BY kind').all() as Array<{ kind: string; c: number }>) {
+    for (const row of this.stmt('SELECT kind, COUNT(*) as c FROM edges GROUP BY kind').all() as unknown as Array<{ kind: string; c: number }>) {
       edgesByKind[row.kind] = row.c;
     }
 
     const nodesByLanguage: Record<string, number> = {};
-    for (const row of this.stmt('SELECT language, COUNT(*) as c FROM nodes WHERE language IS NOT NULL GROUP BY language').all() as Array<{ language: string; c: number }>) {
+    for (const row of this.stmt('SELECT language, COUNT(*) as c FROM nodes WHERE language IS NOT NULL GROUP BY language').all() as unknown as Array<{ language: string; c: number }>) {
       nodesByLanguage[row.language] = row.c;
     }
 
@@ -426,8 +426,8 @@ export class QueryBuilder {
   }
 
   getNodeAndEdgeCount(): { nodes: number; edges: number } {
-    const nodes = (this.stmt('SELECT COUNT(*) as c FROM nodes').get() as { c: number }).c;
-    const edges = (this.stmt('SELECT COUNT(*) as c FROM edges').get() as { c: number }).c;
+    const nodes = (this.stmt('SELECT COUNT(*) as c FROM nodes').get() as unknown as { c: number }).c;
+    const edges = (this.stmt('SELECT COUNT(*) as c FROM edges').get() as unknown as { c: number }).c;
     return { nodes, edges };
   }
 
@@ -440,7 +440,7 @@ export class QueryBuilder {
   }
 
   getMetadata(key: string): string | null {
-    const row = this.stmt('SELECT value FROM project_metadata WHERE key = ?').get(key) as { value: string } | undefined;
+    const row = this.stmt('SELECT value FROM project_metadata WHERE key = ?').get(key) as unknown as { value: string } | undefined;
     return row?.value ?? null;
   }
 

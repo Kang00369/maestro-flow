@@ -80,7 +80,7 @@ export class MaestroGraph {
     }
   }
 
-  get rawDb(): import('better-sqlite3').Database {
+  get rawDb(): import('node:sqlite').DatabaseSync {
     if (!this.conn) throw new Error('MaestroGraph not open');
     return this.conn.raw;
   }

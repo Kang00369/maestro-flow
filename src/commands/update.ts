@@ -8,8 +8,8 @@
 // ---------------------------------------------------------------------------
 
 import type { Command } from 'commander';
-import { exec, spawn } from 'node:child_process';
-import { existsSync, writeFileSync, mkdirSync, unlinkSync, readdirSync, rmSync } from 'node:fs';
+import { exec, execSync, spawn } from 'node:child_process';
+import { existsSync, writeFileSync, mkdirSync, unlinkSync, readdirSync, rmSync, lstatSync, readlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { getPackageVersion } from '../utils/get-version.js';
@@ -61,6 +61,23 @@ function compareSemver(a: string, b: string): number {
     if (na < nb) return -1;
   }
   return 0;
+}
+
+/**
+ * Detect if the global maestro-flow install is an npm-link symlink.
+ * Returns the link target (source directory) or null.
+ */
+function getLinkedSourceDir(): string | null {
+  try {
+    const globalPrefix = execSync('npm prefix -g', { encoding: 'utf8' }).trim();
+    const pkgDir = join(globalPrefix, 'node_modules', PACKAGE_NAME);
+    if (!existsSync(pkgDir)) return null;
+    const stat = lstatSync(pkgDir);
+    if (!stat.isSymbolicLink()) return null;
+    return readlinkSync(pkgDir);
+  } catch {
+    return null;
+  }
 }
 
 function execAsync(cmd: string): Promise<{ stdout: string; stderr: string }> {
@@ -438,31 +455,72 @@ export function registerUpdateCommand(program: Command): void {
         return;
       }
 
-      console.error('');
-      console.error(`  Installing ${PACKAGE_NAME}@${latest.version}...`);
-
+      const linkedDir = getLinkedSourceDir();
       const viewServerWasRunning = await stopViewServer();
 
       console.error('');
 
-      try {
-        const { stdout, stderr } = await execAsync(`npm install -g ${PACKAGE_NAME}@${latest.version}`);
-        if (stdout.trim()) console.error(stdout.trim());
-        if (stderr.trim()) console.error(stderr.trim());
+      if (linkedDir) {
+        console.error(`  Linked install detected → ${linkedDir}`);
+        console.error(`  Updating via git pull + rebuild...`);
         console.error('');
-        console.error('  Update complete!');
-      } catch (err) {
-        console.error('  Installation failed.');
-        if (err instanceof Error) {
-          console.error(`  ${err.message}`);
+
+        try {
+          const { stdout: pullOut, stderr: pullErr } = await execAsync(`git -C "${linkedDir}" pull --ff-only`);
+          if (pullOut.trim()) console.error(pullOut.trim());
+          if (pullErr.trim()) console.error(pullErr.trim());
+        } catch (err) {
+          console.error('  git pull failed.');
+          if (err instanceof Error) console.error(`  ${err.message}`);
+          console.error('');
+          console.error(`  You can try manually: cd ${linkedDir} && git pull && npm run build`);
+          if (viewServerWasRunning) {
+            console.error('  Warning: view server was stopped — restart it manually if needed.');
+          }
+          console.error('');
+          return;
         }
-        console.error('');
-        console.error(`  You can try manually: npm install -g ${PACKAGE_NAME}@${latest.version}`);
-        if (viewServerWasRunning) {
-          console.error('  Warning: view server was stopped — restart it manually if needed.');
+
+        try {
+          console.error('');
+          console.error('  Rebuilding...');
+          const { stdout: buildOut, stderr: buildErr } = await execAsync(`npm run build --prefix "${linkedDir}"`);
+          if (buildOut.trim()) console.error(buildOut.trim());
+          if (buildErr.trim()) console.error(buildErr.trim());
+          console.error('');
+          console.error('  Update complete!');
+        } catch (err) {
+          console.error('  Build failed.');
+          if (err instanceof Error) console.error(`  ${err.message}`);
+          console.error('');
+          console.error(`  You can try manually: cd ${linkedDir} && npm run build`);
+          if (viewServerWasRunning) {
+            console.error('  Warning: view server was stopped — restart it manually if needed.');
+          }
+          console.error('');
+          return;
         }
+      } else {
+        console.error(`  Installing ${PACKAGE_NAME}@${latest.version}...`);
         console.error('');
-        return;
+
+        try {
+          const { stdout, stderr } = await execAsync(`npm install -g ${PACKAGE_NAME}@${latest.version}`);
+          if (stdout.trim()) console.error(stdout.trim());
+          if (stderr.trim()) console.error(stderr.trim());
+          console.error('');
+          console.error('  Update complete!');
+        } catch (err) {
+          console.error('  Installation failed.');
+          if (err instanceof Error) console.error(`  ${err.message}`);
+          console.error('');
+          console.error(`  You can try manually: npm install -g ${PACKAGE_NAME}@${latest.version}`);
+          if (viewServerWasRunning) {
+            console.error('  Warning: view server was stopped — restart it manually if needed.');
+          }
+          console.error('');
+          return;
+        }
       }
 
       // --- Post-update: reinstall workflow components ---

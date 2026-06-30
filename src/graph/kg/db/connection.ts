@@ -1,7 +1,7 @@
 // src/graph/kg/db/connection.ts — MaestroGraph SQLite 连接管理
 // D1.4: WAL + busy_timeout 5000 + FileLock 保护写操作
 
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,10 +11,10 @@ import type { Language, SourceType } from './types.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export class KgDatabaseConnection {
-  private db: Database.Database | null = null;
+  private db: DatabaseSync | null = null;
   private dbPath: string = '';
 
-  get raw(): Database.Database {
+  get raw(): DatabaseSync {
     if (!this.db) throw new Error('MaestroGraph database not open');
     return this.db;
   }
@@ -33,7 +33,7 @@ export class KgDatabaseConnection {
     const dir = dirname(dbPath);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
-    this.db = new Database(dbPath);
+    this.db = new DatabaseSync(dbPath);
     this.applyPragmas();
     this.loadSchema();
     this.setSchemaVersion(2, 'MaestroGraph unified schema v2');
@@ -45,15 +45,15 @@ export class KgDatabaseConnection {
       throw new Error(`MaestroGraph database not found: ${dbPath}. Run "maestro kg init" first.`);
     }
     this.dbPath = dbPath;
-    this.db = new Database(dbPath);
+    this.db = new DatabaseSync(dbPath);
     this.applyPragmas();
   }
 
   close(): void {
     if (this.db) {
       try {
-        this.db.pragma('mmap_size = 0');
-        this.db.pragma('wal_checkpoint(TRUNCATE)');
+        this.db.exec('PRAGMA mmap_size = 0');
+        this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
       } catch (err) {
         console.warn('[MaestroGraph] checkpoint failed on close:', (err as Error).message);
       }
@@ -64,15 +64,15 @@ export class KgDatabaseConnection {
 
   private applyPragmas(): void {
     const db = this.raw;
-    db.pragma('busy_timeout = 5000');
-    db.pragma('foreign_keys = ON');
-    db.pragma('journal_mode = WAL');
-    db.pragma('synchronous = NORMAL');
-    db.pragma('cache_size = -64000');
-    db.pragma('temp_store = MEMORY');
+    db.exec('PRAGMA busy_timeout = 5000');
+    db.exec('PRAGMA foreign_keys = ON');
+    db.exec('PRAGMA journal_mode = WAL');
+    db.exec('PRAGMA synchronous = NORMAL');
+    db.exec('PRAGMA cache_size = -64000');
+    db.exec('PRAGMA temp_store = MEMORY');
     // Windows 上 mmap 会锁定文件阻止扩容，导致 WAL checkpoint 失败 → DB 损坏
     if (process.platform !== 'win32') {
-      db.pragma('mmap_size = 268435456');
+      db.exec('PRAGMA mmap_size = 268435456');
     }
   }
 
@@ -106,7 +106,7 @@ export class KgDatabaseConnection {
     try {
       const row = this.raw.prepare(
         'SELECT MAX(version) as v FROM schema_versions'
-      ).get() as { v: number } | undefined;
+      ).get() as unknown as { v: number } | undefined;
       return row?.v ?? 0;
     } catch {
       return 0;
@@ -114,18 +114,18 @@ export class KgDatabaseConnection {
   }
 
   transaction<T>(fn: () => T): T {
-    return this.raw.transaction(fn)();
+    return sqliteTransaction(this.raw, fn);
   }
 
   optimize(): void {
-    this.raw.pragma('optimize');
+    this.raw.exec('PRAGMA optimize');
     this.raw.exec('VACUUM');
     this.raw.exec('ANALYZE');
   }
 
   runMaintenance(): void {
-    this.raw.pragma('optimize');
-    this.raw.pragma('wal_checkpoint(PASSIVE)');
+    this.raw.exec('PRAGMA optimize');
+    this.raw.exec('PRAGMA wal_checkpoint(PASSIVE)');
   }
 
   getSize(): number {
@@ -161,4 +161,16 @@ export function isFileLevelOnlyLanguage(lang: Language | string): boolean {
 
 export function isKnowledgeSourceType(sourceType: string): boolean {
   return sourceType !== 'codegraph' && sourceType !== '';
+}
+
+export function sqliteTransaction<T>(db: DatabaseSync, fn: () => T): T {
+  db.exec('BEGIN');
+  try {
+    const result = fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
 }
