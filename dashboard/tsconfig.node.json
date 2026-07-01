@@ -13,6 +13,7 @@
     "declaration": true,
     "sourceMap": true,
     "paths": {
+      "maestro-flow": ["../src/index.ts"],
       "#async/*": ["../src/async/*"]
     }
   },
