@@ -10,7 +10,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { CliAgentRunner } from '../agents/cli-agent-runner.js';
 import { CliHistoryStore } from '../agents/cli-history-store.js';
 import type { ExecutionMeta, EntryLike } from '../agents/cli-history-store.js';
-import { loadCliToolsConfig, selectTool, selectToolByRole } from '../config/cli-tools-config.js';
+import { loadCliToolsConfig, selectTool } from '../config/cli-tools-config.js';
 import {
   deriveExecutionStatus,
   padRight,
@@ -40,7 +40,7 @@ export function registerCliCommand(program: Command): void {
   cli
     .option('-p, --prompt <prompt>', 'Prompt to send to the agent')
     .option('--tool <name>', 'CLI tool to use (gemini, qwen, codex, claude, opencode)')
-    .option('--role <role>', 'Capability role for auto tool selection (analyze, explore, review, implement, plan, brainstorm, research)')
+    .option('--role <role>', 'Capability role for targeted spec injection (does not select a tool)')
     .option('--mode <mode>', 'Execution mode (analysis or write)', 'analysis')
     .option('--model <model>', 'Model override')
     .option('--cd <dir>', 'Working directory')
@@ -68,21 +68,27 @@ export function registerCliCommand(program: Command): void {
       const workDir = resolve(opts.cd ?? process.cwd());
       const config = await loadCliToolsConfig(workDir);
 
-      // Tool resolution priority: --tool > --role > first-enabled fallback
-      let selected;
-      if (opts.tool) {
-        if (opts.role) {
-          process.stderr.write(`Warning: --tool overrides --role; using tool "${opts.tool}" directly.\n`);
-        }
-        selected = selectTool(opts.tool, config);
-      } else if (opts.role) {
-        selected = selectToolByRole(opts.role, config);
-      } else {
-        selected = selectTool(undefined, config);
+      if (!opts.tool) {
+        console.error(
+          'Error: CLI agent is required. Pass --tool <name>; ' +
+          '--role no longer selects Codex, Claude, or a fallback tool.',
+        );
+        process.exit(1);
       }
 
-      const toolName = selected?.name ?? opts.tool ?? 'gemini';
-      const model = opts.model ?? selected?.entry?.primaryModel;
+      const selected = selectTool(opts.tool, config);
+      if (!selected) {
+        const exists = opts.tool in (config.tools ?? {});
+        console.error(
+          exists
+            ? `Error: CLI agent "${opts.tool}" is disabled.`
+            : `Error: CLI agent "${opts.tool}" is not configured.`,
+        );
+        process.exit(1);
+      }
+
+      const toolName = selected.name;
+      const model = opts.model ?? selected.entry.primaryModel;
       const mode = opts.mode as 'analysis' | 'write';
 
       if (mode !== 'analysis' && mode !== 'write') {
@@ -102,8 +108,9 @@ export function registerCliCommand(program: Command): void {
           execId: opts.id,
           resume: opts.resume === true ? 'last' : opts.resume,
           includeDirs: opts.includeDirs?.split(',').map(d => d.trim()).filter(Boolean),
-          settingsFile: selected?.entry?.settingsFile,
-          baseTool: selected?.entry?.baseTool,
+          settingsFile: selected.entry.settingsFile,
+          baseTool: selected.entry.baseTool,
+          role: opts.role,
         });
         process.exit(exitCode);
       } catch (err) {

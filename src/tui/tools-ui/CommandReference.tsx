@@ -1,9 +1,6 @@
 import React from 'react';
 import { Box, Text, useInput } from 'ink';
-import {
-  selectToolByRole,
-  type CliToolsConfig,
-} from '../../config/cli-tools-config.js';
+import type { CliToolsConfig } from '../../config/cli-tools-config.js';
 import { C, pad } from '../shared/index.js';
 
 export interface CommandReferenceProps {
@@ -11,62 +8,37 @@ export interface CommandReferenceProps {
   onBack: () => void;
 }
 
-interface RefEntry {
-  command: string;
-  role: string;
-  resolvesTo: string;
-}
-
-// Static mapping of known --role references in commands/skills
-const KNOWN_ROLE_REFS: Array<{ command: string; role: string }> = [
-  { command: 'maestro-analyze', role: 'analyze' },
-  { command: 'maestro-composer', role: 'analyze' },
-  { command: 'maestro-super', role: 'analyze' },
-  { command: 'issue-discover', role: 'analyze' },
-  { command: 'team-review/scanner', role: 'review' },
-  { command: 'team-review/reviewer', role: 'review' },
-  { command: 'team-qa/scout', role: 'analyze' },
-  { command: 'team-tech-debt/scanner', role: 'explore' },
-  { command: 'spec-generate (product)', role: 'analyze' },
-  { command: 'spec-generate (technical)', role: 'review' },
-  { command: 'spec-generate (user)', role: 'explore' },
-];
-
 export function CommandReference({ config, onBack }: CommandReferenceProps) {
   useInput((_input, key) => {
     if (key.escape) onBack();
   });
 
-  const entries: RefEntry[] = KNOWN_ROLE_REFS.map(ref => ({
-    command: ref.command,
-    role: ref.role,
-    resolvesTo: selectToolByRole(ref.role, config)?.name ?? '(none)',
-  }));
+  const entries = Object.entries(config.tools);
 
   return (
     <Box flexDirection="column" paddingX={1}>
       <Text bold color={C.primary}>Command Reference</Text>
-      <Text dimColor>Shows which tool each command/skill resolves to via --role</Text>
+      <Text dimColor>Delegate calls must name an enabled agent explicitly.</Text>
       <Text> </Text>
 
-      {/* Header */}
       <Box gap={1}>
-        <Text dimColor>{pad('Command / Skill', 32)}</Text>
-        <Text dimColor>{pad('Role', 24)}</Text>
-        <Text dimColor>Resolves To</Text>
+        <Text dimColor>{pad('Agent', 18)}</Text>
+        <Text dimColor>{pad('State', 10)}</Text>
+        <Text dimColor>Model</Text>
       </Box>
-      <Text dimColor>{'─'.repeat(76)}</Text>
+      <Text dimColor>{'─'.repeat(64)}</Text>
 
-      {/* Rows */}
-      {entries.map((entry, i) => (
-        <Box key={i} gap={1}>
-          <Text>{pad(entry.command, 32)}</Text>
-          <Text color={C.warning}>{pad(entry.role, 24)}</Text>
-          <Text color={C.success} bold>{entry.resolvesTo}</Text>
+      {entries.map(([name, entry]) => (
+        <Box key={name} gap={1}>
+          <Text>{pad(name, 18)}</Text>
+          <Text color={entry.enabled ? C.success : C.error}>{pad(entry.enabled ? 'enabled' : 'disabled', 10)}</Text>
+          <Text dimColor>{entry.primaryModel || '—'}</Text>
         </Box>
       ))}
 
       <Text> </Text>
+      <Text>maestro delegate "..." --to codex --model gpt-5.6-luna --mode analysis</Text>
+      <Text dimColor>--role only controls targeted spec injection; it never selects an agent.</Text>
       <Text dimColor>[Esc] Back</Text>
     </Box>
   );

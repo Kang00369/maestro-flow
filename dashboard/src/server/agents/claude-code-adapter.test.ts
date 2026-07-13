@@ -139,6 +139,15 @@ describe('ClaudeCodeAdapter', () => {
       expect(proc.status).toBe('running');
       expect(proc.type).toBe('claude-code');
     });
+
+    it('does not forward a Codex model override to Claude CLI argv', async () => {
+      const config = baseConfig({ model: 'gpt-5.6-luna' });
+      await adapter.spawn(config);
+
+      const cliArgs: string[] = spawnMock.mock.calls[0][1];
+      expect(cliArgs).not.toContain('--model');
+      expect(cliArgs).not.toContain('gpt-5.6-luna');
+    });
   });
 
   // -----------------------------------------------------------------------

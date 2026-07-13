@@ -9,17 +9,52 @@ maestro delegate "<PROMPT>" [options]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--to <tool>` | gemini, qwen, codex, claude, opencode | First enabled |
-| `--role <role>` | analyze, explore, review, implement, plan, brainstorm, research | — |
+| `--to <tool>` | Explicit enabled agent: gemini, qwen, codex, claude, opencode | Required |
+| `--role <role>` | Spec-injection role: analyze, explore, review, implement, plan, brainstorm, research | — |
 | `--mode <mode>` | `analysis` (read-only) / `write` (modify) | `analysis` |
 | `--model <model>` | Model override | Tool's `primaryModel` |
+| `--effort <level>` | Reasoning effort: low, medium, high, max | Tool config/default |
 | `--cd <dir>` | Working directory | Current |
 | `--rule <template>` | Protocol + prompt template | — |
 | `--id <id>` | Execution ID | Auto: `{prefix}-{HHmmss}-{rand4}` |
 | `--resume [id]` | Resume previous session | — |
 | `--includeDirs <dirs>` | Additional directories (comma-separated) | — |
 
-Tool resolution: `--to` > `--role` > first enabled in config.
+Agent resolution is explicit: `--to <tool>` is required. `--role` never selects
+an agent, and missing, unknown, or disabled agents fail without fallback.
+
+Delegate is the normal choice for a single bounded offload, including short
+analysis, planning, review, research, or implementation. It is not reserved for
+long-running work. Prefer it before CSV Wave when the task does not require a
+homogeneous row batch, dependency waves, or strict multi-worker recovery.
+
+`--model <model>` overrides the selected agent's `primaryModel`. For example:
+
+```bash
+maestro delegate "<PROMPT>" --to codex --model gpt-5.6-luna --mode analysis
+```
+
+### Codex Model Budget
+
+When `--to codex` is explicit and the caller did not pin a model/effort, use the
+lowest sufficient tier:
+
+| Task shape | Model and effort | Examples |
+|------------|------------------|----------|
+| Hard reasoning | `gpt-5.6-sol` + `max` | Ambiguous multi-step understanding, cross-subsystem planning, high-risk design decisions |
+| Simple work | `gpt-5.6-sol` + `low` | Bounded implementation, simple analysis, straightforward review with clear acceptance criteria |
+| Scout/chore | `gpt-5.6-terra` + `medium` | Mechanical extraction, supporting-document scan, independent bounded code-location scout |
+
+```bash
+maestro delegate "<HARD_TASK>" --to codex --model gpt-5.6-sol --effort max --mode analysis
+maestro delegate "<SIMPLE_TASK>" --to codex --model gpt-5.6-sol --effort low --mode write
+maestro delegate "<SCOUT_TASK>" --to codex --model gpt-5.6-terra --effort medium --mode analysis
+```
+
+FastContext remains the first code locator. Use the Terra tier when a separate
+scout session still adds value. Model/effort selection never changes the
+explicit agent and never enables provider fallback. Codex `max` is translated
+by the adapter to its supported highest local reasoning setting.
 
 **`--mode` is authoritative** — `MODE:` in prompt text is a hint only.
 

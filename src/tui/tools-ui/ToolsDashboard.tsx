@@ -3,8 +3,6 @@ import { Box, Text, useInput, useApp } from 'ink';
 import {
   loadCliToolsConfig,
   resetCliToolsConfig,
-  getDefaultRoleMappings,
-  selectToolByRole,
   type CliToolsConfig,
 } from '../../config/cli-tools-config.js';
 import { ToolsOverview } from './ToolsOverview.js';
@@ -86,7 +84,7 @@ export function ToolsDashboard({ workDir, initialView }: ToolsDashboardProps) {
           <Text> </Text>
           <Text>This will overwrite ~/.maestro/cli-tools.json with default</Text>
           <Text>tool definitions and re-detect CLI availability.</Text>
-          <Text>Custom roles and aliases will be lost.</Text>
+          <Text>Custom aliases will be lost.</Text>
         </Box>
         <KeyHints hints="[y] Confirm  [n/Esc] Cancel" />
       </Box>
@@ -122,7 +120,7 @@ export function ToolsDashboard({ workDir, initialView }: ToolsDashboardProps) {
         <Text> </Text>
         <Box gap={SP.tabGap}>
           <Text color={C.primary}>[1]</Text><Text>Tools</Text>
-          <Text color={C.primary}>[2]</Text><Text>Roles</Text>
+          <Text color={C.primary}>[2]</Text><Text>Routing</Text>
           <Text color={C.primary}>[3]</Text><Text>Register</Text>
           <Text color={C.primary}>[4]</Text><Text>Ref</Text>
           <Text color={C.primary}>[5]</Text><Text>Config</Text>

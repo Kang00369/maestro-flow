@@ -4,7 +4,6 @@ import { TextInput } from '@inkjs/ui';
 import { existsSync } from 'node:fs';
 import {
   saveCliToolsConfig,
-  DELEGATE_ROLES,
   type CliToolsConfig,
 } from '../../config/cli-tools-config.js';
 import { C, SYM } from '../shared/index.js';
@@ -15,13 +14,11 @@ export interface RegisterSettingsProps {
   onBack: () => void;
 }
 
-type Phase = 'name' | 'role' | 'path' | 'scope' | 'saving' | 'done' | 'error';
+type Phase = 'name' | 'path' | 'scope' | 'saving' | 'done' | 'error';
 
 export function RegisterSettings({ config, workDir, onBack }: RegisterSettingsProps) {
   const [phase, setPhase] = useState<Phase>('name');
   const [alias, setAlias] = useState('');
-  const [role, setRole] = useState('');
-  const [roleCursor, setRoleCursor] = useState(0);
   const [path, setPath] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -33,26 +30,6 @@ export function RegisterSettings({ config, workDir, onBack }: RegisterSettingsPr
 
   useInput((input, key) => {
     if (key.escape) { onBack(); return; }
-
-    if (phase === 'role') {
-      if (key.upArrow) setRoleCursor(c => c > 0 ? c - 1 : DELEGATE_ROLES.length - 1);
-      if (key.downArrow) setRoleCursor(c => c < DELEGATE_ROLES.length - 1 ? c + 1 : 0);
-      if (key.return) {
-        setRole(DELEGATE_ROLES[roleCursor]);
-        const ex = config.tools[alias];
-        if (ex?.settingsFile) setPath(ex.settingsFile);
-        setPhase('path');
-      }
-      // Number hotkeys 1-7
-      const n = parseInt(input, 10);
-      if (n >= 1 && n <= DELEGATE_ROLES.length) {
-        setRoleCursor(n - 1);
-        setRole(DELEGATE_ROLES[n - 1]);
-        const ex = config.tools[alias];
-        if (ex?.settingsFile) setPath(ex.settingsFile);
-        setPhase('path');
-      }
-    }
 
     if (phase === 'scope') {
       if (input === 'g') doSave('global');
@@ -69,15 +46,9 @@ export function RegisterSettings({ config, workDir, onBack }: RegisterSettingsPr
     if (!trimmed) { setError('Name is required'); return; }
     setAlias(trimmed);
     setError('');
-    if (trimmed === 'claude') {
-      // Base tool — skip role selection
-      setRole('');
-      const ex = config.tools.claude;
-      if (ex?.settingsFile) setPath(ex.settingsFile);
-      setPhase('path');
-    } else {
-      setPhase('role');
-    }
+    const ex = config.tools[trimmed];
+    if (ex?.settingsFile) setPath(ex.settingsFile);
+    setPhase('path');
   };
 
   const handlePathSubmit = (value: string) => {
@@ -113,16 +84,12 @@ export function RegisterSettings({ config, workDir, onBack }: RegisterSettingsPr
         ...(!isBase ? { baseTool: 'claude' } : {}),
       };
 
-      // Also update role mapping if a role was selected
-      const rolesUpdate = role ? { [role]: { tool: alias } } : undefined;
-
       await saveCliToolsConfig(
-        { tools: { [alias]: toolUpdate }, ...(rolesUpdate ? { roles: rolesUpdate } : {}) },
+        { tools: { [alias]: toolUpdate } },
         scope,
         workDir,
       );
-      const roleMsg = role ? ` (role: ${role})` : '';
-      setMessage(`${alias}${roleMsg} → ${path} saved to ${scope}`);
+      setMessage(`${alias} → ${path} saved to ${scope}`);
       setPhase('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -163,26 +130,9 @@ export function RegisterSettings({ config, workDir, onBack }: RegisterSettingsPr
         </Box>
       )}
 
-      {phase === 'role' && (
-        <Box flexDirection="column">
-          <Box gap={1}><Text>Name:</Text><Text bold color={C.success}>{alias}</Text></Box>
-          <Text>Assign to role:</Text>
-          {DELEGATE_ROLES.map((r, i) => (
-            <Box key={r} gap={1}>
-              <Text color={i === roleCursor ? C.primary : undefined}>
-                {i === roleCursor ? ` ${SYM.cursor}` : '  '} {i + 1}.
-              </Text>
-              <Text bold={i === roleCursor} color={i === roleCursor ? C.primary : undefined}>{r}</Text>
-            </Box>
-          ))}
-          <Text dimColor>[↑↓] Navigate  [1-7] Select  [Enter] Confirm</Text>
-        </Box>
-      )}
-
       {phase === 'path' && (
         <Box flexDirection="column">
           <Box gap={1}><Text>Name:</Text><Text bold color={C.success}>{alias}</Text></Box>
-          {role && <Box gap={1}><Text>Role:</Text><Text color={C.warning}>{role}</Text></Box>}
           <Box gap={1}>
             <Text>Path:</Text>
             <TextInput
@@ -198,7 +148,6 @@ export function RegisterSettings({ config, workDir, onBack }: RegisterSettingsPr
       {phase === 'scope' && (
         <Box flexDirection="column">
           <Box gap={1}><Text>Name:</Text><Text bold color={C.success}>{alias}</Text></Box>
-          {role && <Box gap={1}><Text>Role:</Text><Text color={C.warning}>{role}</Text></Box>}
           <Box gap={1}><Text>Path:</Text><Text dimColor>{path}</Text></Box>
           <Text> </Text>
           <Text>Save to:</Text>

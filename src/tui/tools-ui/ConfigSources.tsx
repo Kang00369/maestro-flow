@@ -58,7 +58,6 @@ export function ConfigSources({ workDir, onBack }: ConfigSourcesProps) {
 function ConfigSection({ config, indent, prefix }: { config: Partial<CliToolsConfig>; indent: number; prefix: string }) {
   const pad = ' '.repeat(indent);
   const tools = config.tools ? Object.entries(config.tools) : [];
-  const roles = config.roles ? Object.entries(config.roles) : [];
 
   return (
     <Box flexDirection="column">
@@ -77,26 +76,7 @@ function ConfigSection({ config, indent, prefix }: { config: Partial<CliToolsCon
           ))}
         </>
       )}
-      {roles.length > 0 && (
-        <>
-          <Text>{pad}<Text color={C.primary}>roles:</Text></Text>
-          {roles.map(([name, mapping]) => {
-            const detail = mapping.tool
-              ? `→ ${mapping.tool}`
-              : mapping.fallbackChain
-                ? mapping.fallbackChain.join(' → ')
-                : '(empty)';
-            return (
-              <Box key={`${prefix}-r-${name}`} gap={1}>
-                <Text>{pad}  </Text>
-                <Text bold>{name}</Text>
-                <Text dimColor>{detail}</Text>
-              </Box>
-            );
-          })}
-        </>
-      )}
-      {tools.length === 0 && roles.length === 0 && (
+      {tools.length === 0 && (
         <Text dimColor>{pad}(empty config)</Text>
       )}
     </Box>

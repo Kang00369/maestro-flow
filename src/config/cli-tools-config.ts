@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------------
 // CLI Tools configuration loader
-// Reads ~/.maestro/cli-tools.json for tool selection and model routing.
-// Supports role-based tool selection and workspace-level config overrides.
+// Reads ~/.maestro/cli-tools.json for explicit tool and model configuration.
+// Runtime callers must name the tool; role-based routing and fallback are not
+// supported.
 // ---------------------------------------------------------------------------
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -30,7 +31,7 @@ export interface ToolEntry {
   enabled: boolean;
   primaryModel: string;
   secondaryModel?: string;
-  /** Domain expertise tags (frontend, backend, fullstack, etc.) — used by execute for tool selection */
+  /** Descriptive domain tags retained for display and explicit workflow metadata. */
   tags: string[];
   type: string;
   /** Settings file path for the CLI tool (e.g. Claude --settings, Codex --profile) */
@@ -38,7 +39,7 @@ export interface ToolEntry {
   /** Base tool name for aliases (e.g. "claude" for "claude-analysis") */
   baseTool?: string;
   /** Reasoning effort level (undefined = tool default).
-   *  Translated per-adapter: Claude → --effort, Codex → -c reasoning.effort. */
+   *  Translated per-adapter: Claude → --effort, Codex → -c model_reasoning_effort. */
   reasoningEffort?: ReasoningEffort;
   /** Stale-stream silence window in ms before force-terminating a silent CLI
    *  (undefined = adapter default, 10 min). Overridden by `delegate --timeout`. */
@@ -57,35 +58,12 @@ export interface ProxyConfig {
   noProxy?: string;
 }
 
-export interface RoleMapping {
-  /** Direct tool name (simplest config) */
-  tool?: string;
-  /** Ordered fallback tool names */
-  fallbackChain?: string[];
-}
-
 export interface CliToolsConfig {
   version: string;
   tools: Record<string, ToolEntry>;
-  /** User-configurable role → tool mappings */
-  roles?: Record<string, RoleMapping>;
   /** Global proxy configuration — injected into CLI subprocess env before spawn */
   proxy?: ProxyConfig;
 }
-
-// ---------------------------------------------------------------------------
-// Default role mappings
-// ---------------------------------------------------------------------------
-
-/** Fixed set of supported roles. */
-export const DELEGATE_ROLES = [
-  'analyze', 'explore', 'review', 'implement', 'plan', 'brainstorm', 'research',
-] as const;
-
-export type DelegateRole = (typeof DELEGATE_ROLES)[number];
-
-// Loaded from cli-tools-defaults.json — edit that file to change defaults.
-const DEFAULT_ROLE_MAPPINGS: Record<string, RoleMapping> = cliToolsDefaults.roleMappings as Record<string, RoleMapping>;
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -105,9 +83,8 @@ const DEFAULT_CONFIG: CliToolsConfig = {
  *
  * Priority: {workDir}/.maestro/cli-tools.json > ~/.maestro/cli-tools.json > DEFAULT_CONFIG
  *
- * Merge strategy:
- * - tools: deep merge (workspace overrides same-name tools)
- * - roles: deep merge (workspace overrides same-name roles)
+ * Merge strategy: tools are deep-merged so workspace entries override tools
+ * with the same explicit name.
  */
 export async function loadCliToolsConfig(workDir?: string): Promise<CliToolsConfig> {
   // 1. Load global config
@@ -131,7 +108,6 @@ export async function loadCliToolsConfig(workDir?: string): Promise<CliToolsConf
       global = {
         version: workspace.version ?? global.version,
         tools: { ...global.tools, ...workspace.tools },
-        roles: { ...global.roles, ...workspace.roles },
         proxy: workspace.proxy ?? global.proxy,
       };
     } catch {
@@ -152,8 +128,9 @@ export interface SelectedTool {
 }
 
 /**
- * Select a tool by explicit name or fall back to the first enabled tool.
- * Returns undefined when no tool can be resolved.
+ * Select an enabled tool by explicit name.
+ * Returns undefined for missing, unknown, or disabled tools. There is no
+ * role-based routing and no fallback to another configured tool.
  */
 export function selectTool(
   name: string | undefined,
@@ -161,56 +138,11 @@ export function selectTool(
 ): SelectedTool | undefined {
   const tools = config.tools ?? {};
 
-  // Exact match by name
   if (name && tools[name]?.enabled) {
     return { name, entry: tools[name] };
   }
 
-  // Fallback: first enabled tool in config order
-  for (const [toolName, entry] of Object.entries(tools)) {
-    if (entry.enabled) {
-      return { name: toolName, entry };
-    }
-  }
-
   return undefined;
-}
-
-/**
- * Select a tool by capability role.
- *
- * Resolution order:
- * 1. User-configured role mapping (config.roles[role])
- * 2. Built-in default role mapping (DEFAULT_ROLE_MAPPINGS[role])
- * 3. If mapping has `tool` → direct selectTool()
- * 4. Walk `fallbackChain` → first enabled tool in chain
- * 5. Last resort → selectTool(undefined) (first enabled)
- */
-export function selectToolByRole(
-  role: string,
-  config: CliToolsConfig,
-): SelectedTool | undefined {
-  const mapping = config.roles?.[role] ?? DEFAULT_ROLE_MAPPINGS[role];
-  if (!mapping) {
-    return selectTool(undefined, config);
-  }
-
-  // Direct tool name
-  if (mapping.tool) {
-    return selectTool(mapping.tool, config);
-  }
-
-  // Fallback chain: try each named tool in order
-  const tools = config.tools ?? {};
-  if (mapping.fallbackChain) {
-    for (const toolName of mapping.fallbackChain) {
-      if (tools[toolName]?.enabled) {
-        return { name: toolName, entry: tools[toolName] };
-      }
-    }
-  }
-
-  return selectTool(undefined, config);
 }
 
 // ---------------------------------------------------------------------------
@@ -249,50 +181,12 @@ export async function saveCliToolsConfig(
   const merged: CliToolsConfig = {
     version: update.version ?? existing.version ?? '1.1.0',
     tools: mergedTools,
-    roles: { ...existing.roles, ...update.roles },
     proxy: update.proxy ?? existing.proxy,
   };
 
   // Ensure directory exists and write
   await mkdir(dirname(configPath), { recursive: true });
   await writeFile(configPath, JSON.stringify(merged, null, 2) + '\n');
-}
-
-// ---------------------------------------------------------------------------
-// Introspection
-// ---------------------------------------------------------------------------
-
-/** Expose default role mappings for TUI display. */
-export function getDefaultRoleMappings(): Record<string, RoleMapping> {
-  return { ...DEFAULT_ROLE_MAPPINGS };
-}
-
-/**
- * Rank enabled tools by domain tag relevance.
- * Returns tools sorted: exact tag match first, then fullstack, then rest.
- * Used by `maestro execute` to suggest the best tool for a task domain.
- */
-export function rankToolsByDomain(
-  domain: string,
-  config: CliToolsConfig,
-): SelectedTool[] {
-  const exact: SelectedTool[] = [];
-  const fullstack: SelectedTool[] = [];
-  const rest: SelectedTool[] = [];
-
-  for (const [name, entry] of Object.entries(config.tools ?? {})) {
-    if (!entry.enabled) continue;
-    const tool: SelectedTool = { name, entry };
-    if (entry.tags.includes(domain)) {
-      exact.push(tool);
-    } else if (entry.tags.includes('fullstack')) {
-      fullstack.push(tool);
-    } else {
-      rest.push(tool);
-    }
-  }
-
-  return [...exact, ...fullstack, ...rest];
 }
 
 // ---------------------------------------------------------------------------

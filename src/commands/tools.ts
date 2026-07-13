@@ -16,23 +16,18 @@ async function launchTui(initialView: InitialView = 'dashboard') {
 }
 
 async function printShow(json: boolean) {
-  const { loadCliToolsConfig, selectToolByRole, getDefaultRoleMappings, DELEGATE_ROLES } = await import('../config/cli-tools-config.js');
+  const { loadCliToolsConfig } = await import('../config/cli-tools-config.js');
   const config = await loadCliToolsConfig(process.cwd());
   const tools = Object.entries(config.tools);
-  const userRoles = config.roles ?? {};
 
   if (json) {
     const out = {
+      selection: 'explicit',
       tools: Object.fromEntries(tools.map(([name, e]) => [name, {
         enabled: e.enabled, model: e.primaryModel, tags: e.tags,
         ...(e.settingsFile ? { settings: e.settingsFile } : {}),
         ...(e.baseTool ? { baseTool: e.baseTool } : {}),
       }])),
-      roles: Object.fromEntries(DELEGATE_ROLES.map(r => {
-        const resolved = selectToolByRole(r, config);
-        const src = userRoles[r] ? 'user' : 'default';
-        return [r, { tool: resolved?.name ?? '(none)', source: src }];
-      })),
     };
     console.log(JSON.stringify(out, null, 2));
     return;
@@ -51,12 +46,7 @@ async function printShow(json: boolean) {
     }
   }
 
-  console.log('\nRoles:');
-  for (const role of DELEGATE_ROLES) {
-    const resolved = selectToolByRole(role, config);
-    const src = userRoles[role] ? '*' : ' ';
-    console.log(`  ${src}${role.padEnd(14)} → ${resolved?.name ?? '(none)'}`);
-  }
+  console.log('\nSelection: explicit (--to <tool> is required; role/fallback routing is disabled)');
 }
 
 export function registerToolsCommand(program: Command): void {
@@ -66,11 +56,11 @@ export function registerToolsCommand(program: Command): void {
     .description('Delegate tool configuration (alias for: maestro config delegate)')
     .action(async () => launchTui('dashboard'));
 
-  cmd.command('show').description('Print tools & roles summary (non-interactive)')
+  cmd.command('show').description('Print explicit delegate tools summary (non-interactive)')
     .option('--json', 'Output as JSON')
     .action(async (opts: { json?: boolean }) => printShow(!!opts.json));
   cmd.command('list').description('Tools overview').action(() => launchTui('tools'));
-  cmd.command('roles').description('Role mappings').action(() => launchTui('roles'));
+  cmd.command('roles').description('Role-routing removal notice').action(() => launchTui('roles'));
   cmd.command('register').description('Register settings file').action(() => launchTui('register'));
   cmd.command('ref').description('Command reference').action(() => launchTui('reference'));
   cmd.command('config').description('Config sources (global/workspace)').action(() => launchTui('sources'));

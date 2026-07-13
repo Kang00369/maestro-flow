@@ -125,6 +125,16 @@ describe('CodexCliAdapter', () => {
       expect(cliArgs[cliArgs.indexOf('--profile') + 1]).toBe('my-profile');
     });
 
+    it('passes the explicit model to codex exec', async () => {
+      const config = baseConfig({ model: 'gpt-5.6-luna' });
+      await adapter.spawn(config);
+
+      const cliArgs: string[] = spawnMock.mock.calls[0][1];
+      expect(cliArgs).toContain('--model');
+      expect(cliArgs[cliArgs.indexOf('--model') + 1]).toBe('gpt-5.6-luna');
+      expect(cliArgs.indexOf('--model')).toBeLessThan(cliArgs.indexOf('-'));
+    });
+
     it('maps reasoningEffort max to xhigh', async () => {
       const config = baseConfig({ reasoningEffort: 'max' });
       await adapter.spawn(config);

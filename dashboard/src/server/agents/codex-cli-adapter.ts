@@ -211,8 +211,11 @@ export class CodexCliAdapter extends BaseAgentAdapter {
       '--dangerously-bypass-approvals-and-sandbox',
       '--json',
       '--skip-git-repo-check',
-      '-',
     ];
+
+    if (config.model) {
+      args.push('--model', config.model);
+    }
 
     // Profile from config.toml
     if (config.settingsFile) {
@@ -225,6 +228,10 @@ export class CodexCliAdapter extends BaseAgentAdapter {
       const effort = config.reasoningEffort === 'max' ? 'xhigh' : config.reasoningEffort;
       args.push('-c', `model_reasoning_effort="${effort}"`);
     }
+
+    // Read the prompt from stdin. Keep the positional argument last so all
+    // Codex global/exec options are parsed unambiguously.
+    args.push('-');
 
     const envFromFile = config.envFile ? loadEnvFile(config.envFile) : {};
     const envOverrides: Record<string, string | undefined> = { ...envFromFile, ...config.env };

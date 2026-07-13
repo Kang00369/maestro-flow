@@ -12,7 +12,7 @@ type Tab = (typeof TABS)[number];
 
 const TAB_DESCRIPTIONS: Record<Tab, string> = {
   Skills: 'Skill parameter defaults — configure default flag values for slash commands.',
-  Delegate: 'Delegate tool configuration — manage CLI tools, role mappings, and settings.',
+  Delegate: 'Delegate tool configuration — manage explicit CLI agents, models, and settings.',
   Hooks: 'Hook installation status — Claude Code subprocess hooks and toggles.',
   Overlay: 'Command overlays — non-invasive patches for .claude/commands and .codex/skills.',
   Specs: 'Spec system — project knowledge (coding, arch, debug, test conventions).',

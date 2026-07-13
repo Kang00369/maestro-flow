@@ -10,7 +10,7 @@ import { CliAgentRunner } from '../agents/cli-agent-runner.js';
 import { CliHistoryStore, type EntryLike } from '../agents/cli-history-store.js';
 import type { ExecutionMeta } from '../agents/cli-history-store.js';
 import { generateCliExecId } from '../agents/cli-agent-runner.js';
-import { loadCliToolsConfig, selectTool, selectToolByRole, resolveProxyEnv, checkProxyReachable } from '../config/cli-tools-config.js';
+import { loadCliToolsConfig, selectTool, resolveProxyEnv, checkProxyReachable } from '../config/cli-tools-config.js';
 import { paths } from '../config/paths.js';
 import { DelegateBrokerClient, type JsonObject, type DelegateJobEvent, type DelegateJobRecord, type DelegateQueuedMessage } from '../async/index.js';
 import { handleDelegateMessage } from '../async/delegate-control.js';
@@ -322,7 +322,7 @@ export function registerDelegateCommand(program: Command): void {
 
   delegate
     .option('--to <tool>', 'CLI tool to delegate to (gemini, qwen, codex, claude, opencode)')
-    .option('--role <role>', 'Capability role for auto tool selection (analyze, explore, review, implement, plan, brainstorm, research)')
+    .option('--role <role>', 'Capability role for targeted spec injection (does not select a tool)')
     .option('--mode <mode>', 'Execution mode (analysis or write)', 'analysis')
     .option('--model <model>', 'Model override')
     .option('--cd <dir>', 'Working directory')
@@ -370,53 +370,32 @@ export function registerDelegateCommand(program: Command): void {
         process.exit(1);
       }
 
-      // Tool resolution priority: --to > --role > first-enabled fallback
-      let selected;
-      if (opts.to) {
-        if (opts.role) {
-          process.stderr.write(`Warning: --to overrides --role; using tool "${opts.to}" directly.\n`);
-        }
-        selected = selectTool(opts.to, config);
-        if (!selected) {
-          const tools = config.tools ?? {};
-          const exists = opts.to in tools;
-          const available = Object.entries(tools)
-            .filter(([, e]) => e.enabled)
-            .map(([n]) => n);
-          if (exists) {
-            console.error(
-              `Error: tool "${opts.to}" is disabled.\n` +
-              `Enable it in cli-tools.json or use one of: ${available.join(', ') || '(none)'}`,
-            );
-          } else {
-            console.error(
-              `Error: unknown tool "${opts.to}".\n` +
-              `Available tools: ${available.join(', ') || '(none)'}`,
-            );
-          }
-          // Attempt fallback to first enabled tool
-          selected = selectTool(undefined, config);
-          if (selected) {
-            process.stderr.write(`Falling back to "${selected.name}".\n`);
-          } else {
-            process.exit(1);
-          }
-        }
-      } else if (opts.role) {
-        selected = selectToolByRole(opts.role, config);
-      } else {
-        selected = selectTool(undefined, config);
+      if (!opts.to) {
+        console.error(
+          'Error: delegate agent is required. Pass --to <tool>; ' +
+          '--role no longer selects Codex, Claude, or a fallback tool.',
+        );
+        process.exit(1);
       }
 
+      const selected = selectTool(opts.to, config);
       if (!selected) {
-        const available = Object.entries(config.tools ?? {})
+        const tools = config.tools ?? {};
+        const exists = opts.to in tools;
+        const available = Object.entries(tools)
           .filter(([, e]) => e.enabled)
           .map(([n]) => n);
-        console.error(
-          'Error: no enabled tool found.\n' +
-          `Configured tools: ${Object.keys(config.tools ?? {}).join(', ') || '(none)'}\n` +
-          `Enabled: ${available.join(', ') || '(none)'}`,
-        );
+        if (exists) {
+          console.error(
+            `Error: delegate agent "${opts.to}" is disabled.\n` +
+            `Enable it in cli-tools.json or explicitly choose one of: ${available.join(', ') || '(none)'}`,
+          );
+        } else {
+          console.error(
+            `Error: delegate agent "${opts.to}" is not configured.\n` +
+            `Enabled agents: ${available.join(', ') || '(none)'}`,
+          );
+        }
         process.exit(1);
       }
 

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect } from 'vitest';
 import { selectTool, resolveProxyEnv } from './cli-tools-config.js';
 import type { CliToolsConfig, ToolEntry } from './cli-tools-config.js';
 
@@ -34,39 +34,37 @@ describe('selectTool', () => {
     expect(selectTool('gemini', config)).toBeUndefined();
   });
 
-  it('falls back to first enabled tool when name is undefined', () => {
-    const config = makeConfig({
-      disabled: makeEntry({ enabled: false }),
-      fallback: makeEntry({ enabled: true }),
-    });
-    const result = selectTool(undefined, config);
-    expect(result).toBeDefined();
-    expect(result!.name).toBe('fallback');
-  });
-
-  it('returns undefined when no tools are enabled', () => {
-    const config = makeConfig({
-      a: makeEntry({ enabled: false }),
-      b: makeEntry({ enabled: false }),
-    });
-    expect(selectTool(undefined, config)).toBeUndefined();
-  });
-
-  it('returns undefined for empty tools config', () => {
-    expect(selectTool(undefined, makeConfig())).toBeUndefined();
-  });
-
-  it('falls back when named tool does not exist', () => {
+  it('returns undefined when the named tool does not exist', () => {
     const config = makeConfig({
       existing: makeEntry(),
     });
     const result = selectTool('missing', config);
-    expect(result).toBeDefined();
-    expect(result!.name).toBe('existing');
+    expect(result).toBeUndefined();
+  });
+
+  it('returns undefined instead of selecting a fallback when the name is missing', () => {
+    const config = makeConfig({
+      codex: makeEntry({ enabled: true }),
+      claude: makeEntry({ enabled: true }),
+    });
+    expect(selectTool(undefined, config)).toBeUndefined();
   });
 });
 
 describe('resolveProxyEnv', () => {
+  const originalHome = process.env.HOME;
+
+  beforeAll(() => {
+    // resolveProxyEnv intentionally consults ~/.maestro/api*.json. Isolate the
+    // tests from the developer machine so local proxy settings cannot leak in.
+    process.env.HOME = `/tmp/maestro-flow-test-home-${process.pid}`;
+  });
+
+  afterAll(() => {
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+  });
+
   it('returns empty when proxy is not configured', () => {
     const config = makeConfig({ codex: makeEntry() });
     expect(resolveProxyEnv(config, 'codex')).toEqual({});

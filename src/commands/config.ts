@@ -11,9 +11,9 @@
 //   maestro config skills list    → list all configurable skills
 //   maestro config skills edit    → TUI editor for a specific skill
 //   maestro config delegate       → delegate tools TUI dashboard
-//   maestro config delegate show  → print tools & roles summary
+//   maestro config delegate show  → print explicit agent summary
 //   maestro config delegate list  → tools overview (TUI)
-//   maestro config delegate roles → role mappings (TUI)
+//   maestro config delegate roles → role-routing removal notice (TUI)
 //   maestro config delegate register → register settings file (TUI)
 //   maestro config delegate ref   → command reference (TUI)
 //   maestro config delegate config → config sources (TUI)
@@ -118,25 +118,19 @@ function parseValue(raw: string): string | boolean | number {
 }
 
 async function printDelegateShow(json: boolean) {
-  const { loadCliToolsConfig, selectToolByRole, getDefaultRoleMappings, DELEGATE_ROLES } = await import('../config/cli-tools-config.js');
+  const { loadCliToolsConfig } = await import('../config/cli-tools-config.js');
   const config = await loadCliToolsConfig(process.cwd());
   const tools = Object.entries(config.tools);
-  const roles = getDefaultRoleMappings();
-  const userRoles = config.roles ?? {};
 
   if (json) {
     const out = {
+      selection: 'explicit',
       tools: Object.fromEntries(tools.map(([name, e]) => [name, {
         enabled: e.enabled, model: e.primaryModel, tags: e.tags,
         ...(e.reasoningEffort ? { reasoningEffort: e.reasoningEffort } : {}),
         ...(e.settingsFile ? { settings: e.settingsFile } : {}),
         ...(e.baseTool ? { baseTool: e.baseTool } : {}),
       }])),
-      roles: Object.fromEntries(DELEGATE_ROLES.map(r => {
-        const resolved = selectToolByRole(r, config);
-        const src = userRoles[r] ? 'user' : 'default';
-        return [r, { tool: resolved?.name ?? '(none)', source: src }];
-      })),
     };
     console.log(JSON.stringify(out, null, 2));
     return;
@@ -157,12 +151,7 @@ async function printDelegateShow(json: boolean) {
     }
   }
 
-  console.log('\nRoles:');
-  for (const role of DELEGATE_ROLES) {
-    const resolved = selectToolByRole(role, config);
-    const src = userRoles[role] ? '*' : ' ';
-    console.log(`  ${src}${role.padEnd(14)} → ${resolved?.name ?? '(none)'}`);
-  }
+  console.log('\nSelection: explicit (--to <tool> is required; role/fallback routing is disabled)');
 }
 
 export function registerConfigCommand(program: Command): void {
@@ -257,7 +246,7 @@ export function registerConfigCommand(program: Command): void {
     });
 
   // ---------------------------------------------------------------------------
-  // maestro config delegate — delegate tool & role configuration
+  // maestro config delegate — explicit delegate tool configuration
   // ---------------------------------------------------------------------------
 
   const delegate = cmd
@@ -270,7 +259,7 @@ export function registerConfigCommand(program: Command): void {
     });
 
   delegate.command('show')
-    .description('Print tools & roles summary (non-interactive)')
+    .description('Print explicit delegate tools summary (non-interactive)')
     .option('--json', 'Output as JSON')
     .action(async (opts: { json?: boolean }) => printDelegateShow(!!opts.json));
 
@@ -282,7 +271,7 @@ export function registerConfigCommand(program: Command): void {
     });
 
   delegate.command('roles')
-    .description('Role mappings (TUI)')
+    .description('Role-routing removal notice (TUI)')
     .action(async () => {
       const { runDelegateConfigTui } = await import('../tui/config-ui/index.js');
       await runDelegateConfigTui('roles');
