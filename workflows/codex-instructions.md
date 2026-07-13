@@ -261,3 +261,11 @@ Resolution: `/maestro-knowledge audit`
 ### Health & Maintenance
 
 `maestro spec health` — lifecycle stats + evolution chain integrity. Low-frequency maintenance (`backfill-sid` for sid backfill, `history <sid>` for evolution chains) — see `maestro spec --help`.
+
+## Local Runtime
+
+- When rolling back tracked-file changes, use non-destructive git-backed
+  rollback such as `git restore -- <path>`, `git checkout <rev> -- <path>`, or
+  `git apply -R` against an exact saved diff instead of hand-editing reverse
+  patches. If the target is not in a git repository or has no usable git
+  history, state that and use the safest manual edit available.
