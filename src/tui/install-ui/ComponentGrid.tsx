@@ -23,6 +23,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   'platform-shared': '── Shared (Core) ─────────────',
   'platform-claude': '── Claude Code ───────────────',
   'platform-codex': '── Codex ─────────────────────',
+  'platform-grok': '── Grok Build ─────────────────',
   'platform-agy': '── Agy (Antigravity) ─────────',
   'platform-agents-standard': '── Open Standard (.agents/) ──',
 };
@@ -64,7 +65,7 @@ export function ComponentGrid({
   // `ordered` is the source of truth for both navigation and rendering.
   // Order: shared → claude → codex → agy → agents-standard
   const { ordered, visualRows, itemToVisualRow } = useMemo(() => {
-    const PLATFORM_ORDER = ['shared', 'claude', 'codex', 'agy', 'agents-standard'] as const;
+    const PLATFORM_ORDER = ['shared', 'claude', 'codex', 'grok', 'agy', 'agents-standard'] as const;
 
     // Bucket components by platform (undefined → 'shared')
     const platformMap = new Map<string, ScannedComponent[]>();

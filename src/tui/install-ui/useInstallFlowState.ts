@@ -108,7 +108,7 @@ export function useInstallFlowState(opts: UseInstallFlowStateOptions) {
   // --- Platform selection ---
   type Platform = string;
   const ALL_PLATFORMS: Platform[] = [
-    'claude', 'codex', 'agy', 'agents-standard',
+    'claude', 'codex', 'grok', 'agy', 'agents-standard',
     'cursor', 'opencode', 'kiro', 'kilo', 'copilot',
     'devin', 'qoder', 'codebuddy', 'droid', 'pi',
     'trae', 'roo',
@@ -135,6 +135,7 @@ export function useInstallFlowState(opts: UseInstallFlowStateOptions) {
     const plats = new Set<Platform>();
     if (existsSync(join(base, '.claude'))) plats.add('claude');
     if (existsSync(join(base, '.codex', 'agents')) || existsSync(join(base, '.codex', 'skills'))) plats.add('codex');
+    if (existsSync(join(base, '.grok', 'AGENTS.md'))) plats.add('grok');
     if (scope === 'global'
       ? existsSync(join(base, '.gemini', 'antigravity-cli'))
       : existsSync(join(base, '.agents', 'skills'))) plats.add('agy');

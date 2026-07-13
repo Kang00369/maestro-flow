@@ -374,7 +374,9 @@ export function installHooksByLevel(
     const group: HookGroup = {
       hooks: [{ type: 'command', command: `maestro hooks run ${name}` }],
     };
-    if (def.matcher) group.matcher = def.matcher;
+    // Skip matcher on SessionStart: Grok rejects matchers on lifecycle events;
+    // Claude still runs these hooks on all SessionStart sources (hooks are guarded).
+    if (def.matcher && eventKey !== 'SessionStart') group.matcher = def.matcher;
     groups.push(group);
     installedHooks.push(name);
   }
@@ -849,6 +851,49 @@ export function installAgyHooksByLevel(
   return { settingsPath: hooksPath, installedHooks, level };
 }
 
+
+/**
+ * Normalize harness hook payloads (Claude snake_case + Grok camelCase + env).
+ * Mutates and returns the same object for convenience.
+ */
+export function normalizeHookPayload(data: Record<string, unknown>): Record<string, unknown> {
+  if (data.session_id == null) {
+    const sid = data.sessionId ?? process.env.GROK_SESSION_ID ?? process.env.CLAUDE_SESSION_ID;
+    if (sid != null) data.session_id = sid;
+  }
+  if (data.tool_name == null && data.toolName != null) data.tool_name = data.toolName;
+  if (data.hook_event_name == null && data.hookEventName != null) {
+    data.hook_event_name = data.hookEventName;
+  }
+  if (data.tool_input == null && data.toolInput != null) data.tool_input = data.toolInput;
+  if (data.cwd == null && data.workspaceRoot != null) data.cwd = data.workspaceRoot;
+  if (data.user_prompt == null && data.prompt == null) {
+    // Grok / other harnesses may use different prompt keys
+    const p = (data as Record<string, unknown>).promptText
+      ?? (data as Record<string, unknown>).userPrompt
+      ?? (data as Record<string, unknown>).content;
+    if (typeof p === 'string') data.prompt = p;
+  }
+  // Nested tool input path aliases
+  const ti = data.tool_input;
+  if (ti && typeof ti === 'object' && !Array.isArray(ti)) {
+    const t = ti as Record<string, unknown>;
+    if (t.file_path == null && t.filePath != null) t.file_path = t.filePath;
+    if (t.file_path == null && t.path != null) t.file_path = t.path;
+  }
+  return data;
+}
+
+function parseHookStdin(raw: string): Record<string, any> {
+  if (!raw) return normalizeHookPayload({}) as Record<string, any>;
+  try {
+    const data = JSON.parse(raw) as Record<string, unknown>;
+    return normalizeHookPayload(data) as Record<string, any>;
+  } catch {
+    return normalizeHookPayload({}) as Record<string, any>;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Stdin reader for hook runners (cached — safe to call multiple times)
 // ---------------------------------------------------------------------------
@@ -876,7 +921,7 @@ function readStdin(): Promise<string> {
 function extractHookInputData(raw: string): Record<string, unknown> {
   try {
     if (!raw) return {};
-    const data = JSON.parse(raw);
+    const data = parseHookStdin(raw);
     const result: Record<string, unknown> = {};
     if (data.tool_name) result.tool_name = data.tool_name;
     if (data.session_id) result.session_id = data.session_id;
@@ -937,7 +982,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['specValidator'] === false) return;
 
     const raw = await readStdin();
-    const data = JSON.parse(raw);
+    const data = parseHookStdin(raw);
     const toolInput = data.tool_input ?? {};
     const filePath: string = toolInput.file_path ?? '';
 
@@ -971,7 +1016,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['csvWaveGuard'] === false) return;
 
     const raw = await readStdin();
-    const data = raw ? JSON.parse(raw) : {};
+    const data = parseHookStdin(raw);
     const result = evaluateCsvWaveGuard(data);
     if (result.blocked) {
       process.stdout.write(JSON.stringify({
@@ -996,7 +1041,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['keywordSpecInjector'] === false) return;
 
     const raw = await readStdin();
-    const data = JSON.parse(raw);
+    const data = parseHookStdin(raw);
     const prompt: string = data.user_prompt ?? data.prompt ?? '';
     const sessionId: string = data.session_id ?? '';
     const cwd: string = data.cwd ?? process.cwd();
@@ -1025,7 +1070,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['kgSync'] === false) return;
 
     const raw = await readStdin();
-    const data = raw ? JSON.parse(raw) : {};
+    const data = parseHookStdin(raw);
     const sessionId: string = data.session_id ?? '';
     if (!sessionId) return;
 
@@ -1040,7 +1085,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['kgAutoInit'] === false) return;
 
     const raw = await readStdin();
-    const data = raw ? JSON.parse(raw) : {};
+    const data = parseHookStdin(raw);
     const sessionId: string = data.session_id ?? '';
     if (!sessionId) return;
 
@@ -1055,7 +1100,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['workflowGuard'] === false) return;
 
     const raw = await readStdin();
-    const data = JSON.parse(raw);
+    const data = parseHookStdin(raw);
     const toolName: string = data.tool_name ?? '';
     const toolInput: string = typeof data.tool_input === 'string'
       ? data.tool_input
@@ -1098,7 +1143,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['promptGuard'] === false) return;
 
     const raw = await readStdin();
-    const data = JSON.parse(raw);
+    const data = parseHookStdin(raw);
     const prompt: string = data.user_prompt ?? data.prompt ?? '';
     if (!prompt) return;
 
@@ -1116,7 +1161,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
 
   'delegate-monitor': async () => {
     const raw = await readStdin();
-    const data = JSON.parse(raw);
+    const data = parseHookStdin(raw);
     const { evaluateDelegateNotifications } = await import('../hooks/delegate-monitor.js');
     const result = evaluateDelegateNotifications(data);
     if (result) {
@@ -1129,7 +1174,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['specInjector'] === false) return;
 
     const raw = await readStdin();
-    const data = JSON.parse(raw);
+    const data = parseHookStdin(raw);
     const { evaluateSpecInjection, recordSpecInjectionCredibility } =
       await import('../hooks/spec-injector.js');
     const hookEventName: string = data.hook_event_name ?? '';
@@ -1188,7 +1233,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['sessionContext'] === false) return;
 
     const raw = await readStdin();
-    const data = raw ? JSON.parse(raw) : {};
+    const data = parseHookStdin(raw);
     const { evaluateSessionContext } = await import('../hooks/session-context.js');
     const result = evaluateSessionContext(data);
     if (result) {
@@ -1201,7 +1246,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['skillContext'] === false) return;
 
     const raw = await readStdin();
-    const data = raw ? JSON.parse(raw) : {};
+    const data = parseHookStdin(raw);
     const prompt: string = data.user_prompt ?? data.prompt ?? '';
     if (!prompt) return;
 
@@ -1216,7 +1261,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
 
   'team-monitor': async () => {
     const raw = await readStdin();
-    const data = raw ? JSON.parse(raw) : {};
+    const data = parseHookStdin(raw);
     // Stop event has no tool_name; use 'turn_complete' as the action
     if (!data.tool_name) data.tool_name = 'turn_complete';
     const { runTeamMonitor } = await import('../hooks/team-monitor.js');
@@ -1228,7 +1273,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['telemetry'] === false) return;
 
     const raw = await readStdin();
-    const data = JSON.parse(raw);
+    const data = parseHookStdin(raw);
     const sessionId: string = data.session_id ?? '';
     if (!sessionId) return;
 
@@ -1247,7 +1292,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['coordinatorTracker'] === false) return;
 
     const raw = await readStdin();
-    const data = JSON.parse(raw);
+    const data = parseHookStdin(raw);
     const sessionId: string = data.session_id ?? '';
     if (!sessionId) return;
 
@@ -1282,7 +1327,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['searchCacheInvalidator'] === false) return;
 
     const raw = await readStdin();
-    const data = JSON.parse(raw);
+    const data = parseHookStdin(raw);
     const toolInput = data.tool_input ?? {};
     const filePath: string = toolInput.file_path ?? '';
     if (!filePath) return;
@@ -1329,7 +1374,7 @@ const HOOK_RUNNERS: Record<string, HookRunner> = {
     if (config.toggles['searchDaemonStart'] === false) return;
 
     const raw = await readStdin();
-    const data = raw ? JSON.parse(raw) : {};
+    const data = parseHookStdin(raw);
     const cwd: string = data.cwd ?? process.cwd();
 
     const workspace = resolveWorkspace({ cwd });

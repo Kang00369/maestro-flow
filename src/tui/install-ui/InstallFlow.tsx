@@ -281,6 +281,7 @@ export function InstallFlow({ pkgRoot, version, initialStep, initialMode, initia
 const PLATFORM_DEFS = [
   { id: 'claude',          label: 'Claude Code',        desc: 'Commands, skills, agents, hooks, MCP' },
   { id: 'codex',           label: 'Codex',              desc: 'Agents, skills, hooks, MCP' },
+  { id: 'grok',            label: 'Grok Build',         desc: 'AGENTS.md Maestro core → ~/.grok/' },
   { id: 'cursor',          label: 'Cursor',             desc: 'Skills, agents → .cursor/' },
   { id: 'agy',             label: 'Agy (Gemini CLI)',   desc: 'Skills, agents, hooks → .gemini/' },
   { id: 'copilot',         label: 'GitHub Copilot',     desc: 'Skills, agents → .github/' },

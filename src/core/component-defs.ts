@@ -336,6 +336,33 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     platform: 'codex',
   },
   {
+    id: 'grok-agents-md',
+    label: 'Grok AGENTS.md',
+    description: 'Grok Build project instructions (no delegate/csv routing)',
+    sourcePath: join('workflows', 'grok-instructions.md'),
+    target: (mode, projectPath) =>
+      mode === 'global'
+        ? join(homedir(), '.grok', 'AGENTS.md')
+        : join(projectPath, '.grok', 'AGENTS.md'),
+    alwaysGlobal: false,
+    inject: true,
+    platform: 'grok',
+  },
+  {
+    id: 'grok-md-chinese',
+    label: 'Chinese Response (Grok)',
+    description: 'Chinese response guidelines → Grok AGENTS.md',
+    sourcePath: join('workflows', 'chinese-response.md'),
+    target: (mode, projectPath) =>
+      mode === 'global'
+        ? join(homedir(), '.grok', 'AGENTS.md')
+        : join(projectPath, '.grok', 'AGENTS.md'),
+    alwaysGlobal: false,
+    inject: true,
+    section: 'chinese',
+    platform: 'grok',
+  },
+  {
     id: 'codex-agents',
     label: 'Codex Agents',
     description: 'Codex agent definitions generated from canonical Claude agents',
