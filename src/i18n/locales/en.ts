@@ -207,7 +207,7 @@ export const en: LocaleStrings = {
     resultHooks: '{count} installed',
     resultManifest: 'Manifest:',
     resultStatuslineInstalled: 'installed',
-    resultExit: 'Restart Claude Code to pick up changes. Press Enter to exit.',
+    resultExit: 'Restart the selected agent or IDE to pick up changes. Press Enter to exit.',
 
     // Force install
     forceVersion: 'maestro install v{version}',
@@ -215,7 +215,7 @@ export const en: LocaleStrings = {
     forceCleanedPreserved: ', {count} preserved',
     forceHooksResult: '  Hooks ({level}): {count} hooks → {path}',
     forceResult: '  Result: {summary}',
-    forceDone: 'Done. Restart Claude Code or IDE to pick up changes.',
+    forceDone: 'Done. Restart the selected agent or IDE to pick up changes.',
 
     // Errors
     errorMissingRoot: 'Error: Package root missing source directories: {path}',
@@ -264,7 +264,7 @@ export const en: LocaleStrings = {
     resultMcpNotFound: 'no config found',
     resultHooksRemoved: 'removed',
     resultHooksNotFound: 'no hooks found',
-    resultRestart: 'Restart Claude Code to pick up changes.',
+    resultRestart: 'Restart the selected agent or IDE to pick up changes.',
 
     // Footer hints
     footerSelect: '[Up/Down] Navigate  [Enter] View detail  [Esc] Exit',
@@ -279,6 +279,6 @@ export const en: LocaleStrings = {
 
   common: {
     pressEnterExit: 'Press Enter to exit.',
-    restartHint: 'Restart Claude Code to pick up changes.',
+    restartHint: 'Restart the selected agent or IDE to pick up changes.',
   },
 };

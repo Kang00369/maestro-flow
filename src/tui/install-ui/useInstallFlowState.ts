@@ -8,7 +8,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { HooksSelection } from './HooksConfig.js';
 import type { InstallFlowConfig } from './types.js';
 import type { InstallFlowResult } from './InstallExecution.js';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { scanComponents, countExistingTargetFiles, MCP_TOOLS, COMPONENT_DEFS, migrateComponentIds, type ExtraMcpTargetId, type ComponentDef } from '../../commands/install-backend.js';
@@ -135,7 +135,18 @@ export function useInstallFlowState(opts: UseInstallFlowStateOptions) {
     const plats = new Set<Platform>();
     if (existsSync(join(base, '.claude'))) plats.add('claude');
     if (existsSync(join(base, '.codex', 'agents')) || existsSync(join(base, '.codex', 'skills'))) plats.add('codex');
-    if (existsSync(join(base, '.grok', 'AGENTS.md'))) plats.add('grok');
+    if (scope === 'global') {
+      if (existsSync(join(base, '.grok', 'AGENTS.md'))) plats.add('grok');
+    } else {
+      const agentsMd = join(base, 'AGENTS.md');
+      if (existsSync(agentsMd)) {
+        try {
+          if (readFileSync(agentsMd, 'utf8').includes('managed Grok Build `AGENTS.md` Maestro core')) {
+            plats.add('grok');
+          }
+        } catch { /* best-effort fallback inference */ }
+      }
+    }
     if (scope === 'global'
       ? existsSync(join(base, '.gemini', 'antigravity-cli'))
       : existsSync(join(base, '.agents', 'skills'))) plats.add('agy');

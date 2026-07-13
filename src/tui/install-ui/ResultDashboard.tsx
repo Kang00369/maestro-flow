@@ -73,7 +73,7 @@ export function ResultDashboard({ result, onClose }: ResultDashboardProps) {
       </Box>
 
       <Box marginTop={1}>
-        <Text dimColor>Restart Claude Code or IDE to pick up changes.</Text>
+        <Text dimColor>Restart the selected agent or IDE to pick up changes.</Text>
       </Box>
 
       <Box marginTop={1}>

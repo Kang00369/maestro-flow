@@ -63,7 +63,7 @@ export function ComponentGrid({
 
   // Build grouped order: platform groups first, then sub-grouped by category.
   // `ordered` is the source of truth for both navigation and rendering.
-  // Order: shared → claude → codex → agy → agents-standard
+  // Order: shared → claude → codex → grok → agy → agents-standard
   const { ordered, visualRows, itemToVisualRow } = useMemo(() => {
     const PLATFORM_ORDER = ['shared', 'claude', 'codex', 'grok', 'agy', 'agents-standard'] as const;
 

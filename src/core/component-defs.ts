@@ -338,12 +338,12 @@ export const COMPONENT_DEFS: ComponentDef[] = [
   {
     id: 'grok-agents-md',
     label: 'Grok AGENTS.md',
-    description: 'Grok Build project instructions (no delegate/csv routing)',
+    description: 'Grok Build project instructions and native-subagent guidance',
     sourcePath: join('workflows', 'grok-instructions.md'),
     target: (mode, projectPath) =>
       mode === 'global'
         ? join(homedir(), '.grok', 'AGENTS.md')
-        : join(projectPath, '.grok', 'AGENTS.md'),
+        : join(projectPath, 'AGENTS.md'),
     alwaysGlobal: false,
     inject: true,
     platform: 'grok',
@@ -356,7 +356,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     target: (mode, projectPath) =>
       mode === 'global'
         ? join(homedir(), '.grok', 'AGENTS.md')
-        : join(projectPath, '.grok', 'AGENTS.md'),
+        : join(projectPath, 'AGENTS.md'),
     alwaysGlobal: false,
     inject: true,
     section: 'chinese',

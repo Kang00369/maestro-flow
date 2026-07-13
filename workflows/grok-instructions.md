@@ -161,3 +161,7 @@ The harness built-ins still have value for image/PDF/notebook reads and line-num
 
 - Prefer `~/.grok/AGENTS.md` (this managed core) over Claude's `CLAUDE.md` for Maestro policy.
 - Recommended: in `~/.grok/config.toml` set `[compat.claude] agents = false` so Claude persona files are not loaded as project instructions. Keep `skills`, `hooks`, and `mcps` enabled if you want Claude-compatible Maestro assets.
+- Keep Grok's native subagents enabled. Use its `task` workers and configured Composer-backed roles when they improve implementation, exploration, planning, or review; do not add `--no-subagents` merely because Maestro launched the session.
+- The caller or `~/.grok/config.toml` owns model and reasoning effort. Do not silently downgrade a delegated job to the build model; the recommended default is `grok-4.5` with `high` effort, while native subagents may use their configured Composer models.
+- When this session was itself launched by `maestro delegate`, avoid recursively starting another Maestro Delegate or CSV Wave unless the prompt explicitly requires it. This boundary does not restrict Grok's native subagents.
+- `compatibility` imports selected Claude, Cursor, or Codex configuration surfaces; it is separate from Grok's model selection and native subagent system.

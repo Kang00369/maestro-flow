@@ -207,7 +207,7 @@ export const zh: LocaleStrings = {
     resultHooks: '{count} 个已安装',
     resultManifest: '清单：',
     resultStatuslineInstalled: '已安装',
-    resultExit: '重启 Claude Code 以加载变更。按 Enter 退出。',
+    resultExit: '重启所选 Agent 或 IDE 以加载变更。按 Enter 退出。',
 
     // Force install
     forceVersion: 'maestro install v{version}',
@@ -215,7 +215,7 @@ export const zh: LocaleStrings = {
     forceCleanedPreserved: '，{count} 个已保留',
     forceHooksResult: '  Hooks ({level})：{count} 个 hooks → {path}',
     forceResult: '  结果：{summary}',
-    forceDone: '完成。重启 Claude Code 或 IDE 以加载变更。',
+    forceDone: '完成。重启所选 Agent 或 IDE 以加载变更。',
 
     // Errors
     errorMissingRoot: '错误：包根目录缺少源目录：{path}',
@@ -264,7 +264,7 @@ export const zh: LocaleStrings = {
     resultMcpNotFound: '未找到配置',
     resultHooksRemoved: '已移除',
     resultHooksNotFound: '未找到 hooks',
-    resultRestart: '重启 Claude Code 以加载变更。',
+    resultRestart: '重启所选 Agent 或 IDE 以加载变更。',
 
     // Footer hints
     footerSelect: '[上/下] 导航  [Enter] 查看详情  [Esc] 退出',
@@ -279,6 +279,6 @@ export const zh: LocaleStrings = {
 
   common: {
     pressEnterExit: '按 Enter 退出。',
-    restartHint: '重启 Claude Code 以加载变更。',
+    restartHint: '重启所选 Agent 或 IDE 以加载变更。',
   },
 };
