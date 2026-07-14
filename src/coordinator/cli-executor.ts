@@ -21,6 +21,7 @@ export type SpawnFn = (config: {
   workDir: string;
   approvalMode: 'suggest' | 'auto';
   model?: string;
+  reasoningEffort?: 'low' | 'medium' | 'high' | 'max';
   signal?: AbortSignal;
 }) => Promise<{
   output: string;

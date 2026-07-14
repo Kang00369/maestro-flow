@@ -4,10 +4,18 @@
 // to the Dashboard's AgentManager spawn/stop lifecycle.
 // ---------------------------------------------------------------------------
 
-import type { AgentStoppedPayload, NormalizedEntry } from '../../shared/agent-types.js';
+import type {
+  AgentConfig,
+  AgentStoppedPayload,
+  NormalizedEntry,
+} from '../../shared/agent-types.js';
 import type { SSEEvent } from '../../shared/types.js';
 import type { DashboardEventBus } from '../state/event-bus.js';
 import type { AgentManager } from '../agents/agent-manager.js';
+import {
+  AgentExecutionConfigError,
+  type AgentExecutionConfigRequest,
+} from '../config.js';
 
 import type {
   ExecuteRequest,
@@ -26,6 +34,9 @@ export class DashboardExecutor implements CommandExecutor {
   constructor(
     private readonly agentManager: AgentManager,
     private readonly eventBus: DashboardEventBus,
+    private readonly resolveExecutionConfig?: (
+      request: AgentExecutionConfigRequest,
+    ) => Promise<AgentConfig>,
   ) {}
 
   async execute(request: ExecuteRequest): Promise<ExecuteResult> {
@@ -33,12 +44,21 @@ export class DashboardExecutor implements CommandExecutor {
 
     try {
       const agentType = request.agent_type as unknown as DashboardAgentType;
-      const proc = await this.agentManager.spawn(agentType, {
-        type: agentType,
-        prompt: request.prompt,
-        workDir: request.work_dir,
-        approvalMode: request.approval_mode,
-      });
+      const config = this.resolveExecutionConfig
+        ? await this.resolveExecutionConfig({
+            provider: agentType,
+            prompt: request.prompt,
+            workDir: request.work_dir,
+            mode: request.approval_mode === 'auto' ? 'write' : 'analysis',
+            runtime: { approvalMode: request.approval_mode },
+          })
+        : {
+            type: agentType,
+            prompt: request.prompt,
+            workDir: request.work_dir,
+            approvalMode: request.approval_mode,
+          };
+      const proc = await this.agentManager.spawn(config.type, config);
 
       this.activeProcessId = proc.id;
 
@@ -58,6 +78,10 @@ export class DashboardExecutor implements CommandExecutor {
       };
     } catch (err: unknown) {
       this.activeProcessId = null;
+      // Configuration failures are permanent for the selected provider. Let
+      // the scheduler classify them so neither GraphWalker nor the issue
+      // retry queue repeatedly executes the same invalid configuration.
+      if (err instanceof AgentExecutionConfigError) throw err;
       return {
         success: false,
         raw_output: err instanceof Error ? err.message : String(err),

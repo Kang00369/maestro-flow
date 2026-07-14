@@ -2,7 +2,7 @@
 // ExecutionScheduler — orchestrates issue execution via agent processes
 // ---------------------------------------------------------------------------
 
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { readIssuesJsonl, writeIssuesJsonl, withIssueWriteLock } from '../utils/issue-store.js';
 
 import type { AgentType, AgentProcess } from '../../shared/agent-types.js';
@@ -26,15 +26,11 @@ import { PriorityStrategy } from './strategies/priority-strategy.js';
 import { SmartStrategy } from './strategies/smart-strategy.js';
 import { GraphWalkerFactory } from '../coordinator/graph-walker-factory.js';
 import { WalkerEventBridge } from '../coordinator/walker-event-bridge.js';
+import {
+  AgentExecutionConfigError,
+  resolveAgentExecutionConfig,
+} from '../config.js';
 
-
-// ---------------------------------------------------------------------------
-// Valid agent types for input validation
-// ---------------------------------------------------------------------------
-
-const VALID_EXECUTORS = new Set<string>([
-  'claude-code', 'codex', 'codex-server', 'gemini', 'gemini-a2a', 'qwen', 'opencode', 'agent-sdk',
-]);
 
 // ---------------------------------------------------------------------------
 // ExecutionScheduler
@@ -60,6 +56,7 @@ export class ExecutionScheduler {
 
   // Factory for GraphWalker instances (shared across dispatchViaChain calls)
   private readonly factory: GraphWalkerFactory;
+  private readonly workflowRoot: string;
 
   constructor(
     private readonly agentManager: AgentManager,
@@ -69,11 +66,15 @@ export class ExecutionScheduler {
     promptRegistry?: PromptRegistry,
     private readonly journal?: ExecutionJournal,
     selfLearningService?: SelfLearningService,
+    workflowRoot?: string,
   ) {
     this.config = { ...DEFAULT_SCHEDULER_CONFIG, ...config };
     this.factory = new GraphWalkerFactory();
     this.promptRegistry = promptRegistry ?? PromptRegistry.createDefault();
     this.selfLearningService = selfLearningService;
+    const issuesDir = dirname(jsonlPath);
+    this.workflowRoot = workflowRoot
+      ?? (basename(issuesDir) === 'issues' ? dirname(issuesDir) : issuesDir);
 
     // Initialize workspace manager if enabled
     const ws = this.config.workspace;
@@ -108,11 +109,6 @@ export class ExecutionScheduler {
     }
     if (!this.claim(issueId)) return;
 
-    if (executor && !VALID_EXECUTORS.has(executor)) {
-      this.claimed.delete(issueId);
-      throw new Error(`Invalid executor: ${executor}`);
-    }
-
     const issue = await this.findIssue(issueId);
     if (!issue) {
       this.claimed.delete(issueId);
@@ -129,10 +125,6 @@ export class ExecutionScheduler {
     executor?: AgentType,
     maxConcurrency?: number,
   ): Promise<void> {
-    if (executor && !VALID_EXECUTORS.has(executor)) {
-      throw new Error(`Invalid executor: ${executor}`);
-    }
-
     const concurrency = maxConcurrency ?? this.config.maxConcurrentAgents;
     const unclaimed = issueIds.filter((id) => this.claim(id));
 
@@ -150,12 +142,23 @@ export class ExecutionScheduler {
       });
     }
 
-    // Dispatch immediate batch
-    for (const id of immediate) {
-      const issue = await this.findIssue(id);
-      if (issue) {
+    // Dispatch immediate batch. If one dispatch aborts the loop, release only
+    // the claims that have not started so a later request can retry them.
+    for (let index = 0; index < immediate.length; index++) {
+      const id = immediate[index];
+      try {
+        const issue = await this.findIssue(id);
+        if (!issue) {
+          this.claimed.delete(id);
+          continue;
+        }
         const resolvedExecutor = executor ?? issue.executor ?? this.config.defaultExecutor;
         await this.dispatch(issue, resolvedExecutor);
+      } catch (err) {
+        for (const pendingId of immediate.slice(index + 1)) {
+          this.claimed.delete(pendingId);
+        }
+        throw err;
       }
     }
   }
@@ -469,15 +472,19 @@ export class ExecutionScheduler {
 
     let proc: AgentProcess;
     try {
-      proc = await this.agentManager.spawn(executor, {
-        type: executor,
+      const agentConfig = await resolveAgentExecutionConfig(this.workflowRoot, {
+        provider: executor,
         prompt,
         workDir,
-        approvalMode: 'auto',
+        mode: 'write',
+        runtime: { approvalMode: 'auto' },
       });
+      proc = await this.agentManager.spawn(agentConfig.type, agentConfig);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await this.handleFailure(issue.id, message);
+      const configError = err instanceof AgentExecutionConfigError;
+      await this.handleFailure(issue.id, message, !configError);
+      if (configError) throw err;
       return;
     }
 
@@ -576,6 +583,8 @@ export class ExecutionScheduler {
         emitter: bridge,
         analyzer: null,
         sessionDir,
+        resolveExecutionConfig: (request) =>
+          resolveAgentExecutionConfig(this.workflowRoot, request),
       });
 
       const walkerState = await walker.start(chainId, issue.description, {
@@ -616,7 +625,9 @@ export class ExecutionScheduler {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await this.handleFailure(issue.id, `Chain dispatch failed: ${message}`);
+      const configError = err instanceof AgentExecutionConfigError;
+      await this.handleFailure(issue.id, `Chain dispatch failed: ${message}`, !configError);
+      if (configError) throw err;
     }
 
     // Workspace cleanup
@@ -889,9 +900,14 @@ export class ExecutionScheduler {
     return Object.keys(result).length > 0 ? result : undefined;
   }
 
-  private async handleFailure(issueId: string, error: string): Promise<void> {
+  private async handleFailure(
+    issueId: string,
+    error: string,
+    retryable = true,
+  ): Promise<void> {
     const issue = await this.findIssue(issueId);
     const currentRetry = issue?.execution?.retryCount ?? 0;
+    const nextRetry = retryable ? currentRetry + 1 : currentRetry;
 
     // Journal: record failure event
     await this.journal?.append({
@@ -899,11 +915,11 @@ export class ExecutionScheduler {
       issueId,
       processId: issue?.execution?.processId ?? '',
       error,
-      retryCount: currentRetry + 1,
+      retryCount: nextRetry,
       timestamp: new Date().toISOString(),
     });
 
-    if (currentRetry < this.config.maxRetries) {
+    if (retryable && currentRetry < this.config.maxRetries) {
       // Schedule retry with exponential backoff
       const backoff = this.config.retryBackoffMs * Math.pow(2, currentRetry);
       this.retryQueue.set(issueId, {
@@ -918,6 +934,7 @@ export class ExecutionScheduler {
         },
       });
     } else {
+      this.retryQueue.delete(issueId);
       await this.updateIssueFields(issueId, {
         execution: {
           status: 'failed',

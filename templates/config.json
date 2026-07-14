@@ -37,6 +37,20 @@
 
   "specInjection": {},
 
+  "settings": {
+    "agents": {
+      "claude-code": { "model": "", "approvalMode": "suggest" },
+      "codex": { "model": "", "approvalMode": "suggest" },
+      "codex-server": { "model": "", "approvalMode": "suggest" },
+      "grok": { "model": "grok-4.5", "approvalMode": "suggest", "reasoningEffort": "high" },
+      "gemini": { "model": "", "approvalMode": "suggest" },
+      "gemini-a2a": { "model": "", "approvalMode": "suggest" },
+      "qwen": { "model": "", "approvalMode": "suggest" },
+      "opencode": { "model": "", "approvalMode": "suggest" },
+      "agent-sdk": { "model": "", "approvalMode": "suggest" }
+    }
+  },
+
   "dashboard": {
     "port": 3001
   },

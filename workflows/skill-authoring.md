@@ -203,22 +203,27 @@ Codex Skill 不强制使用 CSV Wave。按任务形状选择最小且清晰的�
    Standard Codex hooks run csv-wave-guard on spawn_agents_on_csv and inject the
    anti-empty contract automatically. Use `maestro csv-wave contract` only as a
    fallback when hooks are unavailable.
-6. spawn_agents_on_csv({
+6. When the call is hosted by `functions.exec`, omit an outer explicit
+   `yield_time_ms` by default. `spawn_agents_on_csv` already blocks until the
+   whole wave finishes; early-yielding the wrapper creates a needless root
+   `wait` loop and spends extra turns/tokens. Only opt into early yield when the
+   caller explicitly needs mid-wave cancellation or observation.
+7. spawn_agents_on_csv({
      csv_path: wave-{N}.csv,
      instruction: instruction_builder(context),
      output_csv_path: wave-{N}-results.csv,
      output_schema: RESULT_SCHEMA
    })
-7. Merge wave-{N}-results.csv into the master CSV.
-8. Optional recovery check for hookless/interrupted runs:
+8. Merge wave-{N}-results.csv into the master CSV.
+9. Optional recovery check for hookless/interrupted runs:
    maestro csv-wave verify wave-{N}-results.csv \
      --artifact-dir wave-{N}-results.csv.artifacts \
      --require-artifacts \
      --repair-from-artifacts \
      --allow-empty-result-json \
      --required id,result_status,findings
-9. Delete wave-{N}.csv
-10. Return: updated master CSV rows
+10. Delete wave-{N}.csv
+11. Return: updated master CSV rows
 ```
 
 仅采用 CSV Wave 的 Skill 通过不同的 `instruction_builder` 和上下文参数调用此 MACRO，不重复描述流程。未采用 CSV Wave 的 Skill 不引用此 MACRO。

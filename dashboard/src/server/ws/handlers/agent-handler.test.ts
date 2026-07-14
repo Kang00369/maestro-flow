@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { AgentWsHandler } from './agent-handler.js';
 import { DashboardEventBus } from '../../state/event-bus.js';
 
@@ -25,10 +28,29 @@ describe('AgentWsHandler delegate messaging', () => {
   let ws: MockWebSocket;
   let broadcast: (type: import('../../../shared/ws-protocol.js').WsEventType, data: unknown) => void;
   let delegateMessage: ReturnType<typeof vi.fn>;
+  let workflowRoot: string;
 
   beforeEach(() => {
+    workflowRoot = mkdtempSync(join(tmpdir(), 'maestro-agent-ws-'));
+    writeFileSync(join(workflowRoot, 'config.json'), JSON.stringify({
+      settings: {
+        agents: {
+          grok: {
+            model: 'grok-4.5',
+            reasoningEffort: 'high',
+            approvalMode: 'auto',
+          },
+        },
+      },
+    }));
     agentManager = {
-      spawn: vi.fn(),
+      spawn: vi.fn(async (_type, config) => ({
+        id: 'ws-proc',
+        type: config.type,
+        status: 'running',
+        config,
+        startedAt: '2026-07-14T00:00:00.000Z',
+      })),
       stop: vi.fn(),
       sendMessage: vi.fn(),
       respondApproval: vi.fn(),
@@ -40,11 +62,15 @@ describe('AgentWsHandler delegate messaging', () => {
     handler = new AgentWsHandler(
       agentManager as any,
       new DashboardEventBus(),
-      'D:/maestro2/.workflow',
+      () => workflowRoot,
       delegateMessage as any,
     );
     ws = new MockWebSocket();
     broadcast = vi.fn() as unknown as typeof broadcast;
+  });
+
+  afterEach(() => {
+    rmSync(workflowRoot, { recursive: true, force: true });
   });
 
   it('declares delegate:message as a supported action', () => {
@@ -85,5 +111,51 @@ describe('AgentWsHandler delegate messaging', () => {
     });
     expect(agentManager.sendMessage).not.toHaveBeenCalled();
     expect(ws.sent).toHaveLength(0);
+  });
+
+  it('uses configured Grok model/effort and keeps unspecified remote access suggest-only', async () => {
+    await handler.handle('spawn', {
+      config: {
+        type: 'grok',
+        prompt: 'inspect websocket path',
+        workDir: '/tmp/project',
+      },
+    }, ws as any, broadcast);
+
+    expect(agentManager.spawn).toHaveBeenCalledWith('grok', expect.objectContaining({
+      type: 'grok',
+      model: 'grok-4.5',
+      reasoningEffort: 'high',
+      approvalMode: 'suggest',
+    }));
+  });
+
+  it('rejects invalid effort and unknown providers before creating an adapter process', async () => {
+    await expect(handler.handle('spawn', {
+      config: {
+        type: 'grok',
+        prompt: 'invalid effort',
+        workDir: '/tmp/project',
+        reasoningEffort: 'extreme',
+      },
+    }, ws as any, broadcast)).rejects.toThrow(/Invalid runtime reasoning effort/);
+
+    await expect(handler.handle('spawn', {
+      config: {
+        type: 'mystery',
+        prompt: 'unknown provider',
+        workDir: '/tmp/project',
+      },
+    }, ws as any, broadcast)).rejects.toThrow(/Unknown agent provider: mystery/);
+
+    await expect(handler.handle('spawn', {
+      config: {
+        type: 'qwen',
+        prompt: 'unconfigured provider',
+        workDir: '/tmp/project',
+      },
+    }, ws as any, broadcast)).rejects.toThrow(/Agent provider is not configured: qwen/);
+
+    expect(agentManager.spawn).not.toHaveBeenCalled();
   });
 });

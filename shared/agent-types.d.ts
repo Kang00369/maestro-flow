@@ -1,5 +1,5 @@
 /** Supported agent CLI types */
-export type AgentType = 'claude-code' | 'codex' | 'codex-server' | 'gemini' | 'gemini-a2a' | 'qwen' | 'opencode' | 'agent-sdk';
+export type AgentType = 'claude-code' | 'codex' | 'codex-server' | 'grok' | 'gemini' | 'gemini-a2a' | 'qwen' | 'opencode' | 'agy' | 'api-explore' | 'agent-sdk';
 /** Agent process lifecycle status */
 export type AgentProcessStatus = 'spawning' | 'running' | 'paused' | 'stopping' | 'stopped' | 'error';
 /** Configuration for spawning an agent process */
@@ -12,11 +12,25 @@ export interface AgentConfig {
     approvalMode?: 'suggest' | 'auto';
     baseUrl?: string;
     apiKey?: string;
+    /** API format for api-explore: 'openai' (default), 'anthropic', or 'openai-responses' */
+    format?: 'openai' | 'anthropic' | 'openai-responses';
     settingsFile?: string;
     /** Path to .env file for loading environment variables before spawn */
     envFile?: string;
     /** When true, spawn in interactive mode (stdin kept open for follow-up messages) */
     interactive?: boolean;
+    /** Path to MCP config JSON file for CLI agents (claude-code --mcp-config) */
+    mcpConfigPath?: string;
+    /** Opaque metadata bag — used to pass team session context through the spawn pipeline */
+    metadata?: Record<string, unknown>;
+    /** Reasoning effort level (undefined = tool default) */
+    reasoningEffort?: 'low' | 'medium' | 'high' | 'max';
+    /**
+     * Stale-stream silence window in ms before the adapter force-terminates a
+     * silent CLI. Undefined = StreamMonitor default (10 min). Threaded from
+     * `maestro delegate --timeout` / cli-tools.json `streamTimeoutMs`.
+     */
+    streamTimeoutMs?: number;
 }
 /** Runtime state of a spawned agent process */
 export interface AgentProcess {
@@ -28,6 +42,8 @@ export interface AgentProcess {
     pid?: number;
     /** Whether the agent supports interactive follow-up messages */
     interactive?: boolean;
+    /** Opaque metadata from config — carries team session context etc. */
+    metadata?: Record<string, unknown>;
 }
 /** Base fields shared by all normalized entries */
 export interface NormalizedEntryBase {

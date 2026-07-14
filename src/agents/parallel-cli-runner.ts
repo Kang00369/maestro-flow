@@ -9,28 +9,41 @@
 // ---------------------------------------------------------------------------
 
 import type { SpawnFn } from '../coordinator/cli-executor.js';
-import type { AgentType } from '../coordinator/graph-types.js';
+import type { AgentType, ReasoningEffort } from '../coordinator/graph-types.js';
 import type { TerminalBackend } from './terminal-backend.js';
 
 // ---------------------------------------------------------------------------
 // Tool name -> AgentType mapping (mirrors cli-agent-runner.ts)
 // ---------------------------------------------------------------------------
 
-const TOOL_TO_AGENT_TYPE: Record<string, AgentType> = {
-  gemini: 'gemini',
-  qwen: 'qwen',
-  codex: 'codex',
-  claude: 'claude-code',
-  opencode: 'opencode',
-};
+export function resolveParallelAgentType(tool: string): AgentType {
+  switch (tool) {
+    case 'gemini': return 'gemini';
+    case 'qwen': return 'qwen';
+    case 'codex': return 'codex';
+    case 'grok': return 'grok';
+    case 'claude':
+    case 'claude-code': return 'claude-code';
+    case 'opencode': return 'opencode';
+    default:
+      throw new Error(`Unknown CLI provider: ${tool}`);
+  }
+}
 
-const TOOL_TO_TERMINAL_CMD: Record<string, string> = {
-  gemini: 'gemini',
-  qwen: 'qwen',
-  codex: 'codex',
-  claude: 'claude',
-  opencode: 'opencode',
-};
+function resolveTerminalCommand(tool: string): string {
+  switch (tool) {
+    case 'gemini': return 'gemini';
+    case 'qwen': return 'qwen';
+    case 'codex': return 'codex';
+    case 'claude':
+    case 'claude-code': return 'claude';
+    case 'opencode': return 'opencode';
+    case 'grok':
+      throw new Error('Grok terminal backend is unsupported; use the direct backend.');
+    default:
+      throw new Error(`Unknown CLI provider: ${tool}`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Task & Result types
@@ -44,6 +57,8 @@ export interface ParallelTask {
   mode: 'analysis' | 'write';
   backend?: 'direct' | 'terminal';
   sessionKey?: string;
+  model?: string;
+  reasoningEffort?: ReasoningEffort;
 }
 
 export interface ParallelResult {
@@ -125,6 +140,16 @@ export class ParallelCliRunner {
 
     if (tasks.length === 0) {
       return { results: [], success: true };
+    }
+
+    for (const task of tasks) {
+      const agentType = resolveParallelAgentType(task.tool);
+      if (task.backend === 'terminal' && agentType === 'grok') {
+        throw new Error('Grok terminal backend is unsupported; use the direct backend.');
+      }
+      if (task.backend === 'terminal' && !this.terminalBackend) {
+        throw new Error('Terminal backend requested but no terminal backend is configured.');
+      }
     }
 
     // Group by session key
@@ -231,17 +256,7 @@ export class ParallelCliRunner {
     globalSignal?: AbortSignal,
   ): Promise<ParallelResult> {
     const startTime = Date.now();
-    const agentType = TOOL_TO_AGENT_TYPE[task.tool];
-
-    if (!agentType) {
-      return {
-        id: task.id,
-        success: false,
-        output: `Unknown tool: ${task.tool}`,
-        execId: '',
-        durationMs: Date.now() - startTime,
-      };
-    }
+    const agentType = resolveParallelAgentType(task.tool);
 
     // Per-task abort: merges global signal + timeout ceiling
     const taskAbort = new AbortController();
@@ -256,6 +271,8 @@ export class ParallelCliRunner {
         prompt: task.prompt,
         workDir: task.workDir,
         approvalMode: task.mode === 'write' ? 'auto' : 'suggest',
+        model: task.model,
+        reasoningEffort: task.reasoningEffort,
         signal: taskAbort.signal,
       });
 
@@ -289,17 +306,10 @@ export class ParallelCliRunner {
     globalSignal?: AbortSignal,
   ): Promise<ParallelResult> {
     const startTime = Date.now();
-    const agentType = TOOL_TO_AGENT_TYPE[task.tool];
-
-    if (!agentType) {
-      return {
-        id: task.id, success: false,
-        output: `Unknown tool: ${task.tool}`, execId: '', durationMs: 0,
-      };
-    }
+    const agentType = resolveParallelAgentType(task.tool);
 
     const { TerminalAdapter } = await import('./terminal-adapter.js');
-    const cmd = TOOL_TO_TERMINAL_CMD[task.tool] ?? task.tool;
+    const cmd = resolveTerminalCommand(task.tool);
     const adapter = new TerminalAdapter(this.terminalBackend!, cmd);
 
     // Cast needed: graph-types AgentType includes 'claude', terminal-adapter's is narrower
@@ -308,6 +318,8 @@ export class ParallelCliRunner {
       prompt: task.prompt,
       workDir: task.workDir,
       approvalMode: task.mode === 'write' ? 'auto' : 'suggest',
+      model: task.model,
+      reasoningEffort: task.reasoningEffort,
     } as Parameters<typeof adapter.spawn>[0]);
 
     return new Promise<ParallelResult>((resolve) => {

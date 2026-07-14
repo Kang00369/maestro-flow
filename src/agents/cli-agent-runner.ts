@@ -15,6 +15,7 @@ import { loadTemplate, loadProtocol } from '../config/template-discovery.js';
 import { loadSpecs, type SpecCategory } from '../tools/spec-loader.js';
 import { NOTIFY_PREFIX } from '../hooks/constants.js';
 import { DelegateBrokerClient, type DelegateBrokerApi, type DelegateJobStatus, type JsonObject } from '../async/index.js';
+import { buildDelegateAgentEnv } from './delegate-execution-context.js';
 
 // ---------------------------------------------------------------------------
 // Types imported from the canonical shared definition
@@ -87,39 +88,57 @@ export interface CliRunOptions {
   streamTimeout?: number;
   /** Proxy environment variables resolved from cli-tools.json proxy config */
   proxyEnv?: Record<string, string>;
+  /**
+   * Present only when `maestro delegate` launches the actual CLI agent.
+   * Propagated to the child environment so recursive Delegate calls fail.
+   */
+  delegateExecutionContext?: string;
 }
 
 // ---------------------------------------------------------------------------
 // Tool name -> AgentType mapping
 // ---------------------------------------------------------------------------
 
-const TOOL_TO_AGENT_TYPE: Record<string, AgentType> = {
-  gemini: 'gemini',
-  'gemini-a2a': 'gemini-a2a',
-  qwen: 'qwen',
-  codex: 'codex',
-  'codex-server': 'codex-server',
-  claude: 'claude-code',
-  opencode: 'opencode',
-  agy: 'agy',
-  'api-explore': 'api-explore',
-};
+export function resolveCliAgentType(tool: string, baseTool?: string): AgentType {
+  const provider = baseTool ?? tool;
+  switch (provider) {
+    case 'gemini': return 'gemini';
+    case 'gemini-a2a': return 'gemini-a2a';
+    case 'qwen': return 'qwen';
+    case 'codex': return 'codex';
+    case 'codex-server': return 'codex-server';
+    case 'grok': return 'grok';
+    case 'claude':
+    case 'claude-code': return 'claude-code';
+    case 'opencode': return 'opencode';
+    case 'agy': return 'agy';
+    case 'api-explore': return 'api-explore';
+    default:
+      throw new Error(`Unknown CLI provider: ${provider}`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // AgentType -> terminal CLI command mapping
 // ---------------------------------------------------------------------------
 
-const AGENT_TYPE_TO_TERMINAL_CMD: Record<string, string> = {
-  'gemini': 'gemini',
-  'gemini-a2a': 'gemini',
-  'qwen': 'qwen',
-  'codex': 'codex',
-  'codex-server': 'codex',
-  'claude-code': 'claude',
-  'opencode': 'opencode',
-  'agy': 'agy',
-  'api-explore': 'api-explore',
-};
+function resolveTerminalCommand(agentType: AgentType): string {
+  switch (agentType) {
+    case 'gemini':
+    case 'gemini-a2a': return 'gemini';
+    case 'qwen': return 'qwen';
+    case 'codex':
+    case 'codex-server': return 'codex';
+    case 'claude-code': return 'claude';
+    case 'opencode': return 'opencode';
+    case 'agy': return 'agy';
+    case 'api-explore': return 'api-explore';
+    case 'grok':
+      throw new Error('Grok terminal backend is unsupported; use the direct backend.');
+    default:
+      throw new Error(`Terminal backend is unsupported for provider: ${agentType}`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Execution ID generation
@@ -131,6 +150,7 @@ const TOOL_PREFIX: Record<string, string> = {
   qwen: 'qwn',
   codex: 'cdx',
   'codex-server': 'cxs',
+  grok: 'grk',
   claude: 'cld',
   opencode: 'opc',
   agy: 'agy',
@@ -237,13 +257,16 @@ async function assemblePrompt(
 
 async function createAdapter(agentType: AgentType, backend?: 'direct' | 'terminal'): Promise<AdapterLike> {
   if (backend === 'terminal') {
+    if (agentType === 'grok') {
+      throw new Error('Grok terminal backend is unsupported; use the direct backend.');
+    }
     const { detectBackend } = await import('./terminal-backend.js');
     const { TerminalAdapter } = await import('./terminal-adapter.js');
     const termBackend = detectBackend();
     if (!termBackend) {
       throw new Error('No terminal multiplexer detected (need TMUX or WEZTERM_PANE env)');
     }
-    const cmd = AGENT_TYPE_TO_TERMINAL_CMD[agentType] ?? agentType;
+    const cmd = resolveTerminalCommand(agentType);
     return new TerminalAdapter(termBackend, cmd) as unknown as AdapterLike;
   }
 
@@ -522,11 +545,15 @@ export class CliAgentRunner {
    * Run a CLI agent to completion and return its exit code (0 = success).
    */
   async run(options: CliRunOptions): Promise<number> {
-    const agentType = TOOL_TO_AGENT_TYPE[options.tool]
-      ?? (options.baseTool ? TOOL_TO_AGENT_TYPE[options.baseTool] : undefined);
-    if (!agentType) {
-      console.error(`Unknown tool: ${options.tool}`);
-      return 1;
+    const agentType = resolveCliAgentType(options.tool, options.baseTool);
+    if (options.backend === 'terminal' && options.delegateExecutionContext) {
+      throw new Error(
+        'Delegate terminal backend is unsupported because the recursion guard context ' +
+        'cannot be propagated safely; use the direct backend.',
+      );
+    }
+    if (options.backend === 'terminal' && agentType === 'grok') {
+      throw new Error('Grok terminal backend is unsupported; use the direct backend.');
     }
 
     // Generate or use provided execution ID
@@ -571,6 +598,10 @@ export class CliAgentRunner {
       : false;
     // Dashboard connection is optional — no warning when unavailable
 
+    const childEnv = options.delegateExecutionContext
+      ? buildDelegateAgentEnv(options.delegateExecutionContext, options.proxyEnv)
+      : options.proxyEnv;
+
     const config: AgentConfig = {
       type: agentType,
       prompt: finalPrompt,
@@ -581,8 +612,8 @@ export class CliAgentRunner {
       settingsFile: options.settingsFile?.replace(/^~(?=[\\/])/, homedir()),
       reasoningEffort: options.reasoningEffort,
       streamTimeoutMs: options.streamTimeout,
-      ...(options.proxyEnv && Object.keys(options.proxyEnv).length > 0
-        ? { env: options.proxyEnv }
+      ...(childEnv && Object.keys(childEnv).length > 0
+        ? { env: childEnv }
         : {}),
     };
 

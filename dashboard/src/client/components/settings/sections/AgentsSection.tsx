@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useSettingsStore } from '@/client/store/settings-store.js';
-import type { AgentSettingsEntry } from '@/client/store/settings-store.js';
+import type {
+  AgentSettingsEntry,
+  ReasoningEffort,
+} from '@/client/store/settings-store.js';
 import type { AgentType } from '@/shared/agent-types.js';
 import {
   SettingsCard,
@@ -26,6 +29,7 @@ interface AgentFieldConfig {
   settingsFileLabel?: string;
   settingsFilePlaceholder?: string;
   settingsFileDescription?: string;
+  modelOptions?: readonly string[];
 }
 
 const AGENT_FIELD_CONFIG: Partial<Record<AgentType, AgentFieldConfig>> = {
@@ -67,6 +71,14 @@ const AGENT_FIELD_CONFIG: Partial<Record<AgentType, AgentFieldConfig>> = {
     settingsFilePlaceholder: 'my-profile',
     settingsFileDescription: 'Profile name from ~/.codex/config.toml',
   },
+  grok: {
+    apiKeyLabel: 'xAI API Key',
+    apiKeyPlaceholder: 'xai-...',
+    apiKeyEnvHint: 'XAI_API_KEY',
+    showBaseUrl: false,
+    showSettingsFile: false,
+    modelOptions: ['grok-4.5'],
+  },
   gemini: {
     apiKeyLabel: 'Gemini API Key',
     apiKeyPlaceholder: 'AIza...',
@@ -101,6 +113,7 @@ const AGENT_TYPES: { type: AgentType; label: string }[] = [
   { type: 'claude-code', label: 'Claude Code' },
   { type: 'agent-sdk', label: 'Agent SDK' },
   { type: 'codex', label: 'Codex' },
+  { type: 'grok', label: 'Grok' },
   { type: 'gemini', label: 'Gemini' },
   { type: 'gemini-a2a', label: 'Gemini (A2A)' },
   { type: 'qwen', label: 'Qwen' },
@@ -122,6 +135,7 @@ export function AgentsSection() {
       'claude-code': 'settings.agents.claude_code_desc',
       'agent-sdk': 'settings.agents.agent_sdk_desc',
       codex: 'settings.agents.codex_desc',
+      grok: 'settings.agents.grok_desc',
       gemini: 'settings.agents.gemini_desc',
       'gemini-a2a': 'settings.agents.gemini_desc',
       qwen: 'settings.agents.qwen_desc',
@@ -149,6 +163,12 @@ export function AgentsSection() {
         const agent = draft[type];
         const isExpanded = expanded === type;
         const fieldCfg = AGENT_FIELD_CONFIG[type];
+        const configuredModelOptions = fieldCfg?.modelOptions
+          ? Array.from(new Set([
+              ...fieldCfg.modelOptions,
+              ...(agent.model ? [agent.model] : []),
+            ]))
+          : undefined;
 
         return (
           <SettingsCard key={type} title={label} description={agentDescription(type)}>
@@ -171,11 +191,44 @@ export function AgentsSection() {
                   description={t('settings.agents.model_desc')}
                   htmlFor={`agent-model-${type}`}
                 >
-                  <SettingsInput
-                    id={`agent-model-${type}`}
-                    value={agent.model}
-                    onChange={(v) => updateAgent(type, { model: v })}
-                    placeholder={t('settings.agents.model_placeholder')}
+                  {configuredModelOptions ? (
+                    <SettingsSelect
+                      id={`agent-model-${type}`}
+                      value={agent.model}
+                      onChange={(v) => updateAgent(type, { model: v })}
+                      options={configuredModelOptions.map((model) => ({
+                        value: model,
+                        label: model,
+                      }))}
+                    />
+                  ) : (
+                    <SettingsInput
+                      id={`agent-model-${type}`}
+                      value={agent.model}
+                      onChange={(v) => updateAgent(type, { model: v })}
+                      placeholder={t('settings.agents.model_placeholder')}
+                    />
+                  )}
+                </SettingsField>
+
+                <SettingsField
+                  label="Reasoning effort"
+                  description="Provider-specific reasoning depth; tool default leaves the field unset"
+                  htmlFor={`agent-effort-${type}`}
+                >
+                  <SettingsSelect<ReasoningEffort | ''>
+                    id={`agent-effort-${type}`}
+                    value={agent.reasoningEffort ?? ''}
+                    onChange={(v) => updateAgent(type, {
+                      reasoningEffort: v || undefined,
+                    })}
+                    options={[
+                      { value: '', label: 'Tool default' },
+                      { value: 'low', label: 'Low' },
+                      { value: 'medium', label: 'Medium' },
+                      { value: 'high', label: 'High' },
+                      { value: 'max', label: 'Max' },
+                    ]}
                   />
                 </SettingsField>
 

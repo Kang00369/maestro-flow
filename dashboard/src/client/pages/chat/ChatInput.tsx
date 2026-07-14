@@ -15,13 +15,14 @@ import type { AgentType } from '@/shared/agent-types.js';
 // ChatInput -- composer with chip + icon agent selector (chat.html reference)
 // ---------------------------------------------------------------------------
 
-const AGENT_TYPES: AgentType[] = ['claude-code', 'codex', 'gemini', 'qwen', 'opencode', 'agent-sdk'];
+const AGENT_TYPES: AgentType[] = ['claude-code', 'codex', 'grok', 'gemini', 'qwen', 'opencode', 'agent-sdk'];
 
 /** Short labels for agent icon buttons */
 const AGENT_SHORT: Record<AgentType, string> = {
   'claude-code': 'C',
   codex: 'Cx',
   'codex-server': 'Cs',
+  grok: 'X',
   gemini: 'G',
   'gemini-a2a': 'Ga',
   qwen: 'Q',
@@ -411,4 +412,3 @@ export function ChatInput({ processId: externalProcessId, executor }: ChatInputP
     </div>
   );
 }
-

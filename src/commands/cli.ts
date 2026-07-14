@@ -1,16 +1,22 @@
 // ---------------------------------------------------------------------------
 // `maestro cli` — unified CLI agent command
-// Runs agent tools (gemini, qwen, codex, claude, opencode) with a shared
+// Runs agent tools (gemini, qwen, codex, claude, grok, opencode) with a shared
 // interface for prompt, mode, model, working directory, templates, and more.
 // ---------------------------------------------------------------------------
 
 import type { Command } from 'commander';
 import { resolve } from 'node:path';
 import { readFileSync, statSync } from 'node:fs';
-import { CliAgentRunner } from '../agents/cli-agent-runner.js';
+import { CliAgentRunner, type CliRunOptions } from '../agents/cli-agent-runner.js';
 import { CliHistoryStore } from '../agents/cli-history-store.js';
 import type { ExecutionMeta, EntryLike } from '../agents/cli-history-store.js';
-import { loadCliToolsConfig, selectTool } from '../config/cli-tools-config.js';
+import {
+  loadCliToolsConfig,
+  REASONING_EFFORTS,
+  selectTool,
+  type CliToolsConfig,
+  type ReasoningEffort,
+} from '../config/cli-tools-config.js';
 import {
   deriveExecutionStatus,
   padRight,
@@ -30,7 +36,31 @@ function statusLabel(meta: ExecutionMeta): string {
 // Command registration
 // ---------------------------------------------------------------------------
 
-export function registerCliCommand(program: Command): void {
+export interface CliCommandDependencies {
+  loadConfig?: (workDir: string) => Promise<CliToolsConfig>;
+  createRunner?: () => { run(options: CliRunOptions): Promise<number> };
+  exit?: (code: number) => never;
+}
+
+export function resolveCliReasoningEffort(
+  override: string | undefined,
+  configured: unknown,
+): ReasoningEffort | undefined {
+  const candidate = override ?? configured;
+  if (candidate === undefined) return undefined;
+  if (typeof candidate !== 'string' || !(REASONING_EFFORTS as readonly string[]).includes(candidate)) {
+    throw new Error(
+      `Invalid effort: ${String(candidate)}. Use ${REASONING_EFFORTS.join(', ')}.`,
+    );
+  }
+  return candidate as ReasoningEffort;
+}
+
+export function registerCliCommand(
+  program: Command,
+  dependencies: CliCommandDependencies = {},
+): void {
+  const exit = dependencies.exit ?? ((code: number): never => process.exit(code));
   const cli = program
     .command('cli')
     .description('Run CLI agent tools with unified interface');
@@ -39,10 +69,11 @@ export function registerCliCommand(program: Command): void {
 
   cli
     .option('-p, --prompt <prompt>', 'Prompt to send to the agent')
-    .option('--tool <name>', 'CLI tool to use (gemini, qwen, codex, claude, opencode)')
+    .option('--tool <name>', 'CLI tool to use (gemini, qwen, codex, claude, grok, opencode)')
     .option('--role <role>', 'Capability role for targeted spec injection (does not select a tool)')
     .option('--mode <mode>', 'Execution mode (analysis or write)', 'analysis')
     .option('--model <model>', 'Model override')
+    .option('--effort <level>', 'Reasoning effort level (low, medium, high, max) — overrides tool config')
     .option('--cd <dir>', 'Working directory')
     .option('--rule <template>', 'Template name — auto-loads protocol + template appended to prompt')
     .option('--id <id>', 'Execution ID (auto-generated if omitted)')
@@ -54,6 +85,7 @@ export function registerCliCommand(program: Command): void {
       role?: string;
       mode: string;
       model?: string;
+      effort?: string;
       cd?: string;
       rule?: string;
       id?: string;
@@ -62,18 +94,18 @@ export function registerCliCommand(program: Command): void {
     }) => {
       if (!opts.prompt) {
         console.error('error: required option \'-p, --prompt <prompt>\' not specified');
-        process.exit(1);
+        return exit(1);
       }
 
       const workDir = resolve(opts.cd ?? process.cwd());
-      const config = await loadCliToolsConfig(workDir);
+      const config = await (dependencies.loadConfig ?? loadCliToolsConfig)(workDir);
 
       if (!opts.tool) {
         console.error(
           'Error: CLI agent is required. Pass --tool <name>; ' +
           '--role no longer selects Codex, Claude, or a fallback tool.',
         );
-        process.exit(1);
+        return exit(1);
       }
 
       const selected = selectTool(opts.tool, config);
@@ -84,7 +116,7 @@ export function registerCliCommand(program: Command): void {
             ? `Error: CLI agent "${opts.tool}" is disabled.`
             : `Error: CLI agent "${opts.tool}" is not configured.`,
         );
-        process.exit(1);
+        return exit(1);
       }
 
       const toolName = selected.name;
@@ -93,12 +125,24 @@ export function registerCliCommand(program: Command): void {
 
       if (mode !== 'analysis' && mode !== 'write') {
         console.error(`Invalid mode: ${opts.mode}. Use "analysis" or "write".`);
-        process.exit(1);
+        return exit(1);
       }
 
+      let reasoningEffort: ReasoningEffort | undefined;
       try {
-        const runner = new CliAgentRunner();
-        const exitCode = await runner.run({
+        reasoningEffort = resolveCliReasoningEffort(
+          opts.effort,
+          selected.entry.reasoningEffort,
+        );
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        return exit(1);
+      }
+
+      let exitCode: number;
+      try {
+        const runner = dependencies.createRunner?.() ?? new CliAgentRunner();
+        exitCode = await runner.run({
           prompt: opts.prompt,
           tool: toolName,
           mode,
@@ -111,13 +155,14 @@ export function registerCliCommand(program: Command): void {
           settingsFile: selected.entry.settingsFile,
           baseTool: selected.entry.baseTool,
           role: opts.role,
+          reasoningEffort,
         });
-        process.exit(exitCode);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.error(`CLI agent failed: ${message}`);
-        process.exit(1);
+        return exit(1);
       }
+      return exit(exitCode);
     });
 
   // ---- show subcommand ----------------------------------------------------

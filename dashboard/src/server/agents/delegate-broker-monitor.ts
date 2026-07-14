@@ -41,6 +41,7 @@ function normalizeAgentType(tool: string | undefined): AgentType {
     case 'claude':
       return 'claude-code';
     case 'codex':
+    case 'grok':
     case 'gemini':
     case 'qwen':
     case 'opencode':

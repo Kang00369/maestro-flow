@@ -45,7 +45,7 @@ describe('DelegateBrokerMonitor', () => {
             status: 'queued',
             payload: { summary: 'Queued for execution' },
             metadata: {
-              tool: 'codex',
+              tool: 'grok',
               prompt: 'Inspect async delegate',
               workDir: 'D:/maestro2',
               queuedMessages: [],
@@ -60,7 +60,7 @@ describe('DelegateBrokerMonitor', () => {
             status: 'running',
             payload: { summary: 'Queued after_complete follow-up message', messageId: 'msg-2' },
             metadata: {
-              tool: 'codex',
+              tool: 'grok',
               prompt: 'Inspect async delegate',
               workDir: 'D:/maestro2',
               queuedMessages: [
@@ -104,7 +104,7 @@ describe('DelegateBrokerMonitor', () => {
         lastEventType: 'completed',
         latestSnapshot: { outputPreview: 'Finished successfully' },
         metadata: {
-          tool: 'codex',
+          tool: 'grok',
           prompt: 'Inspect async delegate',
           workDir: 'D:/maestro2',
           queuedMessages: [
@@ -133,8 +133,9 @@ describe('DelegateBrokerMonitor', () => {
     await (monitor as any).poll();
     monitor.stop();
 
-    const process = agentManager.listProcesses().find((item) => item.id === 'cli-history-job-1');
+    const process = (agentManager as any).cliProcesses.get('cli-history-job-1');
     expect(process).toBeTruthy();
+    expect(process?.type).toBe('grok');
     expect(process?.status).toBe('stopped');
     expect(process?.interactive).toBe(true);
 

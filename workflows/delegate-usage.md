@@ -9,7 +9,7 @@ maestro delegate "<PROMPT>" [options]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--to <tool>` | Explicit enabled agent: gemini, qwen, codex, claude, opencode | Required |
+| `--to <tool>` | Explicit enabled agent: gemini, qwen, codex, claude, grok, opencode | Required |
 | `--role <role>` | Spec-injection role: analyze, explore, review, implement, plan, brainstorm, research | — |
 | `--mode <mode>` | `analysis` (read-only) / `write` (modify) | `analysis` |
 | `--model <model>` | Model override | Tool's `primaryModel` |
@@ -19,6 +19,12 @@ maestro delegate "<PROMPT>" [options]
 | `--id <id>` | Execution ID | Auto: `{prefix}-{HHmmss}-{rand4}` |
 | `--resume [id]` | Resume previous session | — |
 | `--includeDirs <dirs>` | Additional directories (comma-separated) | — |
+
+`maestro delegate` supports the direct backend only. The terminal backend is
+rejected before config, history, broker, or child-process creation because a
+multiplexer pane cannot currently receive the Delegate execution context needed
+by the recursion guard. `maestro cli --backend terminal` remains available for
+non-Delegate interactive use.
 
 Agent resolution is explicit: `--to <tool>` is required. `--role` never selects
 an agent, and missing, unknown, or disabled agents fail without fallback.
@@ -56,6 +62,21 @@ scout session still adds value. Model/effort selection never changes the
 explicit agent and never enables provider fallback. Codex `max` is translated
 by the adapter to its supported highest local reasoning setting.
 
+### Grok Delegate
+
+Use Grok for a fast, cost-conscious implementation or review context when it is
+the explicitly selected provider:
+
+```bash
+maestro delegate "<TASK>" --to grok --mode write --model grok-4.5 --effort high
+```
+
+The Grok adapter forwards the model and effort, uses a private prompt file,
+maps `analysis` to Grok's `read-only` sandbox and `write` to its `workspace`
+sandbox, and does not emit `--no-subagents`. Grok may therefore use its native
+Composer-backed subagents according to the user's Grok configuration. It must
+not silently substitute the lower-quality build model or another provider.
+
 **`--mode` is authoritative** — `MODE:` in prompt text is a hint only.
 
 ## Prompt Template
@@ -87,19 +108,27 @@ CONSTRAINTS: [scope limits]
 
 ## Execution Rules
 
-**ALWAYS** use `run_in_background: true`, then **stop immediately**:
+Short synchronous delegates are valid and useful for bounded work. Use
+`--async` only when the coordinator can make useful progress while the delegate
+runs; consume the completion notification or query `status` / `output` rather
+than building a manual polling loop.
 
-```
-Bash({ command: "maestro delegate \"...\" --to gemini --mode analysis", run_in_background: true })
-```
-
-- NEVER use foreground Bash for delegate calls
-- NEVER output text or tool calls after the background Bash call
-- Callback includes status + output — use it directly
+When the current session is already a Maestro Delegate worker, it must not
+create a second Maestro orchestration layer through another
+`maestro delegate`, `spawn_agents_on_csv`, or Codex native `spawn_agent`. If an
+injected lifecycle skill says the coordinator should delegate, treat that as a
+coordinator boundary, not permission to create another Delegate layer.
+Provider-internal workers owned by the explicitly selected CLI remain valid;
+in particular, Grok may use native `spawn_subagent` / Composer without creating
+a nested Maestro job. Recursive `maestro delegate` is rejected before
+job/history creation; the worker must otherwise finish within the selected
+provider execution or return failure. If a nested Maestro job is ever created,
+classify it as a guard defect and fix the guard instead of messaging or
+cancelling that nested session as the primary recovery.
 
 ### Execution ID Prefix
 
-gemini→`gem`, qwen→`qwn`, codex→`cdx`, claude→`cld`, opencode→`opc`
+gemini→`gem`, qwen→`qwn`, codex→`cdx`, claude→`cld`, grok→`grk`, opencode→`opc`
 
 ### Resume
 
@@ -132,4 +161,4 @@ Proactively invoke for `analysis` mode — no user confirmation needed:
 | Pattern uncertainty | `analysis-analyze-code-patterns` |
 | Critical/security code paths | `analysis-assess-security-risks` |
 
-**Always** `run_in_background: true`, default `--mode analysis`.
+Default to `--mode analysis`; choose synchronous or `--async` from task duration.

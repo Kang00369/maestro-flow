@@ -8,7 +8,7 @@ import type { WsEventType } from '../../../shared/ws-protocol.js';
 import type { AgentConfig } from '../../../shared/agent-types.js';
 import type { AgentManager } from '../../agents/agent-manager.js';
 import type { DashboardEventBus } from '../../state/event-bus.js';
-import { loadDashboardAgentSettings } from '../../config.js';
+import { resolveAgentExecutionConfig } from '../../config.js';
 import { EntryNormalizer } from '../../agents/entry-normalizer.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -50,7 +50,7 @@ export class AgentWsHandler implements WsHandler {
   constructor(
     private readonly agentManager: AgentManager,
     private readonly eventBus: DashboardEventBus,
-    private readonly workflowRoot: string,
+    private readonly workflowRoot: string | (() => string),
     private readonly delegateMessage: DelegateMessageHandler = handleDelegateMessage,
     private readonly roomSessionManager?: RoomSessionManager,
   ) {}
@@ -149,16 +149,17 @@ export class AgentWsHandler implements WsHandler {
    * Public so ExecutionWsHandler can reuse it for issue analyze/plan.
    */
   async mergeSettingsAndSpawn(ws: WebSocket, config: AgentConfig): Promise<void> {
-    const saved = await loadDashboardAgentSettings(this.workflowRoot, config.type);
-    const mergedConfig = {
-      ...config,
-      model: (config.model ?? saved?.model) || undefined,
-      approvalMode: config.approvalMode ?? saved?.approvalMode ?? undefined,
-      baseUrl: (config.baseUrl ?? saved?.baseUrl) || undefined,
-      apiKey: (config.apiKey ?? saved?.apiKey) || undefined,
-      settingsFile: (config.settingsFile ?? saved?.settingsFile) || undefined,
-      envFile: (config.envFile ?? saved?.envFile) || undefined,
-    };
+    const workflowRoot = typeof this.workflowRoot === 'function'
+      ? this.workflowRoot()
+      : this.workflowRoot;
+    const requestConfig = config as AgentConfig & { mode?: unknown };
+    const mergedConfig = await resolveAgentExecutionConfig(workflowRoot, {
+      provider: config.type,
+      prompt: config.prompt,
+      workDir: config.workDir,
+      mode: requestConfig.mode,
+      runtime: config,
+    });
     // Inject MCP config if agent is being added to a meeting room
     const roomSessionId = mergedConfig.metadata?.roomSessionId as string | undefined;
     const roomRole = mergedConfig.metadata?.roomRole as string | undefined;
@@ -168,7 +169,7 @@ export class AgentWsHandler implements WsHandler {
         // Ensure MCP TCP server is running (idempotent)
         await session.startMcp();
 
-        const projectRoot = resolve(this.workflowRoot, '..');
+        const projectRoot = resolve(workflowRoot, '..');
 
         // Inject MCP config based on agent type
         const MCP_AGENT_TYPES: Record<string, RoomMcpAgentType> = {

@@ -6,7 +6,9 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import type { WalkerEventEmitter, StepAnalyzer } from '../../../../src/coordinator/graph-types.js';
+import type { AgentConfig } from '../../shared/agent-types.js';
 import type { AgentManager } from '../agents/agent-manager.js';
+import type { AgentExecutionConfigRequest } from '../config.js';
 import type { DashboardEventBus } from '../state/event-bus.js';
 
 // ---------------------------------------------------------------------------
@@ -20,6 +22,9 @@ export interface GraphWalkerCreateConfig {
   emitter: WalkerEventEmitter;
   analyzer: StepAnalyzer | null;
   sessionDir: string;
+  resolveExecutionConfig?: (
+    request: AgentExecutionConfigRequest,
+  ) => Promise<AgentConfig>;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,7 +89,11 @@ export class GraphWalkerFactory {
     const templateDir = resolve(infra.homedir(), '.maestro', 'templates', 'cli', 'prompts');
 
     const loader = new infra.GraphLoader(chainsRoot);
-    const executor = new infra.DashboardExecutor(config.agentManager, config.eventBus);
+    const executor = new infra.DashboardExecutor(
+      config.agentManager,
+      config.eventBus,
+      config.resolveExecutionConfig,
+    );
     const assembler = new infra.DefaultPromptAssembler(config.workDir, templateDir);
     const evaluator = new infra.DefaultExprEvaluator();
     const parser = new infra.DefaultOutputParser();

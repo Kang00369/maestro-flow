@@ -37,7 +37,7 @@ export function CommandReference({ config, onBack }: CommandReferenceProps) {
       ))}
 
       <Text> </Text>
-      <Text>maestro delegate "..." --to codex --model gpt-5.6-luna --mode analysis</Text>
+      <Text>maestro delegate "..." --to grok --model grok-4.5 --effort high --mode write</Text>
       <Text dimColor>--role only controls targeted spec injection; it never selects an agent.</Text>
       <Text dimColor>[Esc] Back</Text>
     </Box>

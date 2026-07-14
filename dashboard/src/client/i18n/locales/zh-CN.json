@@ -371,6 +371,7 @@
       "claude_code_desc": "Anthropic Claude CLI 代理",
       "agent_sdk_desc": "Anthropic Agent SDK（支持自定义端点）",
       "codex_desc": "OpenAI Codex CLI 代理",
+      "grok_desc": "Grok Build CLI 代理",
       "gemini_desc": "Google Gemini CLI 代理",
       "qwen_desc": "阿里通义千问 CLI 代理",
       "opencode_desc": "开源代码代理"

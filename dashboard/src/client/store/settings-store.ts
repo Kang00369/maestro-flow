@@ -9,9 +9,12 @@ import type { WorkspacePolicy } from '@/shared/execution-types.js';
 // ---------------------------------------------------------------------------
 
 /** Per-agent-type configuration */
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'max';
+
 export interface AgentSettingsEntry {
   model: string;
   approvalMode: 'suggest' | 'auto';
+  reasoningEffort?: ReasoningEffort;
   baseUrl?: string;
   apiKey?: string;
   settingsFile?: string;
@@ -77,6 +80,7 @@ const DEFAULT_AGENTS: Record<AgentType, AgentSettingsEntry> = {
   'claude-code': { model: '', approvalMode: 'suggest', baseUrl: '', apiKey: '', settingsFile: '', envFile: '' },
   codex: { model: '', approvalMode: 'suggest', baseUrl: '', apiKey: '', settingsFile: '', envFile: '' },
   'codex-server': { model: '', approvalMode: 'suggest', baseUrl: '', apiKey: '', settingsFile: '', envFile: '' },
+  grok: { model: 'grok-4.5', approvalMode: 'suggest', reasoningEffort: 'high', baseUrl: '', apiKey: '', settingsFile: '', envFile: '' },
   gemini: { model: '', approvalMode: 'suggest', baseUrl: '', apiKey: '', settingsFile: '', envFile: '' },
   'gemini-a2a': { model: '', approvalMode: 'suggest', baseUrl: '', apiKey: '', settingsFile: '', envFile: '' },
   qwen: { model: '', approvalMode: 'suggest', baseUrl: '', apiKey: '', settingsFile: '', envFile: '' },

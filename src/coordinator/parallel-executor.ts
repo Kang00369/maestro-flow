@@ -3,7 +3,7 @@
 // Wraps ParallelCliRunner.runAll() behind a GraphWalker-friendly interface.
 // ---------------------------------------------------------------------------
 
-import type { AgentType } from './graph-types.js';
+import type { AgentType, ReasoningEffort } from './graph-types.js';
 import type { ParallelCliRunner } from '../agents/parallel-cli-runner.js';
 
 // ---------------------------------------------------------------------------
@@ -16,6 +16,8 @@ export interface BranchTask {
   prompt: string;
   workDir: string;
   agentType: AgentType;
+  model?: string;
+  reasoningEffort?: ReasoningEffort;
 }
 
 export interface BranchResult {
@@ -37,13 +39,19 @@ export interface ParallelCommandExecutor {
 // AgentType -> tool name mapping (reverse of parallel-cli-runner)
 // ---------------------------------------------------------------------------
 
-const AGENT_TYPE_TO_TOOL: Record<string, string> = {
-  gemini: 'gemini',
-  qwen: 'qwen',
-  codex: 'codex',
-  'claude-code': 'claude',
-  opencode: 'opencode',
-};
+export function resolveParallelTool(agentType: AgentType): string {
+  switch (agentType) {
+    case 'gemini': return 'gemini';
+    case 'qwen': return 'qwen';
+    case 'codex': return 'codex';
+    case 'grok': return 'grok';
+    case 'claude':
+    case 'claude-code': return 'claude';
+    case 'opencode': return 'opencode';
+    default:
+      throw new Error(`Unknown parallel provider: ${String(agentType)}`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // DefaultParallelExecutor
@@ -60,9 +68,11 @@ export class DefaultParallelExecutor implements ParallelCommandExecutor {
     const tasks = branches.map((b) => ({
       id: b.branchId,
       prompt: b.prompt,
-      tool: AGENT_TYPE_TO_TOOL[b.agentType] ?? 'gemini',
+      tool: resolveParallelTool(b.agentType),
       workDir: b.workDir,
       mode: 'write' as const,
+      model: b.model,
+      reasoningEffort: b.reasoningEffort,
     }));
 
     const { results } = await this.runner.runAll(tasks, {

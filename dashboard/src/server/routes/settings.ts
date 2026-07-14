@@ -3,6 +3,7 @@ import { resolve, join } from 'node:path';
 import { homedir } from 'node:os';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { Hono } from 'hono';
+import { DEFAULT_DASHBOARD_AGENT_SETTINGS } from '../config.js';
 
 // ---------------------------------------------------------------------------
 // Settings routes — config file read/write
@@ -47,7 +48,7 @@ export function createSettingsRoutes(workflowRoot: string | (() => string)): Hon
     const p = getPaths();
     const result: Record<string, unknown> = {
       general: { theme: 'system', language: 'en' },
-      agents: {},
+      agents: DEFAULT_DASHBOARD_AGENT_SETTINGS,
       cliTools: '{}',
     };
 

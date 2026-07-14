@@ -172,6 +172,8 @@ export function resolveAgentType(tool: string | null): AgentType {
       return 'claude-code';
     case 'codex':
       return 'codex';
+    case 'grok':
+      return 'grok';
     case 'gemini':
       return 'gemini';
     case 'qwen':

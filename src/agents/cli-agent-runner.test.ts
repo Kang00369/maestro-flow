@@ -1,4 +1,4 @@
-import { after, before, beforeEach, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,7 +9,7 @@ describe('CliAgentRunner', () => {
   let CliAgentRunner: typeof import('./cli-agent-runner.js').CliAgentRunner;
   let CliHistoryStore: typeof import('./cli-history-store.js').CliHistoryStore;
 
-  before(async () => {
+  beforeAll(async () => {
     process.env.MAESTRO_HOME = tempHome;
     ({ CliAgentRunner } = await import('./cli-agent-runner.js'));
     ({ CliHistoryStore } = await import('./cli-history-store.js'));
@@ -19,7 +19,7 @@ describe('CliAgentRunner', () => {
     rmSync(tempHome, { recursive: true, force: true });
   });
 
-  after(() => {
+  afterAll(() => {
     rmSync(tempHome, { recursive: true, force: true });
     delete process.env.MAESTRO_HOME;
   });
@@ -152,15 +152,13 @@ describe('CliAgentRunner', () => {
 
     assert.deepEqual(
       publishedEvents.map((event) => event.type),
-      ['status_update', 'snapshot', 'completed'],
+      ['status_update', 'completed'],
     );
     assert.equal(publishedEvents[0].status, 'running');
-    assert.equal(publishedEvents[1].status, 'running');
-    assert.equal(publishedEvents[2].status, 'completed');
+    assert.equal(publishedEvents[1].status, 'completed');
 
-    const snapshotEvent = publishedEvents[1];
-    assert.equal((snapshotEvent.payload as Record<string, unknown>).summary, 'Worker output');
-    assert.equal((snapshotEvent.snapshot as Record<string, unknown>).outputPreview, 'Worker output');
+    const completedEvent = publishedEvents[1];
+    assert.equal((completedEvent.snapshot as Record<string, unknown>).outputPreview, 'Worker output');
     assert.deepEqual(bridgeCalls, ['spawn', 'entry', 'entry', 'stopped', 'close']);
   });
 
@@ -1012,5 +1010,92 @@ describe('CliAgentRunner', () => {
       execId: 'exec-inject-followup',
       prompt: 'Inject follow-up message',
     }]);
+  });
+});
+
+describe('CliAgentRunner provider routing', () => {
+  it('maps every supported provider explicitly, including configured aliases', async () => {
+    const { resolveCliAgentType } = await import('./cli-agent-runner.js');
+    const cases = [
+      ['gemini', undefined, 'gemini'],
+      ['gemini-a2a', undefined, 'gemini-a2a'],
+      ['qwen', undefined, 'qwen'],
+      ['codex', undefined, 'codex'],
+      ['codex-server', undefined, 'codex-server'],
+      ['grok', undefined, 'grok'],
+      ['claude', undefined, 'claude-code'],
+      ['claude-code', undefined, 'claude-code'],
+      ['opencode', undefined, 'opencode'],
+      ['agy', undefined, 'agy'],
+      ['api-explore', undefined, 'api-explore'],
+      ['custom-codex', 'codex', 'codex'],
+    ] as const;
+
+    for (const [tool, baseTool, expected] of cases) {
+      assert.equal(resolveCliAgentType(tool, baseTool), expected);
+    }
+  });
+
+  it('rejects Grok terminal before calling the adapter factory', async () => {
+    const { CliAgentRunner } = await import('./cli-agent-runner.js');
+    let factoryCalls = 0;
+    const runner = new CliAgentRunner({
+      createAdapter: async () => {
+        factoryCalls += 1;
+        throw new Error('factory must not run');
+      },
+    });
+
+    await assert.rejects(runner.run({
+      prompt: 'must fail closed',
+      tool: 'grok',
+      mode: 'write',
+      workDir: '/tmp/project',
+      backend: 'terminal',
+      sync: true,
+    }), /Grok terminal backend is unsupported/);
+    assert.equal(factoryCalls, 0);
+  });
+
+  it('rejects terminal Delegate context for every provider before calling the adapter factory', async () => {
+    const { CliAgentRunner } = await import('./cli-agent-runner.js');
+    let factoryCalls = 0;
+    const runner = new CliAgentRunner({
+      createAdapter: async () => {
+        factoryCalls += 1;
+        throw new Error('factory must not run');
+      },
+    });
+
+    await assert.rejects(runner.run({
+      prompt: 'must preserve recursion guard',
+      tool: 'codex',
+      mode: 'analysis',
+      workDir: '/tmp/project',
+      backend: 'terminal',
+      sync: true,
+      delegateExecutionContext: 'parent-terminal-test',
+    }), /Delegate terminal backend is unsupported.*recursion guard context/);
+    assert.equal(factoryCalls, 0);
+  });
+
+  it('rejects an unknown provider without calling another provider factory', async () => {
+    const { CliAgentRunner } = await import('./cli-agent-runner.js');
+    let factoryCalls = 0;
+    const runner = new CliAgentRunner({
+      createAdapter: async () => {
+        factoryCalls += 1;
+        throw new Error('factory must not run');
+      },
+    });
+
+    await assert.rejects(runner.run({
+      prompt: 'must fail closed',
+      tool: 'mystery-provider',
+      mode: 'analysis',
+      workDir: '/tmp/project',
+      sync: true,
+    }), /Unknown CLI provider: mystery-provider/);
+    assert.equal(factoryCalls, 0);
   });
 });

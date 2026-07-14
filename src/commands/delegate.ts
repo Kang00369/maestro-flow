@@ -10,6 +10,7 @@ import { CliAgentRunner } from '../agents/cli-agent-runner.js';
 import { CliHistoryStore, type EntryLike } from '../agents/cli-history-store.js';
 import type { ExecutionMeta } from '../agents/cli-history-store.js';
 import { generateCliExecId } from '../agents/cli-agent-runner.js';
+import { assertDelegateEntryAllowed } from '../agents/delegate-execution-context.js';
 import { loadCliToolsConfig, selectTool, resolveProxyEnv, checkProxyReachable } from '../config/cli-tools-config.js';
 import { paths } from '../config/paths.js';
 import { DelegateBrokerClient, type JsonObject, type DelegateJobEvent, type DelegateJobRecord, type DelegateQueuedMessage } from '../async/index.js';
@@ -321,7 +322,7 @@ export function registerDelegateCommand(program: Command): void {
   // ---- Main action ---------------------------------------------------------
 
   delegate
-    .option('--to <tool>', 'CLI tool to delegate to (gemini, qwen, codex, claude, opencode)')
+    .option('--to <tool>', 'CLI tool to delegate to (gemini, qwen, codex, claude, grok, opencode)')
     .option('--role <role>', 'Capability role for targeted spec injection (does not select a tool)')
     .option('--mode <mode>', 'Execution mode (analysis or write)', 'analysis')
     .option('--model <model>', 'Model override')
@@ -331,7 +332,7 @@ export function registerDelegateCommand(program: Command): void {
     .option('--resume [id]', 'Resume previous session (last if no id)')
     .option('--includeDirs <dirs>', 'Additional directories (comma-separated)')
     .option('--session <id>', 'Claude Code session ID for completion notifications')
-    .option('--backend <type>', 'Adapter backend: direct (default) or terminal (tmux/wezterm)')
+    .option('--backend <type>', 'Adapter backend: direct only (terminal is unsupported for Delegate)')
     .option('--effort <level>', 'Reasoning effort level (low, medium, high, max) — overrides tool config')
     .option('--timeout <ms>', 'Stale-stream timeout in ms — force-terminate CLI after this much silence (default 600000 = 10 min); overrides tool config')
     .option('--async', 'Run detached in the background; results delivered via MCP channel notifications (default: synchronous)')
@@ -353,9 +354,32 @@ export function registerDelegateCommand(program: Command): void {
       async?: boolean;
       worker?: boolean;
     }) => {
+      try {
+        assertDelegateEntryAllowed();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Error: ${message}`);
+        process.exitCode = 1;
+        return;
+      }
+
       if (!prompt) {
         console.error('error: prompt is required. Usage: maestro delegate "your prompt"');
         process.exit(1);
+      }
+
+      if (opts.backend !== undefined && opts.backend !== 'direct' && opts.backend !== 'terminal') {
+        console.error(`Invalid backend: ${opts.backend}. Use "direct".`);
+        process.exitCode = 1;
+        return;
+      }
+      if (opts.backend === 'terminal') {
+        console.error(
+          'Error: Delegate terminal backend is unsupported because the recursion guard context ' +
+          'cannot be propagated safely into terminal multiplexer panes. Use --backend direct.',
+        );
+        process.exitCode = 1;
+        return;
       }
 
       const workDir = resolve(opts.cd ?? process.cwd());
@@ -435,7 +459,7 @@ export function registerDelegateCommand(program: Command): void {
         streamTimeout = selected.entry.streamTimeoutMs;
       }
 
-      const backend = (opts.backend === 'terminal' ? 'terminal' : 'direct') as 'direct' | 'terminal';
+      const backend = 'direct' as const;
       const execId = opts.id ?? generateCliExecId(toolName);
       const resume = opts.resume === true ? 'last' : opts.resume;
       const includeDirs = opts.includeDirs?.split(',').map(d => d.trim()).filter(Boolean);
@@ -515,7 +539,11 @@ export function registerDelegateCommand(program: Command): void {
           }
         }
 
-        const exitCode = await runner.run({ ...request, sync: syncMode });
+        const exitCode = await runner.run({
+          ...request,
+          sync: syncMode,
+          delegateExecutionContext: execId,
+        });
 
         // In sync mode, auto-append status summary + output so callers get
         // everything in a single background callback — no manual `output`/`status`.

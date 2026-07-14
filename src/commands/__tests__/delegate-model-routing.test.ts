@@ -43,4 +43,24 @@ describe('detached delegate model routing', () => {
     expect(args).not.toContain('--model');
     expect(args).not.toContain('--effort');
   });
+
+  it('preserves explicit Grok model and effort without changing the provider', () => {
+    const args = buildDetachedDelegateWorkerArgs(
+      makeRequest({
+        tool: 'grok',
+        execId: 'grk-test',
+        mode: 'write',
+        model: 'grok-4.5',
+        reasoningEffort: 'high',
+      }),
+      '/opt/maestro/bin.js',
+    );
+
+    expect(args.slice(args.indexOf('--to'), args.indexOf('--to') + 2))
+      .toEqual(['--to', 'grok']);
+    expect(args.slice(args.indexOf('--model'), args.indexOf('--model') + 2))
+      .toEqual(['--model', 'grok-4.5']);
+    expect(args.slice(args.indexOf('--effort'), args.indexOf('--effort') + 2))
+      .toEqual(['--effort', 'high']);
+  });
 });

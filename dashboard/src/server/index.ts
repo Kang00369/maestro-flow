@@ -76,7 +76,7 @@ async function main(): Promise<void> {
   // ---------------------------------------------------------------------------
   const agentManager = new AgentManager(eventBus);
   const SUBPROCESS_AGENT_TYPES: AgentType[] = [
-    'claude-code', 'gemini', 'gemini-a2a', 'qwen', 'codex', 'codex-server', 'opencode',
+    'claude-code', 'gemini', 'gemini-a2a', 'qwen', 'codex', 'codex-server', 'grok', 'opencode',
   ];
   for (const type of SUBPROCESS_AGENT_TYPES) {
     agentManager.registerAdapter(await createAdapterForType(type));
@@ -104,7 +104,7 @@ async function main(): Promise<void> {
 
   const executionScheduler = new ExecutionScheduler(
     agentManager, eventBus, jsonlPath,
-    undefined, undefined, journal, learningService,
+    undefined, undefined, journal, learningService, workflowRoot,
   );
 
   // ---------------------------------------------------------------------------
@@ -158,7 +158,13 @@ async function main(): Promise<void> {
   // ---------------------------------------------------------------------------
   // WebSocket Handlers + Manager
   // ---------------------------------------------------------------------------
-  const agentHandler = new AgentWsHandler(agentManager, eventBus, workflowRoot, undefined, roomSessionManager);
+  const agentHandler = new AgentWsHandler(
+    agentManager,
+    eventBus,
+    () => stateManager.getWorkflowRoot(),
+    undefined,
+    roomSessionManager,
+  );
   const executionHandler = new ExecutionWsHandler(executionScheduler, waveExecutor, agentManager, eventBus, workflowRoot, agentHandler);
   const commanderHandler = new CommanderWsHandler(commanderAgent);
   const coordinateHandler = new CoordinateWsHandler(coordinateRunner);

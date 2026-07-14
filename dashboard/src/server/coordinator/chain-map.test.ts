@@ -206,6 +206,10 @@ describe('resolveAgentType', () => {
     expect(resolveAgentType('codex')).toBe('codex');
   });
 
+  it('maps grok to grok', () => {
+    expect(resolveAgentType('grok')).toBe('grok');
+  });
+
   it('maps gemini to gemini', () => {
     expect(resolveAgentType('gemini')).toBe('gemini');
   });

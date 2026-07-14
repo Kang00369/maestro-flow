@@ -184,6 +184,18 @@ describe('WorkflowCoordinator', () => {
       expect(mockRouterResolve).toHaveBeenCalledWith('implement the feature');
     });
 
+    it('passes the unified execution config resolver into GraphWalker', async () => {
+      const { coordinator } = createCoordinator();
+      await coordinator.start('implement the feature');
+
+      const factory = (coordinator as unknown as {
+        factory: { create: ReturnType<typeof vi.fn> };
+      }).factory;
+      expect(factory.create).toHaveBeenCalledWith(expect.objectContaining({
+        resolveExecutionConfig: expect.any(Function),
+      }));
+    });
+
     it('uses explicit chainName when provided', async () => {
       const { coordinator } = createCoordinator();
       const session = await coordinator.start('do something', { chainName: 'execute-verify' });

@@ -13,6 +13,7 @@ import type {
 import type { DashboardEventBus } from '../state/event-bus.js';
 import type { AgentManager } from '../agents/agent-manager.js';
 import type { StateManager } from '../state/state-manager.js';
+import { resolveAgentExecutionConfig } from '../config.js';
 
 import { QualityReviewerAgent } from './agents/quality-reviewer-agent.js';
 import { GraphWalkerFactory } from './graph-walker-factory.js';
@@ -66,6 +67,8 @@ export class WorkflowCoordinator {
         emitter: new WalkerEventBridge('coordinate', this.eventBus),
         analyzer: new DashboardStepAnalyzer(this.qualityReviewer),
         sessionDir,
+        resolveExecutionConfig: (request) =>
+          resolveAgentExecutionConfig(this.workflowRoot, request),
       });
     }
     this.graphWalker = await this.graphWalkerInitPromise;

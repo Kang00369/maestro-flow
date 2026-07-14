@@ -13,6 +13,7 @@ export const AVATAR_CONFIG: Record<AgentType, { label: string; color: string; ti
   'claude-code': { label: 'C', color: 'var(--color-accent-purple)', tint: 'var(--color-tint-planning)', className: 'claude' },
   codex:         { label: 'Cx', color: 'var(--color-accent-green)', tint: 'var(--color-tint-completed)', className: 'codex' },
   'codex-server': { label: 'Cs', color: 'var(--color-accent-green)', tint: 'var(--color-tint-completed)', className: 'codex' },
+  grok:          { label: 'X', color: 'var(--color-accent-orange)', tint: 'var(--color-tint-verifying)', className: 'grok' },
   gemini:        { label: 'G', color: 'var(--color-accent-blue)', tint: 'var(--color-tint-exploring)', className: 'gemini' },
   'gemini-a2a':  { label: 'Ga', color: 'var(--color-accent-blue)', tint: 'var(--color-tint-exploring)', className: 'gemini' },
   qwen:          { label: 'Q', color: 'var(--color-accent-orange)', tint: 'var(--color-tint-verifying)', className: 'qwen' },

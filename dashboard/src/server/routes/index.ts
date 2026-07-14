@@ -102,8 +102,8 @@ export function createRoutes(
   // SSE events route (depends on StateManager, EventBus, SSEHub)
   routes.route('/', createEventsRoute(stateManager, eventBus, sseHub));
 
-  // Agent routes (depends on AgentManager)
-  routes.route('/', createAgentRoutes(agentManager));
+  // Agent routes (depends on AgentManager and the current workflow root)
+  routes.route('/', createAgentRoutes(agentManager, getRoot));
 
   // Settings routes (depends on workflow root for config paths)
   routes.route('/', createSettingsRoutes(getRoot));
@@ -184,4 +184,3 @@ export function createRoutes(
 
   return routes;
 }
-

@@ -369,6 +369,7 @@
       "claude_code_desc": "Anthropic Claude CLI agent",
       "agent_sdk_desc": "Anthropic Agent SDK (supports custom endpoints)",
       "codex_desc": "OpenAI Codex CLI agent",
+      "grok_desc": "Grok Build CLI agent",
       "gemini_desc": "Google Gemini CLI agent",
       "qwen_desc": "Alibaba Qwen CLI agent",
       "opencode_desc": "Open-source code agent"

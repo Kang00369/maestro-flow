@@ -306,8 +306,16 @@ export async function loadConfigSources(workDir?: string): Promise<{
 // ---------------------------------------------------------------------------
 
 /** CLI tool definitions — loaded from cli-tools-defaults.json. */
-const TOOL_DEFS: Array<{ name: string; cmd: string; primaryModel: string; tags: string[]; type: string }> =
-  cliToolsDefaults.tools as Array<{ name: string; cmd: string; primaryModel: string; tags: string[]; type: string }>;
+type ToolDefinition = {
+  name: string;
+  cmd: string;
+  primaryModel: string;
+  tags: string[];
+  type: string;
+  reasoningEffort?: ReasoningEffort;
+};
+
+const TOOL_DEFS = cliToolsDefaults.tools as ToolDefinition[];
 
 function isCliAvailable(cmd: string): boolean {
   try {
@@ -318,6 +326,16 @@ function isCliAvailable(cmd: string): boolean {
   }
 }
 
+function buildToolEntry(def: ToolDefinition): ToolEntry {
+  return {
+    enabled: isCliAvailable(def.cmd),
+    primaryModel: def.primaryModel,
+    tags: def.tags,
+    type: def.type,
+    ...(def.reasoningEffort ? { reasoningEffort: def.reasoningEffort } : {}),
+  };
+}
+
 /**
  * Reset ~/.maestro/cli-tools.json to defaults.
  * Re-detects CLI availability and overwrites the existing file.
@@ -326,12 +344,7 @@ function isCliAvailable(cmd: string): boolean {
 export async function resetCliToolsConfig(): Promise<CliToolsConfig> {
   const tools: Record<string, ToolEntry> = {};
   for (const def of TOOL_DEFS) {
-    tools[def.name] = {
-      enabled: isCliAvailable(def.cmd),
-      primaryModel: def.primaryModel,
-      tags: def.tags,
-      type: def.type,
-    };
+    tools[def.name] = buildToolEntry(def);
   }
 
   const config: CliToolsConfig = { version: '1.1.0', tools };
@@ -353,12 +366,7 @@ export interface InitResult {
 function buildDefaultTools(): Record<string, ToolEntry> {
   const tools: Record<string, ToolEntry> = {};
   for (const def of TOOL_DEFS) {
-    tools[def.name] = {
-      enabled: isCliAvailable(def.cmd),
-      primaryModel: def.primaryModel,
-      tags: def.tags,
-      type: def.type,
-    };
+    tools[def.name] = buildToolEntry(def);
   }
   return tools;
 }
@@ -368,12 +376,7 @@ function mergeMissingToolDefs(existing: Record<string, ToolEntry>): { merged: Re
   const added: string[] = [];
   for (const def of TOOL_DEFS) {
     if (merged[def.name]) continue; // preserve user-customized entries verbatim
-    merged[def.name] = {
-      enabled: isCliAvailable(def.cmd),
-      primaryModel: def.primaryModel,
-      tags: def.tags,
-      type: def.type,
-    };
+    merged[def.name] = buildToolEntry(def);
     added.push(def.name);
   }
   return { merged, added };

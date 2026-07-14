@@ -34,6 +34,10 @@ export async function createAdapterForType(agentType: AgentType): Promise<AgentA
       const { CodexCliAdapter } = await import('./codex-cli-adapter.js');
       return new CodexCliAdapter();
     }
+    case 'grok': {
+      const { GrokCliAdapter } = await import('./grok-cli-adapter.js');
+      return new GrokCliAdapter();
+    }
     case 'codex-server': {
       const { CodexAppServerAdapter } = await import('./codex-app-server-adapter.js');
       return new CodexAppServerAdapter();

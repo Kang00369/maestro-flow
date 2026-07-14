@@ -3,11 +3,14 @@
 // ---------------------------------------------------------------------------
 
 import { Hono } from 'hono';
+import { resolve } from 'node:path';
 
 import type { AgentManager } from '../agents/agent-manager.js';
-import type { AgentType } from '../../shared/agent-types.js';
-
-const VALID_AGENT_TYPES = new Set<string>(['claude-code', 'codex', 'gemini', 'qwen', 'opencode']);
+import {
+  AgentExecutionConfigError,
+  resolveAgentExecutionConfig,
+  type AgentExecutionRuntimeConfig,
+} from '../config.js';
 
 /**
  * Agent routes following the Hono factory pattern.
@@ -19,7 +22,10 @@ const VALID_AGENT_TYPES = new Set<string>(['claude-code', 'codex', 'gemini', 'qw
  * GET  /api/agents                 - list all active processes
  * GET  /api/agents/:id/entries     - get entry history for a process
  */
-export function createAgentRoutes(agentManager: AgentManager): Hono {
+export function createAgentRoutes(
+  agentManager: AgentManager,
+  getWorkflowRoot: () => string = () => resolve(process.cwd(), '.workflow'),
+): Hono {
   const app = new Hono();
 
   // POST /api/agents/spawn
@@ -27,33 +33,19 @@ export function createAgentRoutes(agentManager: AgentManager): Hono {
     try {
       const body = await c.req.json<Record<string, unknown>>();
 
-      if (!body.type || typeof body.type !== 'string') {
-        return c.json({ error: 'Missing or invalid "type" field' }, 400);
-      }
-      if (!VALID_AGENT_TYPES.has(body.type)) {
-        return c.json({ error: `Unsupported agent type: ${body.type}` }, 400);
-      }
-      if (!body.prompt || typeof body.prompt !== 'string') {
-        return c.json({ error: 'Missing or invalid "prompt" field' }, 400);
-      }
-      if (!body.workDir || typeof body.workDir !== 'string') {
-        return c.json({ error: 'Missing or invalid "workDir" field' }, 400);
-      }
-
-      const config = {
-        type: body.type as AgentType,
-        prompt: body.prompt as string,
-        workDir: body.workDir as string,
-        env: (body.env as Record<string, string> | undefined),
-        model: (body.model as string | undefined),
-        approvalMode: (body.approvalMode as 'suggest' | 'auto' | undefined),
-      };
+      const config = await resolveAgentExecutionConfig(getWorkflowRoot(), {
+        provider: body.type,
+        prompt: body.prompt,
+        workDir: body.workDir,
+        mode: body.mode,
+        runtime: body as AgentExecutionRuntimeConfig,
+      });
 
       const process = await agentManager.spawn(config.type, config);
       return c.json(process, 201);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (message.includes('No adapter registered')) {
+      if (err instanceof AgentExecutionConfigError || message.includes('No adapter registered')) {
         return c.json({ error: message }, 400);
       }
       return c.json({ error: message }, 500);
