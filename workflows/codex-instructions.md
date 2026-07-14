@@ -1,271 +1,241 @@
-<!-- session-mode: none -->
 # Maestro
 
-<!-- session-mode: none -->
-# Coding Philosophy
-
-## Core Beliefs
-
-- **Pursue good taste** - Eliminate edge cases to make code logic natural and elegant
-- **Embrace extreme simplicity** - Complexity is the root of all evil
-- **Be pragmatic** - Code must solve real-world problems, not hypothetical ones
-- **Data structures first** - Bad programmers worry about code; good programmers worry about data structures
-- **Never break backward compatibility** - Existing functionality is sacred and inviolable
-- **Incremental progress over big bangs** - Small changes that compile and pass tests
-- **Learning from existing code** - Study and plan before implementing
-- **Clear intent over clever code** - Be boring and obvious
-- **Follow existing code style** - Match import patterns, naming conventions, and formatting of existing codebase
-- **Minimize changes** - Only modify what's directly required; avoid refactoring, adding features, or "improving" code beyond the request
-- **No unsolicited documentation** - NEVER generate reports, documentation files, or summaries without explicit user request. When the active command requires a report, write it only to the current Run's `report.md` or declared typed output.
-
-## Simplicity Means
-
-- Single responsibility per function/class
-- Avoid premature abstractions
-- No clever tricks - choose the boring solution
-- If you need to explain it, it's too complex
-
-## Fix, Don't Hide
-
-**Solve problems, don't silence symptoms** - Skipped tests, `@ts-ignore`, empty catch, `as any`, excessive timeouts = hiding bugs, not fixing them
-
-**NEVER**:
-- Make assumptions - verify with existing code
-- Generate reports, summaries, or documentation files without explicit user request
-- Use suppression mechanisms (`skip`, `ignore`, `disable`) without fixing root cause
-
-**ALWAYS**:
-- Plan complex tasks thoroughly before implementation
-- Generate task decomposition for multi-module work (>3 modules or >5 subtasks)
-- Track progress using TODO checklists for complex tasks
-- Validate planning documents before starting development
-- Commit working code incrementally
-- Update plan documentation and progress tracking as you go
-- Learn from existing implementations
-- Stop after 3 failed attempts and reassess
-- **Edit fallback**: When Edit tool fails 2+ times on same file, try Bash sed/awk first, then Write to recreate if still failing
-
-## Learning the Codebase
-
-- Find 3 similar features/components
-- Identify common patterns and conventions
-- Use same libraries/utilities when possible
-- Follow existing test patterns
-
-## Tooling
-
-- Use project's existing build system
-- Use project's test framework
-- Use project's formatter/linter settings
-- Don't introduce new tools without strong justification
-
-## Content Uniqueness Rules
-
-- **Each layer owns its abstraction level** - no content sharing between layers
-- **Reference, don't duplicate** - point to other layers, never copy content
-- **Maintain perspective** - each layer sees the system at its appropriate scale
-- **Avoid implementation creep** - higher layers stay architectural
-
-# Context Requirements
-
-Before implementation, always:
-- Identify 3+ existing similar patterns
-- Map dependencies and integration points
-- Understand testing framework and coding conventions
-
-
-## Delegate & CLI
-
+- **Coding Philosophy**: @~/.maestro/workflows/coding-philosophy.md
 - **CLI Endpoints Config**: @~/.maestro/cli-tools.json
 
-`maestro delegate "<PROMPT>" --to <tool> --mode analysis|write` — dispatch tasks to external CLI tools (gemini, codex, claude, opencode).
-Always `run_in_background: true`. Full guide: `cat ~/.maestro/workflows/delegate-usage.md`
+This file is the managed Codex `AGENTS.md` Maestro core. Keep it as routing
+policy and invariants; detailed flags, schemas, and step loops live in the
+selected `SKILL.md`, workflow docs, hooks, and CLI help.
 
-**Strictly follow the cli-tools.json configuration**
+## Maestro Routing
 
-## Explore
+Use Maestro skills as the intent router when task shape is unclear. Do not
+choose from memory when a router or discovery command exists.
 
-Route code search by the Query Rules table (Knowledge System below) — it is the single source for tool selection. Use `maestro explore` only when the entry point is uncertain or a cross-file relationship needs evidence-backed synthesis. For exact text, regex, known files, or exhaustive call-site scans, use `rg`/Grep directly. When using `maestro explore`, call it and stop to wait for results.
+Important boundary:
+- Free-text user intent routes through Codex skills such as `$maestro`,
+  `$maestro-next`, `$maestro-ralph`, `$maestro-quick`, or an explicit named
+  skill.
+- Do **not** run `maestro "<free text intent>"` in Bash. The shell `maestro`
+  command is only for structured subcommands such as `search`, `load`, `kg`,
+  `delegate`, `csv-wave`, `session ...`, and `run ...`.
 
-```bash
-maestro explore "FIND: <target + condition>\nSCOPE: <paths>" [more prompts...] [options]
-```
+Routing ladder:
+1. Narrow deterministic edit or question: do it directly after the knowledge
+   and code-location gates below.
+2. Small well-understood pipeline: use `$maestro-quick`.
+3. Unclear single next skill: use `$maestro-next` or `$maestro-help`.
+4. Unclear multi-step lifecycle: use `$maestro` or `$maestro-ralph`.
+5. Explicit analysis -> plan -> implementation: use `$maestro-analyze`,
+   `$maestro-plan`, then `$maestro-execute`.
+6. Roadmap-scale requirements: use `$maestro-roadmap`, then plan/execute the
+   selected slice.
+7. Broad rewrite, migration, overhaul, or long-lived fix loop: clarify scope,
+   constraints, and definition of done before execution; prefer `$maestro-ralph`
+   when stateful decisions, goal audit, or regrounding are needed.
+8. Unknown command, skill, or usage question: use `$maestro-help`.
 
-Lightweight read-only codebase search. 1 prompt = 1 agent. Not for write-mode/long sessions — use `delegate`.
+High-signal skill triggers:
 
-| Option | Description |
-|--------|-------------|
-| `-e, --endpoint <names>` | Endpoint name(s), comma-separated |
-| `--all` | Fan out each prompt to all endpoints |
-| `--json` | Output results as JSON |
+| Scenario | Route |
+|----------|-------|
+| Bug, failing test, unexpected behavior | `$quality-debug`; stubborn loop -> `$odyssey-debug` |
+| Code review after changes | `$quality-review`; wide parallel review -> `$team-review` |
+| Automated coverage gaps | `$quality-auto-test` or `$team-testing` |
+| User-observable acceptance/UAT | `$quality-test` |
+| Refactor / tech debt scope | `$quality-refactor`; wide scan/remediation -> `$team-tech-debt` |
+| Security audit / OWASP / STRIDE / secrets / supply chain | `$security-audit` |
+| Frontend/UI design, polish, visual audit | `$maestro-impeccable`; exhaustive UI loop -> `$odyssey-ui` |
+| Multi-role coordination | `$team-coordinate`; full lifecycle team delivery -> `$team-lifecycle-v4` |
+| Specs, knowhow, domain, wiki, issues | matching `spec-*`, `manage-*`, `domain-*`, `wiki-*` skill |
 
-Long-tail options (`--max-turns`, `-f`, `--cd`) — see `maestro explore --help`.
+Do not over-route narrow edits into team or Odyssey workflows. Those are for
+wide, multi-perspective, or zero-residual loops.
 
-### Context Injection
+## Code Exploration
 
-Explore agents have no project awareness — inject context before calling:
+Before any locator call or broad read, assign each exploration scope to either
+the coordinator or a one-shot read-only scout. FastContext-first applies to
+the agent that owns that scope; it does not require the coordinator to run the
+same search before dispatching a scout.
 
-| Injection | Field | Content |
-|-----------|-------|---------|
-| Structure | SCOPE | Concrete paths of relevant directories (no wildcard sweeps) |
-| Domain | SCOPE | Key file paths already returned by `maestro search` |
-| Constraints | ATTENTION | Framework, language, naming conventions |
+The coordinator handles known small files, a single fact, the exact code about
+to be edited, foundational architecture/design/handoff documents, and work
+whose dispatch cost is no lower than direct reading. Implementation, design
+choices, and final verification always remain coordinator-owned.
 
-```
-FIND: authentication middleware that validates JWT tokens
-SCOPE: src/middleware/, src/auth/, src/api/routes/
-ATTENTION: Express.js, middleware files named *.middleware.ts
-```
+Use a one-shot read-only scout for large non-foundational files, cross-file or
+cross-directory searches, independent evidence domains, parallel read-only
+verification, high-volume logs/search output/peripheral material, or a fresh
+module-state check during a long task. For scout-owned scopes, dispatch before
+running the same FastContext query, search, or read in the coordinator.
 
-### Prompt Structure
+For whichever agent owns a scope:
 
-**FIND + SCOPE is the minimum bar.** One declarative sentence per field; no nested conditions.
+1. Use `mcp__fast_context__fast_context_search` first for natural-language code
+   search or unknown symbols. Keep queries focused, set `project_path`, and
+   exclude generated directories.
+2. Inspect the returned files and line ranges with `rg`, `sed`, `nl`, `Read`,
+   or Maestro file tools. FastContext is a locator hint, not final evidence.
+3. Use MaestroGraph (`maestro kg context/callers/callees/path/impact`) only when
+   known-symbol dependencies or call chains need confirmation.
 
-| Field | Required | Rule |
-|-------|----------|------|
-| `FIND` | **Yes** | Decidable concrete target (what + acceptance condition) |
-| `SCOPE` | **Yes** | Explicit paths or globs; `**/*` sweeps forbidden |
-| `EXCLUDE` | No | File types or directories to skip |
-| `ATTENTION` | No | Framework, naming conventions, known pitfalls |
-| `EXPECTED` | Recommended | Output format: `file:line` list / summary / JSON |
+Scout invariants:
 
-```
-FIND: Functions that call db.query() with string concatenation instead of $1/$2
-SCOPE: src/db/**/*.ts, src/api/**/*.ts
-EXCLUDE: **/*.test.ts
-EXPECTED: file:line list with the SQL string
-```
+- Use only the generic `default` agent with `fork_turns = "none"`. Ultra is
+  not required.
+- Give each scout a self-contained scope, question, and output format requiring
+  exact `file:line`, symbols, and necessary source excerpts.
+- A scout is read-only and single-use: no edits, decisions, final conclusions,
+  child agents, follow-ups, or reuse.
+- Dispatch independent scopes concurrently in one round. Then stop duplicating
+  their exploration and wait once with `wait_agent(timeout_ms = 3600000)`.
+- `wait_agent` waits only for native Codex scout mailboxes, never Maestro
+  Delegate, CSV Wave, shell processes, or other external jobs.
+- Treat scout output as compressed evidence: spot-check key citations instead
+  of rereading all delegated material. The coordinator still reads
+  foundational documents and code it will edit in full.
+- After 10 minutes without completion, inspect partial results, stop the scout,
+  and continue locally or redispatch a smaller one-shot scope.
 
-### Cross-Search
+## Knowledge Gate
 
-For important searches, run 2-3 prompts from different angles concurrently; the main agent cross-validates results.
-
-**Split by angle, not by keyword:**
-
-| Angle | Prompt A | Prompt B |
-|-------|----------|----------|
-| Definition vs call sites | Find function definitions | Find call sites |
-| Positive vs negative | Find correct usage | Find missed usage |
-| Entry vs implementation | Find exports/routes | Find internal logic |
-| By file type | Usage in .ts | Usage in .vue |
-
-**Result confidence:**
-- Both hit → high confidence, use directly
-- Single hit → verify with Grep/Read
-- Zero hits → retry from a different angle or target doesn't exist
-
-### Execution
-
-Multi-prompt — background; single lookup — foreground:
-
-```
-Bash({ command: "maestro explore \"p1\" \"p2\" --json", run_in_background: true })
-Bash({ command: "maestro explore \"FIND: ...\nSCOPE: ...\"" })
-```
-
-Session: `maestro explore show` / `maestro explore output <id>`
-
-## Agent Invocation & Timeouts
-
-V2 agents are **asynchronous by default**: after `spawn_agent` / `followup_task`, you must block with `wait_agent` to retrieve results — otherwise the sub-agent becomes orphaned and its final answer is lost. Standard call sequence:
-
-```ts
-spawn_agent({ task_name: "<slug>", message: "<full task prompt>", fork_turns: "none" })
-wait_agent({ timeout_ms: 3600000 })   // timed_out and not finished → wait_agent again
-```
-
-- **Default: always block-wait with the maximum timeout unless the task is explicitly short.** Whenever duration is unpredictable (analysis, review, implementation, exploration, multi-turn sub-agents — i.e. most scenarios), immediately call `wait_agent({ timeout_ms: 3600000 })` (1-hour cap) after `spawn_agent`. Never guess short durations or rely on the 30000 default — this avoids `timed_out` returning early while the agent is still running.
-- **Keep waiting, never abandon**: `timed_out: true` and agent status is not `completed`/`errored` → call `wait_agent({ timeout_ms: 3600000 })` again; use `list_agents` to confirm status if needed.
-- **Exception: explicitly short tasks only** (duration is certain and brief, e.g. single status query/echo) may use a shorter `timeout_ms` (minimum `10000`). This is not the default path.
-- The `message` returned by `wait_agent` is only a mailbox update summary — the final answer is delivered as a `FINAL_ANSWER` message; do not treat the summary as the result body.
-- `spawn_agents_on_csv`: `max_runtime_seconds` (max runtime per worker, in seconds) **must be explicitly set to the cap `3600`**.
-
-## Plan Tracking
-
-- Track task/step progress with `update_plan({ explanation?, plan: [{ step, status }] })`: submit the full step array each time; status: `pending` | `in_progress` | `completed`. The authoritative state lives in session artifacts.
-
-## Goal Tools (unrelated to task tracking)
-
-- Signatures: `create_goal({ objective, token_budget? })`, `update_goal({ status: "complete" | "blocked" })`, `get_goal({})`.
-- **Only use when the user explicitly requests creating a Goal**: single active goal; never infer creation from ordinary tasks; report final token usage to the user upon completion.
-
-## Knowledge System
-
-**Gate rule**: Before editing code or making design decisions, run `maestro search` to retrieve historical knowledge (spec rules, knowhow lessons, design decisions) — avoid repeating known pitfalls or violating established conventions. This is knowledge reuse, not code search — code navigation (Grep/Read/explore) can proceed in parallel without waiting for knowledge results. Empty results ≠ exempt: if a hint is returned, execute it and retry; once confirmed no prior knowledge exists, proceed normally and record findings at task end per Record.
-
-**Re-search triggers** (re-query mid-task with new keywords, never repeat old queries): entering a new module/subsystem boundary; same fix failed twice; before architecture/approach decisions.
+Gate rule: run focused `maestro search` plus relevant `maestro load` before
+reading code deeply or editing files.
 
 ```bash
-maestro search "<query>" [--type <type>] [--category <cat>] [--tag <tag>] [--keyword <word>] [--code] [--kg]
-maestro load --type <type> [--list] [--category <cat>] [--keyword <word>] [--tag <tag>] [--id <id>]
+maestro search "<query>" [--type <type>] [--category <cat>] [--code] [--kg]
+maestro load --type <type> [--list] [--category <cat>] [--keyword <word>] [--id <id>]
 ```
 
-**--type**: `spec`, `knowhow`, `domain`, `issue`, `session`, `scratch`, `note`, `project`, `roadmap`
-**--category** (spec only): `coding`, `arch`, `debug`, `test`, `review`, `learning`, `ui`
-**--tag**: Filter by exact tag match (e.g. `diagnosis`, `review-findings`, `lessons`), wiki only
-**--keyword**: Filter by keyword in title/body (substring match), wiki only
+Query rules:
+- Use 1-3 core keywords per query; several short queries beat one long keyword
+  dump.
+- Separate concepts from symbols.
+- Use `--code` for symbols and code entities.
+- Use `--kg` when cross-layer context from code, specs, knowhow, domain, and
+  issues matters.
+- Always inspect cited source files/line ranges before concluding.
 
-### Query Rules
+The knowledge graph is baseline infrastructure:
 
-1-3 core keywords per query — multiple short queries beat one long one.
-Separate concepts from symbols. Add `--kg` for full-source.
+- If its database is missing, search is BM25-only, code search is unexpectedly
+  empty, or graph commands report an uninitialized graph, run
+  `maestro kg init && maestro kg sync`.
+- Before broad refactors, major renames, or call-chain work, run
+  `maestro kg sync --full`.
+- Do not use missing KG as a reason to fall back to blind grep.
 
-| Target | Tool |
-|--------|------|
-| Known symbol → definition/signature | `maestro search "<Symbol>" --code` (file:line, no agent cost) |
-| Concept / knowledge / conventions | `maestro search "<keywords>"` |
-| Debug symptoms / review lessons (sealed artifacts) | `maestro search "<keywords>" --tag diagnosis` / `--tag lessons` |
-| Exact text / regex / known-file search | `rg` / Grep |
-| Exhaustive usage sweep with a known symbol or syntax pattern | `rg` / Grep |
-| Unknown entry point / cross-file data flow / pattern needing an evidence-backed synthesis | `maestro explore` |
+Record durable knowledge through the matching `spec-*`, `manage-*`, `domain-*`,
+or `wiki-*` skill. Supersede an obsolete rule; mark a conflict only when both
+positions remain plausible and require adjudication. Detailed commands,
+categories, confidence states, and maintenance procedures live in
+@~/.maestro/workflows/knowledge-system.md.
 
-**Association follow-through** — after a hit, walk one hop along relations instead of re-issuing broad queries:
+## Work Dispatch
 
-- Hit a chunked entry (id with `-NNN` suffix) → `maestro load --type knowhow --id <parent-entry-id>` for full text
-- Trace references (who cites it / what it cites) → `maestro wiki backlinks <id>` / `maestro wiki forward <id>`
-- Rule evolution history → `maestro spec history <sid>`
+Use this progressive order:
 
-Zero code hits with a hint (e.g. `code index not initialized`) → run the hinted command, then retry — don't abandon code search.
+1. Coordinator for narrow deterministic work that gains nothing from isolation.
+2. Delegate for one bounded offload; add one critic only when independent
+   verification materially changes confidence.
+3. CSV Wave only for a real row batch, dependency waves, or strict
+   multi-worker schema/retry/recovery requirements.
 
-```bash
-# ❌ keyword dump
-maestro search "topology display frontend DetailedTopologySVG elk"
+Native Codex `spawn_agent` is forbidden except for the one-shot read-only
+scouts defined in Code Exploration. A lifecycle name such as Ralph, analyze,
+plan, or execute does not by itself justify CSV Wave.
 
-# ✅ targeted
-maestro search "topology layout"
-maestro search "DetailedTopologySVG" --code
-maestro load --type spec --category coding
-```
+### Delegate
 
-### Record
+Use `maestro delegate` as the default offload primitive for one bounded task,
+whether short or long. It is appropriate for focused analysis, planning,
+review, research, or implementation when an independent context helps, an
+external CLI perspective is useful, or the main session context should stay
+small.
 
-| What | Command |
-|------|---------|
-| Spec | `/maestro-spec "<constraint>"` (guided; category inferred, or state it as the first word) · `maestro spec add <category> "title" "content" --keywords kw1,kw2 --description "summary"` (direct CLI write) |
-| Knowhow | `/maestro-knowhow` (`--spec-category <cat>` for agent injection) |
+Always pass an enabled provider with `--to` and set `--mode analysis|write`.
+Missing, unknown, or disabled providers fail without fallback; `--role` controls
+spec injection only and never selects a provider. Explicit user model and
+effort flags always win.
 
-Category routing: decisions→`arch`, patterns→`coding`, pitfalls→`debug`/`learning`, rules→`review`, tests→`test`.
-Entry routing: skill commands run guided workflows; `maestro spec add` CLI writes directly (use `--json` in the supersede flow to obtain the sid).
-`session-mode: run` commands receive a finish checklist (handoff, knowledge capture, conflict annotation, verdict) when `maestro run check` is all green — execute every item, no skipping.
+For explicit Codex delegates:
 
-### Supersession & Conflict (dual-track)
+| Task | Model / effort |
+|------|----------------|
+| Ambiguous cross-subsystem reasoning or planning | `gpt-5.6-sol` / `max` |
+| Simple implementation or analysis with clear acceptance | `gpt-5.6-sol` / `low` |
+| Mechanical chores, extraction, or bounded support scans | `gpt-5.6-terra` / `medium` |
 
-| Relation | Scenario | Command | Effect |
-|----------|----------|---------|--------|
-| **supersede** | New rule replaces old rule | `maestro spec supersede <old-sid> --by <new-sid>` | Old entry `deprecated`, evolution chain preserved |
-| **conflict** | Both rules are valid | `maestro spec conflict mark <file> <line> --note "<reason>"` | Old entry `contested` (search ×0.5), human adjudicates |
+Model and effort selection never changes `--to` or enables provider fallback.
+Do not pass Codex model names or effort semantics to another provider unless
+its adapter explicitly supports them.
 
-Confidence levels: `high` → `medium` (default) → `low` (`[LOW CONFIDENCE]`) → `contested` (`[CONTESTED]`).
-Resolution: `/maestro-knowledge audit`
+Use explicit `--to grok --model grok-4.5 --effort high` for fast,
+cost-efficient bounded implementation, iteration, test/fix loops, and
+straightforward review. Keep provider-native Composer workers available; do
+not substitute the lower-quality build model or use Grok for work that needs
+Sol-level ambiguity handling, high-risk architecture, or deep planning.
 
-### Health & Maintenance
+Short synchronous delegates are valid. Use `--async` only when the coordinator
+can make useful progress, then consume completion notification, `status`, or
+`output` instead of building a polling loop. Parallel write delegates require
+independent worktrees.
 
-`maestro spec health` — lifecycle stats + evolution chain integrity. Low-frequency maintenance (`backfill-sid` for sid backfill, `history <sid>` for evolution chains) — see `maestro spec --help`.
+Delegate invariants:
+
+- A Delegate worker must not create another Maestro orchestration layer through
+  `maestro delegate`, `spawn_agents_on_csv`, or native `spawn_agent`.
+  Coordinator-only lifecycle instructions do not authorize recursive dispatch.
+- Provider-native workers inside the selected CLI execution remain allowed,
+  including Grok Composer. If a nested Maestro job is ever observed, treat it
+  as a guard defect and fix the guard instead of messaging the nested session.
+- A failed or missing delegate agent is an error. Do not silently route to a
+  different agent or escalate to CSV Wave as a provider fallback.
+
+Full Delegate options, backend behavior, prompt templates, resume, and message
+delivery live in @~/.maestro/workflows/delegate-usage.md.
+
+### CSV Wave
+
+When the dispatch choice is close, start with one Delegate and upgrade only
+after fresh evidence establishes a CSV trigger. Use `maestro-collab` or
+explicit Delegates for heterogeneous external perspectives.
+
+CSV Wave details belong in the owning skill,
+@~/.maestro/workflows/skill-authoring.md, and `csv-wave-guard`, not in AGENTS.md.
+Before invoking `spawn_agents_on_csv` directly, read the selected skill's
+schema and recovery instructions. Set
+`max_runtime_seconds` explicitly with `3600` as the hard ceiling. The call is
+already blocking; when hosting it in `functions.exec`, normally omit an outer
+explicit `yield_time_ms` so the complete wave returns naturally. Only opt into
+early yield for requested mid-wave observation or cancellation.
+
+Require strict non-empty worker results, schema-backed output,
+artifact-backed recovery when needed, and no recursive fan-out. Do not diagnose
+`multi_agent_v2` without fresh source evidence.
+
+Top-level `$maestro` / `$maestro-ralph` routing is sequential and coordinator
+owned. Do not wrap every lifecycle step in CSV Wave; individual skills may use
+CSV Wave internally when their design requires it.
 
 ## Local Runtime
 
+- Prefer `rg` over `grep`; use `sed`/`nl` for exact line inspection.
+- Use `apply_patch` for manual edits.
 - When rolling back tracked-file changes, use non-destructive git-backed
   rollback such as `git restore -- <path>`, `git checkout <rev> -- <path>`, or
   `git apply -R` against an exact saved diff instead of hand-editing reverse
   patches. If the target is not in a git repository or has no usable git
   history, state that and use the safest manual edit available.
+- If a harness file tool fails because of missing parameters or prior-read
+  tracking, switch to the available Maestro file tools or normal shell reads
+  instead of retrying the same broken call.
+- Preserve user changes in dirty worktrees; do not revert unrelated files.
+
+## Keep AGENTS.md High Signal
+
+AGENTS.md should contain routing, gates, and invariants only. Do not paste full
+Maestro chain maps, skill inventories, CSV schemas, hook tables, install wizard
+details, or workflow state machines here. Open the selected `SKILL.md` or guide
+for exact flags, artifacts, schemas, and execution details.
