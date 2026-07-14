@@ -64,8 +64,9 @@ by the adapter to its supported highest local reasoning setting.
 
 ### Grok Delegate
 
-Use Grok for a fast, cost-conscious implementation or review context when it is
-the explicitly selected provider:
+Use Grok as a fast, cost-efficient, high-value worker for bounded implementation, rapid code
+iteration, test/fix loops, and straightforward review when it is the explicitly
+selected provider:
 
 ```bash
 maestro delegate "<TASK>" --to grok --mode write --model grok-4.5 --effort high
@@ -76,6 +77,8 @@ maps `analysis` to Grok's `read-only` sandbox and `write` to its `workspace`
 sandbox, and does not emit `--no-subagents`. Grok may therefore use its native
 Composer-backed subagents according to the user's Grok configuration. It must
 not silently substitute the lower-quality build model or another provider.
+Cost alone is not a routing reason: keep ambiguous cross-subsystem reasoning,
+high-risk architecture, and deep planning on a provider suited to that work.
 
 **`--mode` is authoritative** — `MODE:` in prompt text is a hint only.
 

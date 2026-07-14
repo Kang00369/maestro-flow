@@ -159,6 +159,11 @@ The harness built-ins still have value for image/PDF/notebook reads and line-num
 
 ## Grok Build notes
 
+- Grok is Maestro's fast, cost-efficient, high-value worker for bounded implementation, rapid
+  code iteration, test/fix loops, and straightforward review. Optimize for a
+  correct result at this role rather than behaving like a low-quality chore
+  model; return difficult ambiguous reasoning or high-risk architectural
+  decisions to the coordinator when they exceed the assigned boundary.
 - Prefer `~/.grok/AGENTS.md` (this managed core) over Claude's `CLAUDE.md` for Maestro policy.
 - Recommended: in `~/.grok/config.toml` set `[compat.claude] agents = false` so Claude persona files are not loaded as project instructions. Keep `skills`, `hooks`, and `mcps` enabled if you want Claude-compatible Maestro assets.
 - Keep Grok's native subagents enabled. Use its `task` workers and configured Composer-backed roles when they improve implementation, exploration, planning, or review; do not add `--no-subagents` merely because Maestro launched the session.
