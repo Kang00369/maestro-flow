@@ -55,23 +55,37 @@ wide, multi-perspective, or zero-residual loops.
 
 ## Code Exploration
 
-Before any locator call or broad read, assign each exploration scope to either
-the coordinator or a one-shot read-only scout. FastContext-first applies to
-the agent that owns that scope; it does not require the coordinator to run the
-same search before dispatching a scout.
+Choose one exploration tier before any locator call or broad read:
+
+1. For a known, narrow location or a single symbol, use the coordinator with
+   FastContext.
+2. For cross-file evidence collection, large peripheral material, or an
+   independent read-only check, use one generic native Scout with FastContext.
+3. For genuinely ambiguous semantic exploration, dependency/impact tracing,
+   or architecture-level synthesis, use `maestro explore` with its sole
+   configured endpoint set to `gpt-5.6-sol`.
+
+Do not maintain a cheaper Explore endpoint: it costs more than FastContext and
+does not provide the independent context and evidence discipline of a Scout.
+Do not use Explore as a fallback for ordinary file or symbol lookup. Choose the
+highest tier justified by the question instead of running all tiers in sequence.
+
+FastContext-first applies to the coordinator and native Scout scopes; it does
+not require the coordinator to duplicate a Scout's search or to pre-search a
+scope that belongs to Explore.
 
 The coordinator handles known small files, a single fact, the exact code about
 to be edited, foundational architecture/design/handoff documents, and work
 whose dispatch cost is no lower than direct reading. Implementation, design
 choices, and final verification always remain coordinator-owned.
 
-Use a one-shot read-only scout for large non-foundational files, cross-file or
+Use a one-shot read-only Scout for large non-foundational files, cross-file or
 cross-directory searches, independent evidence domains, parallel read-only
 verification, high-volume logs/search output/peripheral material, or a fresh
-module-state check during a long task. For scout-owned scopes, dispatch before
+module-state check during a long task. For Scout-owned scopes, dispatch before
 running the same FastContext query, search, or read in the coordinator.
 
-For whichever agent owns a scope:
+For coordinator- and Scout-owned scopes:
 
 1. Use `mcp__fast_context__fast_context_search` first for natural-language code
    search or unknown symbols. Keep queries focused, set `project_path`, and
