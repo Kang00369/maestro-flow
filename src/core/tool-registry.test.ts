@@ -86,6 +86,18 @@ describe('ToolRegistry', () => {
       expect(result.content[0].text).toContain('key');
     });
 
+    it('passes request cancellation context to the tool handler', async () => {
+      const controller = new AbortController();
+      let receivedSignal: AbortSignal | undefined;
+      registry.register(makeTool('cancel', async (_input, context) => {
+        receivedSignal = context?.signal;
+        return { content: [{ type: 'text', text: 'ok' }] };
+      }));
+
+      await registry.execute('cancel', {}, { signal: controller.signal });
+      expect(receivedSignal).toBe(controller.signal);
+    });
+
     it('returns error for unknown tool', async () => {
       const result = await registry.execute('missing', {});
       expect(result.isError).toBe(true);

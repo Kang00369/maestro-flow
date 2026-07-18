@@ -11,6 +11,7 @@ import { loadConfig } from '../config/index.js';
 import { paths } from '../config/paths.js';
 import { registerBuiltinTools } from '../tools/index.js';
 import { DelegateChannelRelay } from './delegate-channel-relay.js';
+import { buildMcpServerInstructions, resolveEnabledMcpTools } from './server-instructions.js';
 
 // Exported for use by CliAgentRunner to push delegate-completion notifications
 let _server: Server | null = null;
@@ -28,6 +29,7 @@ export async function startMcpServer(): Promise<void> {
   const config = loadConfig();
   const registry = new ToolRegistry();
   registerBuiltinTools(registry);
+  const enabledTools = resolveEnabledMcpTools(config.mcp.enabledTools);
 
   const server = new Server(
     { name: 'maestro', version: config.version },
@@ -36,11 +38,7 @@ export async function startMcpServer(): Promise<void> {
         tools: {},
         experimental: { 'claude/channel': {} },
       },
-      instructions:
-        'Delegate task notifications arrive as <channel source="maestro" exec_id="..." event_type="..." status="...">. ' +
-        'These are one-way status updates from async delegate workers. ' +
-        'When a delegate completes (status=completed) or fails (status=failed), report the result. ' +
-        'For full output details, run "maestro delegate status <exec_id>" or "maestro delegate output <exec_id>" in the shell.',
+      instructions: buildMcpServerInstructions(enabledTools),
     }
   );
 
@@ -73,16 +71,10 @@ export async function startMcpServer(): Promise<void> {
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const tools = registry.list();
 
-    // MAESTRO_ENABLED_TOOLS env var takes priority over config
-    const envTools = process.env.MAESTRO_ENABLED_TOOLS;
-    const enabled = envTools
-      ? envTools.split(',').map(t => t.trim()).filter(Boolean)
-      : config.mcp.enabledTools;
-
     const filtered =
-      enabled.includes('all')
+      enabledTools.includes('all')
         ? tools
-        : tools.filter((t) => enabled.includes(t.name));
+        : tools.filter((t) => enabledTools.includes(t.name));
 
     return {
       tools: filtered.map((t) => ({
@@ -93,9 +85,15 @@ export async function startMcpServer(): Promise<void> {
     };
   });
 
-  server.setRequestHandler(CallToolRequestSchema, async (req) => {
+  server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
     const { name, arguments: args } = req.params;
-    return registry.execute(name, (args ?? {}) as Record<string, unknown>) as any;
+    if (!enabledTools.includes('all') && !enabledTools.includes(name)) {
+      return {
+        content: [{ type: 'text', text: `Unknown or disabled tool: ${name}` }],
+        isError: true,
+      };
+    }
+    return registry.execute(name, (args ?? {}) as Record<string, unknown>, { signal: extra.signal }) as any;
   });
 
   const transport = new StdioServerTransport();

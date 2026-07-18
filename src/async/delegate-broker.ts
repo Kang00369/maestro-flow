@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, renameSync, watch, writeFileSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { paths } from '../config/paths.js';
 
 const require = createRequire(import.meta.url);
@@ -170,6 +170,22 @@ export interface DelegateBrokerApi {
   purgeExpiredEvents(input?: PurgeExpiredEventsInput): PurgeExpiredEventsResult;
 }
 
+export interface WaitForDelegateInput {
+  jobId: string;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
+export interface DelegateWaitResult {
+  job: DelegateJobRecord | null;
+  timedOut: boolean;
+}
+
+export interface WaitableDelegateBrokerApi extends DelegateBrokerApi {
+  waitForTerminal(input: WaitForDelegateInput): Promise<DelegateWaitResult>;
+  close?(): void;
+}
+
 interface StoredJobEvent extends DelegateJobEvent {
   ackedBy: Record<string, string>;
 }
@@ -193,6 +209,7 @@ const DEFAULT_BROKER_DB_PATH = join(paths.data, 'async', 'delegate-broker.sqlite
 const TERMINAL_STATUSES = new Set<DelegateJobStatus>(['completed', 'failed', 'cancelled']);
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const DEFAULT_PURGE_MAX_AGE_MS = 2 * 60 * 60 * 1000; // 2 hours
+export const MAX_DELEGATE_WAIT_TIMEOUT_MS = 2_147_483_647;
 
 function createEmptyState(): DelegateBrokerState {
   return {
@@ -263,6 +280,92 @@ function mergeJsonObjects(
 
 function isTerminalStatus(status: DelegateJobStatus | undefined): boolean {
   return status !== undefined && TERMINAL_STATUSES.has(status);
+}
+
+function waitForTerminalFileEvent(
+  input: WaitForDelegateInput,
+  watchPath: string,
+  isRelevantFile: (filename: string | null) => boolean,
+  getJob: () => DelegateJobRecord | null,
+): Promise<DelegateWaitResult> {
+  if (input.timeoutMs !== undefined && (
+    !Number.isInteger(input.timeoutMs)
+    || input.timeoutMs < 1
+    || input.timeoutMs > MAX_DELEGATE_WAIT_TIMEOUT_MS
+  )) {
+    return Promise.reject(new RangeError(
+      `Delegate wait timeout must be between 1 and ${MAX_DELEGATE_WAIT_TIMEOUT_MS} milliseconds`,
+    ));
+  }
+
+  const initial = getJob();
+  if (!initial || isTerminalStatus(initial.status)) {
+    return Promise.resolve({ job: initial, timedOut: false });
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timer: NodeJS.Timeout | undefined;
+    let watcher: ReturnType<typeof watch> | undefined;
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      watcher?.close();
+      input.signal?.removeEventListener('abort', onAbort);
+    };
+    const finish = (result: DelegateWaitResult) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(result);
+    };
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const inspect = () => {
+      try {
+        const job = getJob();
+        if (!job || isTerminalStatus(job.status)) finish({ job, timedOut: false });
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error(String(error)));
+      }
+    };
+    const expire = () => {
+      try {
+        const job = getJob();
+        finish({ job, timedOut: Boolean(job && !isTerminalStatus(job.status)) });
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error(String(error)));
+      }
+    };
+    const onAbort = () => fail(input.signal?.reason instanceof Error
+      ? input.signal.reason
+      : new Error('Delegate wait aborted'));
+
+    try {
+      watcher = watch(watchPath, (_eventType, filename) => {
+        const name = filename === null ? null : filename.toString();
+        if (isRelevantFile(name)) inspect();
+      });
+      watcher.on('error', fail);
+    } catch (error) {
+      fail(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
+
+    input.signal?.addEventListener('abort', onAbort, { once: true });
+    if (input.signal?.aborted) {
+      onAbort();
+      return;
+    }
+    if (input.timeoutMs !== undefined) {
+      timer = setTimeout(expire, input.timeoutMs);
+      timer.unref?.();
+    }
+    inspect();
+  });
 }
 
 function buildCancelMetadata(
@@ -394,7 +497,7 @@ export function defaultDelegateBrokerDbPath(): string {
   return DEFAULT_BROKER_DB_PATH;
 }
 
-export class FileDelegateBroker implements DelegateBrokerApi {
+export class FileDelegateBroker implements WaitableDelegateBrokerApi {
   private readonly statePath: string;
 
   constructor(options: FileDelegateBrokerOptions = {}) {
@@ -540,6 +643,16 @@ export class FileDelegateBroker implements DelegateBrokerApi {
   getJob(jobId: string): DelegateJobRecord | null {
     const state = this.readState();
     return state.jobs[jobId] ?? null;
+  }
+
+  async waitForTerminal(input: WaitForDelegateInput): Promise<DelegateWaitResult> {
+    const stateFile = basename(this.statePath);
+    return waitForTerminalFileEvent(
+      input,
+      dirname(this.statePath),
+      (filename) => filename === null || filename === stateFile,
+      () => this.getJob(input.jobId),
+    );
   }
 
   listJobEvents(jobId: string): DelegateJobEvent[] {
@@ -861,7 +974,7 @@ interface EventRow {
   metadata: string | null;
 }
 
-export class SqliteDelegateBroker implements DelegateBrokerApi {
+export class SqliteDelegateBroker implements WaitableDelegateBrokerApi {
   private readonly dbPath: string;
   private readonly db: DatabaseSyncLike;
 
@@ -1057,6 +1170,17 @@ export class SqliteDelegateBroker implements DelegateBrokerApi {
   getJob(jobId: string): DelegateJobRecord | null {
     const row = this.getJobRow(jobId);
     return row ? this.jobFromRow(row) : null;
+  }
+
+  async waitForTerminal(input: WaitForDelegateInput): Promise<DelegateWaitResult> {
+    const dbFile = basename(this.dbPath);
+    return waitForTerminalFileEvent(
+      input,
+      dirname(this.dbPath),
+      (filename) => filename === null || filename === dbFile
+        || filename === `${dbFile}-wal` || filename === `${dbFile}-shm`,
+      () => this.getJob(input.jobId),
+    );
   }
 
   listJobEvents(jobId: string): DelegateJobEvent[] {
@@ -1457,7 +1581,7 @@ export class SqliteDelegateBroker implements DelegateBrokerApi {
   }
 }
 
-export function createDefaultDelegateBroker(options: FileDelegateBrokerOptions = {}): DelegateBrokerApi {
+export function createDefaultDelegateBroker(options: FileDelegateBrokerOptions = {}): WaitableDelegateBrokerApi {
   const preferSqlite = options.preferSqlite ?? !options.statePath;
   if (preferSqlite && sqliteAvailable()) {
     return new SqliteDelegateBroker(options);

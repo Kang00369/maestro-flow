@@ -1,6 +1,6 @@
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -160,6 +160,49 @@ describe('CliAgentRunner', () => {
     const completedEvent = publishedEvents[1];
     assert.equal((completedEvent.snapshot as Record<string, unknown>).outputPreview, 'Worker output');
     assert.deepEqual(bridgeCalls, ['spawn', 'entry', 'entry', 'stopped', 'close']);
+  });
+
+  it('waits for terminal history metadata from a filesystem event', async () => {
+    const store = new CliHistoryStore();
+    const running = {
+      execId: 'exec-history-wait',
+      tool: 'codex',
+      mode: 'analysis',
+      prompt: 'wait for completion',
+      workDir: tempHome,
+      startedAt: '2026-07-15T00:00:00.000Z',
+    };
+    store.saveMeta(running.execId, running);
+
+    const waiting = store.waitForTerminalMeta(running.execId, { timeoutMs: 2_000 });
+    store.saveMeta(running.execId, {
+      ...running,
+      completedAt: '2026-07-15T00:00:01.000Z',
+      exitCode: 0,
+    });
+
+    await expect(waiting).resolves.toMatchObject({
+      timedOut: false,
+      meta: { execId: running.execId, exitCode: 0 },
+    });
+  });
+
+  it('does not treat a transient unreadable metadata event as terminal', async () => {
+    const store = new CliHistoryStore();
+    const running = {
+      execId: 'exec-history-transient',
+      tool: 'codex',
+      mode: 'analysis',
+      prompt: 'ignore partial metadata',
+      workDir: tempHome,
+      startedAt: '2026-07-15T00:00:00.000Z',
+    };
+    store.saveMeta(running.execId, running);
+
+    const waiting = store.waitForTerminalMeta(running.execId, { timeoutMs: 25 });
+    writeFileSync(join(tempHome, 'cli-history', `${running.execId}.meta.json`), '{', 'utf-8');
+
+    await expect(waiting).resolves.toMatchObject({ timedOut: true, meta: null });
   });
 
   it('treats a broker cancel request as a cancelled execution and stops the adapter', async () => {

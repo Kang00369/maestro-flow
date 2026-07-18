@@ -177,10 +177,15 @@ straightforward review. Keep provider-native Composer workers available; do
 not substitute the lower-quality build model or use Grok for work that needs
 Sol-level ambiguity handling, high-risk architecture, or deep planning.
 
-Short synchronous delegates are valid. Use `--async` only when the coordinator
-can make useful progress, then consume completion notification, `status`, or
-`output` instead of building a polling loop. Parallel write delegates require
-independent worktrees.
+Default Delegate execution is synchronous, independent of expected duration.
+Use --async only when the coordinator can make useful progress on concrete,
+independent work. When the result becomes necessary, run
+`maestro delegate wait <exec_id>` and wait exactly once. Do not use sleep or
+repeated status/output queries. A harness using `write_stdin` to await that one
+still-running wait process is process waiting, not Delegate status polling.
+When hosting synchronous Delegate or `delegate wait` in `functions.exec`, omit
+an outer early `yield_time_ms` so the blocking command can return naturally.
+Parallel write delegates require independent worktrees.
 
 Delegate invariants:
 

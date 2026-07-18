@@ -14,6 +14,7 @@ import {
   deriveDelegateStatus,
   type DelegateJobLike,
 } from '../utils/cli-format.js';
+import { normalizeDelegateExecId, requireValidDelegateExecId } from './delegate-exec-id.js';
 
 export interface DelegateMessageInput {
   execId: string;
@@ -49,12 +50,7 @@ function readStringArray(value: unknown): string[] | undefined {
   return strings.length > 0 ? strings : undefined;
 }
 
-export function normalizeDelegateExecId(value: string): string {
-  const trimmed = value.trim();
-  return trimmed.startsWith('cli-history-')
-    ? trimmed.slice('cli-history-'.length)
-    : trimmed;
-}
+export { normalizeDelegateExecId };
 
 export { deriveExecutionStatus, deriveDelegateStatus, type DelegateJobLike };
 
@@ -116,12 +112,9 @@ export function handleDelegateMessage(
   const historyStore = dependencies.historyStore ?? new CliHistoryStore();
   const delegateBroker = dependencies.delegateBroker ?? new DelegateBrokerClient();
   const launchDelegate = dependencies.launchDetachedDelegate ?? launchDetachedDelegateWorker;
-  const execId = normalizeDelegateExecId(input.execId);
+  const execId = requireValidDelegateExecId(input.execId);
   const message = input.message.trim();
 
-  if (!execId) {
-    throw new Error('execId is required');
-  }
   if (!message) {
     throw new Error('message is required');
   }

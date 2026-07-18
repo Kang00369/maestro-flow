@@ -1,5 +1,5 @@
 import type { ToolRegistry } from '../core/tool-registry.js';
-import type { ToolResult } from '../types/index.js';
+import type { ToolExecutionContext, ToolResult } from '../types/index.js';
 import { ccwResultToMcp } from '../types/tool-schema.js';
 
 // CCW-style tool modules (schema + handler exports)
@@ -14,6 +14,7 @@ import * as teamTasksMcpTool from './team-tasks-mcp.js';
 import * as teamAgentsTool from './team-agents.js';
 import * as wikiSearchTool from './wiki-search.js';
 import * as codeSemanticSearchTool from './code-semantic-search.js';
+import * as delegateWaitTool from './delegate-wait.js';
 
 /**
  * Register a CCW-style tool (with schema + handler exports) into the maestro registry.
@@ -21,14 +22,14 @@ import * as codeSemanticSearchTool from './code-semantic-search.js';
  */
 function registerCcwTool(
   registry: ToolRegistry,
-  mod: { schema: { name: string; description: string; inputSchema: Record<string, unknown> }; handler: (params: Record<string, unknown>) => Promise<any> },
+  mod: { schema: { name: string; description: string; inputSchema: Record<string, unknown> }; handler: (params: Record<string, unknown>, signal?: AbortSignal) => Promise<any> },
 ): void {
   registry.register({
     name: mod.schema.name,
     description: mod.schema.description,
     inputSchema: mod.schema.inputSchema,
-    async handler(input: Record<string, unknown>): Promise<ToolResult> {
-      const ccwResult = await mod.handler(input);
+    async handler(input: Record<string, unknown>, context?: ToolExecutionContext): Promise<ToolResult> {
+      const ccwResult = await mod.handler(input, context?.signal);
       return ccwResultToMcp(ccwResult);
     },
   });
@@ -46,4 +47,5 @@ export function registerBuiltinTools(registry: ToolRegistry): void {
   registerCcwTool(registry, teamAgentsTool);
   registerCcwTool(registry, wikiSearchTool);
   registerCcwTool(registry, codeSemanticSearchTool);
+  registerCcwTool(registry, delegateWaitTool);
 }

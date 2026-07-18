@@ -782,6 +782,7 @@ export const MCP_TOOLS = [
   'read_many_files',
   'team_msg',
   'store_knowhow',
+  'delegate_wait',
 ] as const;
 
 // ---------------------------------------------------------------------------

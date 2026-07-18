@@ -119,7 +119,11 @@ export interface Tool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
-  handler: (input: Record<string, unknown>) => Promise<ToolResult>;
+  handler: (input: Record<string, unknown>, context?: ToolExecutionContext) => Promise<ToolResult>;
+}
+
+export interface ToolExecutionContext {
+  signal?: AbortSignal;
 }
 
 export interface ToolResult {

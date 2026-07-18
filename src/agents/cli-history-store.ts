@@ -6,6 +6,7 @@
 import { join } from 'node:path';
 import {
   appendFileSync,
+  watch,
   writeFileSync,
   readFileSync,
   readdirSync,
@@ -51,6 +52,16 @@ export interface ExecutionSnapshot {
   outputChars: number;
 }
 
+export interface WaitForTerminalMetaOptions {
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
+export interface TerminalMetaWaitResult {
+  meta: ExecutionMeta | null;
+  timedOut: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -91,6 +102,73 @@ export class CliHistoryStore {
   /** Expose JSONL file path for a given execution (used by watch). */
   jsonlPathFor(execId: string): string {
     return this.jsonlPath(execId);
+  }
+
+  /** Wait for terminal metadata using filesystem events, never interval polling. */
+  waitForTerminalMeta(
+    execId: string,
+    options: WaitForTerminalMetaOptions = {},
+  ): Promise<TerminalMetaWaitResult> {
+    const targetName = `${execId}.meta.json`;
+    const initial = this.loadMeta(execId);
+    if (!initial || isTerminalMeta(initial)) {
+      return Promise.resolve({ meta: initial, timedOut: false });
+    }
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let timer: NodeJS.Timeout | undefined;
+      let watcher: ReturnType<typeof watch> | undefined;
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        watcher?.close();
+        options.signal?.removeEventListener('abort', onAbort);
+      };
+      const finish = (result: TerminalMetaWaitResult) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(result);
+      };
+      const fail = (error: Error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+      const inspect = () => {
+        const meta = this.loadMeta(execId);
+        // A change event may arrive while writeFileSync has truncated but not
+        // yet fully rewritten the JSON. Missing/unparseable metadata is not a
+        // terminal signal; the broker source or a later history event remains
+        // authoritative.
+        if (meta && isTerminalMeta(meta)) finish({ meta, timedOut: false });
+      };
+      const onAbort = () => fail(options.signal?.reason instanceof Error
+        ? options.signal.reason
+        : new Error('Delegate history wait aborted'));
+
+      try {
+        watcher = watch(this.dir, (_eventType, filename) => {
+          if (filename === null || filename.toString() === targetName) inspect();
+        });
+        watcher.on('error', fail);
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error(String(error)));
+        return;
+      }
+
+      options.signal?.addEventListener('abort', onAbort, { once: true });
+      if (options.signal?.aborted) {
+        onAbort();
+        return;
+      }
+      if (options.timeoutMs !== undefined) {
+        timer = setTimeout(() => finish({ meta: this.loadMeta(execId), timedOut: true }), options.timeoutMs);
+        timer.unref?.();
+      }
+      inspect();
+    });
   }
 
   // ---- Write operations ---------------------------------------------------
@@ -388,6 +466,10 @@ export class CliHistoryStore {
       outputChars: output.length,
     };
   }
+}
+
+function isTerminalMeta(meta: ExecutionMeta): boolean {
+  return Boolean(meta.cancelledAt || meta.completedAt || meta.exitCode !== undefined);
 }
 
 // ---------------------------------------------------------------------------

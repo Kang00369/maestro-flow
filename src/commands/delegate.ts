@@ -13,8 +13,10 @@ import { generateCliExecId } from '../agents/cli-agent-runner.js';
 import { assertDelegateEntryAllowed } from '../agents/delegate-execution-context.js';
 import { loadCliToolsConfig, selectTool, resolveProxyEnv, checkProxyReachable } from '../config/cli-tools-config.js';
 import { paths } from '../config/paths.js';
-import { DelegateBrokerClient, type JsonObject, type DelegateJobEvent, type DelegateJobRecord, type DelegateQueuedMessage } from '../async/index.js';
+import { DelegateBrokerClient, MAX_DELEGATE_WAIT_TIMEOUT_MS, type JsonObject, type DelegateJobEvent, type DelegateJobRecord, type DelegateQueuedMessage } from '../async/index.js';
 import { handleDelegateMessage } from '../async/delegate-control.js';
+import { DelegateExecutionNotFoundError, DelegateWaitService } from '../async/delegate-wait.js';
+import { requireValidDelegateExecId } from '../async/delegate-exec-id.js';
 import {
   deriveExecutionStatus,
   deriveDelegateStatus,
@@ -23,6 +25,12 @@ import {
   readExecutionEntries,
   summarizeBrokerEventCli,
 } from '../utils/cli-format.js';
+
+let delegateWaitServiceForTests: DelegateWaitService | null = null;
+
+export function __setDelegateWaitServiceForTests(service: DelegateWaitService | null): void {
+  delegateWaitServiceForTests = service;
+}
 
 function statusLabel(meta: ExecutionMeta): string {
   const s = deriveExecutionStatus(meta);
@@ -506,7 +514,7 @@ export function registerDelegateCommand(program: Command): void {
           process.stderr.write(`[MAESTRO_EXEC_ID=${execId}]\n`);
           launchDetachedDelegateWorker(request);
           console.log(`Started async delegate: ${execId}`);
-          console.log(`Use \`maestro delegate output ${execId}\` to inspect the result.`);
+          console.log(`Use \`maestro delegate wait ${execId}\` once when the result is needed.`);
           return;
         }
 
@@ -643,6 +651,58 @@ export function registerDelegateCommand(program: Command): void {
     });
 
   // ---- output subcommand ---------------------------------------------------
+
+  delegate
+    .command('wait <id>')
+    .description('Wait for a delegated execution to reach a terminal state')
+    .option('--timeout <ms>', 'Limit this wait without cancelling the delegate')
+    .action(async (id: string, opts: { timeout?: string }, command: Command) => {
+      let execId: string;
+      try {
+        execId = requireValidDelegateExecId(id);
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exitCode = 1;
+        return;
+      }
+      let timeoutMs: number | undefined;
+      const timeoutOption = opts.timeout ?? command.parent?.opts<{ timeout?: string }>().timeout;
+      if (timeoutOption !== undefined) {
+        timeoutMs = Number(timeoutOption);
+        if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_DELEGATE_WAIT_TIMEOUT_MS) {
+          console.error(`Invalid timeout: ${timeoutOption}. Use 1-${MAX_DELEGATE_WAIT_TIMEOUT_MS} milliseconds.`);
+          process.exitCode = 1;
+          return;
+        }
+      }
+
+      try {
+        const service = delegateWaitServiceForTests ?? new DelegateWaitService();
+        const result = await (async () => {
+          try {
+            return await service.wait(execId, timeoutMs);
+          } finally {
+            if (!delegateWaitServiceForTests) service.close();
+          }
+        })();
+        process.stderr.write(`[DELEGATE ${result.status.toUpperCase()}] ${execId}\n`);
+        if (result.output) {
+          process.stdout.write(result.output);
+          if (!result.output.endsWith('\n')) process.stdout.write('\n');
+        }
+        process.exitCode = result.timed_out
+          ? 124
+          : result.status === 'completed'
+            ? 0
+            : result.status === 'cancelled'
+              ? 130
+              : 1;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(error instanceof DelegateExecutionNotFoundError ? message : `Delegate wait failed: ${message}`);
+        process.exitCode = 1;
+      }
+    });
 
   delegate
     .command('output <id>')

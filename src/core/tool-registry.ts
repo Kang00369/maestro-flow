@@ -1,4 +1,4 @@
-import type { Tool, ToolResult } from '../types/index.js';
+import type { Tool, ToolExecutionContext, ToolResult } from '../types/index.js';
 
 export class ToolRegistry {
   private tools = new Map<string, Tool>();
@@ -22,7 +22,11 @@ export class ToolRegistry {
     return Array.from(this.tools.values());
   }
 
-  async execute(name: string, input: Record<string, unknown>): Promise<ToolResult> {
+  async execute(
+    name: string,
+    input: Record<string, unknown>,
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult> {
     const tool = this.tools.get(name);
     if (!tool) {
       return {
@@ -30,6 +34,6 @@ export class ToolRegistry {
         isError: true,
       };
     }
-    return tool.handler(input);
+    return tool.handler(input, context);
   }
 }

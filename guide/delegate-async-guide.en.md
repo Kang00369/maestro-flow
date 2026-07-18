@@ -14,7 +14,8 @@ Async task delegation via detached worker processes, with broker-managed lifecyc
 claude --dangerously-load-development-channels server:maestro --dangerously-skip-permissions
 ```
 
-Delegate tools (`delegate_message`, `delegate_status`, `delegate_output`, `delegate_tail`, `delegate_cancel`) are available as MCP tools automatically.
+The MCP tool `delegate_wait` provides the blocking async-result path. Its input
+is `exec_id` plus optional `timeout_ms`.
 
 ### Launch via CLI
 
@@ -38,7 +39,7 @@ maestro delegate "<PROMPT>" [options]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--to <tool>` | Agent: gemini, qwen, codex, claude, opencode | First enabled in config |
+| `--to <tool>` | Explicit enabled agent | Required |
 | `--role <role>` | Capability role (analyze, explore, review, implement, plan, brainstorm, research) | — |
 | `--mode <mode>` | `analysis` (read-only) or `write` (create/modify/delete) | `analysis` |
 | `--effort <level>` | Reasoning effort (low, medium, high, max) | — |
@@ -49,7 +50,7 @@ maestro delegate "<PROMPT>" [options]
 | `--resume [id]` | Resume previous session | — |
 | `--includeDirs <dirs>` | Additional directories (comma-separated) | — |
 | `--session <id>` | MCP session ID for notifications | Auto-detected |
-| `--backend <type>` | `direct` or `terminal` | `direct` |
+| `--backend <type>` | `direct`; Delegate rejects `terminal` | `direct` |
 | `--async` | Run in background, return immediately | foreground |
 
 ### Subcommands
@@ -57,6 +58,8 @@ maestro delegate "<PROMPT>" [options]
 ```bash
 maestro delegate show                              # Recent 20 executions
 maestro delegate show --all                        # Up to 100
+maestro delegate wait <id>                         # Block once until terminal
+maestro delegate wait <id> --timeout 60000         # Limit this wait only
 maestro delegate status <id>                       # Broker + history state
 maestro delegate status <id> --events 10           # With more broker events
 maestro delegate output <id>                       # Assistant output
@@ -76,12 +79,7 @@ maestro delegate messages <id>                     # List queued messages
 
 | CLI Subcommand | MCP Tool | Extra Params |
 |---------------|----------|-------------|
-| `message <id> "text"` | `delegate_message` | `delivery` (inject/after_complete) |
-| `messages <id>` | `delegate_messages` | — |
-| `status <id>` | `delegate_status` | `eventLimit` |
-| `output <id>` | `delegate_output` | — |
-| `tail <id>` | `delegate_tail` | `limit` |
-| `cancel <id>` | `delegate_cancel` | — |
+| `wait <id>` | `delegate_wait` | `exec_id`, optional `timeout_ms` |
 
 ---
 
@@ -124,7 +122,7 @@ Prefix: gemini→`gem`, qwen→`qwn`, codex→`cdx`, claude→`cld`, opencode→
 | cancel | — | ✅ |
 | message inject | — | ✅ |
 | message after_complete | — | ✅ |
-| MCP tool equivalents | — | ✅ (6 tools) |
+| MCP wait tool | — | ✅ `delegate_wait` |
 | MCP channel notifications | — | ✅ |
 | Snapshot (latest output preview) | — | ✅ |
 
@@ -185,18 +183,31 @@ Throttling: `status_update` at 10s, `snapshot` at 15s.
 
 ---
 
+## Waiting Contract
+
+Default execution is synchronous. Expected duration alone never selects
+`--async`. Use `--async` only when the coordinator has useful independent work
+to perform before it needs the result. Status, tail, and output are diagnostics,
+not waiting primitives.
+
+`wait` writes terminal output to stdout and status to stderr. Exit codes are
+completed `0`, failed/unknown `1`, wait timeout `124`, and cancelled `130`.
+Empty terminal output is valid. A wait timeout returns the latest state without
+cancelling or mutating the Delegate. MCP `delegate_wait` returns the same
+structured status, `timed_out`, and output semantics without converting failed
+or cancelled terminal jobs into tool errors.
+
 ## Workflows
 
-### Launch → Monitor → Retrieve
+### Launch → Useful Parallel Work → Wait Once → Result
 
 ```bash
 maestro delegate "analyze auth module" --to gemini --async
 # → execId: gem-143022-a7f2
 
-maestro delegate status gem-143022-a7f2
-# → status: running
+# Perform concrete work that does not depend on the Delegate result.
 
-maestro delegate output gem-143022-a7f2
+maestro delegate wait gem-143022-a7f2
 # → full analysis result
 ```
 

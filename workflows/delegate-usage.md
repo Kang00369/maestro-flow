@@ -111,10 +111,25 @@ CONSTRAINTS: [scope limits]
 
 ## Execution Rules
 
-Short synchronous delegates are valid and useful for bounded work. Use
-`--async` only when the coordinator can make useful progress while the delegate
-runs; consume the completion notification or query `status` / `output` rather
-than building a manual polling loop.
+Default is synchronous: a Delegate without `--async` blocks and returns its
+terminal status and last reply, regardless of expected duration. Use `--async`
+only when the coordinator can make useful progress on concrete independent
+work while the Delegate runs. When its result becomes a dependency, wait once:
+
+```bash
+maestro delegate wait <exec_id>
+maestro delegate wait <exec_id> --timeout <ms>
+```
+
+The wait is event-driven. A caller timeout does not cancel or mutate the job.
+Exit codes are completed `0`, failed or unknown `1`, caller timeout `124`, and
+cancelled `130`. Terminal output, including a legal empty string, is written to
+stdout; status is written to stderr. The `status`, `tail`, and `output` commands
+remain available, but status, tail, and output are diagnostics, not waiting
+primitives. Do not sleep and recheck status, or loop over status/output.
+When hosting a synchronous Delegate or `delegate wait` in `functions.exec`, do
+not set an outer early `yield_time_ms`; let the blocking command return
+naturally, as with CSV Wave.
 
 When the current session is already a Maestro Delegate worker, it must not
 create a second Maestro orchestration layer through another
@@ -164,4 +179,6 @@ Proactively invoke for `analysis` mode — no user confirmation needed:
 | Pattern uncertainty | `analysis-analyze-code-patterns` |
 | Critical/security code paths | `analysis-assess-security-risks` |
 
-Default to `--mode analysis`; choose synchronous or `--async` from task duration.
+Default to `--mode analysis`. Expected duration does not select `--async`; use it
+only when the coordinator has concrete independent work to do before the result
+becomes a dependency.
