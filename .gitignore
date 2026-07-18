@@ -25,6 +25,7 @@ Thumbs.db
 !.workflow/collab/
 .workflow/collab/*
 !.workflow/collab/overlays/
+.codegraph/
 claude-code-skills-guide.md
 
 # Dashboard local state
