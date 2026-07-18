@@ -22,6 +22,7 @@ interface ExecutionMeta {
   completedAt?: string;
   cancelledAt?: string;
   exitCode?: number;
+  providerSessionId?: string;
   asyncDelegate?: boolean;
   delegateStatus?: string | null;
   cancelRequestedAt?: string | null;

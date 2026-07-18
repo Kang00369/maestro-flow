@@ -36,6 +36,8 @@ export interface ExecutionMeta {
   completedAt?: string;
   cancelledAt?: string;
   exitCode?: number;
+  /** Provider-native conversation ID, when the adapter exposes one. */
+  providerSessionId?: string;
 }
 
 export interface ExecutionSnapshot {

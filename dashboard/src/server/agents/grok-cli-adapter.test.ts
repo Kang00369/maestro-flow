@@ -149,6 +149,41 @@ describe('GrokCliAdapter', () => {
       .toEqual(['--sandbox', 'read-only']);
   });
 
+  it('starts a provider-native session with the requested UUID', async () => {
+    const sessionId = '00000000-0000-4000-8000-000000000002';
+    const proc = await adapter.spawn(baseConfig({
+      metadata: { providerSessionId: sessionId, providerSessionMode: 'new' },
+    }));
+
+    const args = spawnMock.mock.calls[0][1] as string[];
+    expect(args.slice(args.indexOf('--session-id'), args.indexOf('--session-id') + 2))
+      .toEqual(['--session-id', sessionId]);
+    expect(args).not.toContain('--resume');
+    expect(proc.metadata).toMatchObject({
+      providerSessionId: sessionId,
+      providerSessionMode: 'new',
+    });
+  });
+
+  it('resumes a provider-native session without adding a second session-id flag', async () => {
+    const sessionId = '00000000-0000-4000-8000-000000000003';
+    await adapter.spawn(baseConfig({
+      metadata: { providerSessionId: sessionId, providerSessionMode: 'resume' },
+    }));
+
+    const args = spawnMock.mock.calls[0][1] as string[];
+    expect(args.slice(args.indexOf('--resume'), args.indexOf('--resume') + 2))
+      .toEqual(['--resume', sessionId]);
+    expect(args).not.toContain('--session-id');
+  });
+
+  it('rejects malformed provider session metadata before spawning', async () => {
+    await expect(adapter.spawn(baseConfig({
+      metadata: { providerSessionId: 'not-a-uuid', providerSessionMode: 'resume' },
+    }))).rejects.toThrow(/Invalid Grok provider session ID/);
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
   it('does not register before spawn and rejects error-before-spawn without leaking the prompt', async () => {
     spawnMock.mockReturnValue(fakeChild);
     const spawnPromise = adapter.spawn(baseConfig());
@@ -176,7 +211,7 @@ describe('GrokCliAdapter', () => {
     fakeChild.stdout.write(`${JSON.stringify({
       type: 'end',
       stopReason: 'EndTurn',
-      sessionId: 'grok-session',
+      sessionId: '00000000-0000-4000-8000-000000000001',
       requestId: 'grok-request',
       usage: {
         input_tokens: 120,
@@ -203,11 +238,15 @@ describe('GrokCliAdapter', () => {
       expect.objectContaining({
         type: 'status_change',
         status: 'running',
-        reason: expect.stringContaining('grok.sessionId=grok-session'),
+        reason: expect.stringContaining('grok.sessionId=00000000-0000-4000-8000-000000000001'),
       }),
     ]));
     const assistantEntries = entries.filter((entry) => entry.type === 'assistant_message');
     expect(assistantEntries.at(-1)).toEqual(expect.objectContaining({ partial: false }));
+    expect(proc.metadata).toMatchObject({
+      providerSessionId: '00000000-0000-4000-8000-000000000001',
+      providerSessionMode: 'resume',
+    });
   });
 
   it('keeps child exit authoritative even when stdout closes first', async () => {

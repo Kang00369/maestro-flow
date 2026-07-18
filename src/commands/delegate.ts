@@ -188,7 +188,19 @@ export function launchDetachedDelegateWorker(
   const broker = options.brokerClient ?? new DelegateBrokerClient();
   const now = options.now ?? (() => new Date().toISOString());
   const startedAt = now();
-  const runningMeta = createRunningMeta(request, startedAt);
+  // A terminal `delegate message` relaunches the same execution ID with
+  // `--resume <exec-id>`. Preserve opaque provider metadata while replacing
+  // terminal timestamps, otherwise Grok's native session bridge is lost before
+  // the worker gets a chance to read it.
+  const previousMeta = request.resume === request.execId
+    ? store.loadMeta(request.execId)
+    : null;
+  const runningMeta = {
+    ...createRunningMeta(request, startedAt),
+    ...(previousMeta?.providerSessionId
+      ? { providerSessionId: previousMeta.providerSessionId }
+      : {}),
+  };
   store.saveMeta(request.execId, runningMeta);
 
   try {
@@ -558,6 +570,7 @@ export function registerDelegateCommand(program: Command): void {
         if (syncMode) {
           const store = new CliHistoryStore();
           const finalStatus = exitCode === 130 ? 'cancelled' : exitCode === 0 ? 'completed' : 'failed';
+          const finalMeta = store.loadMeta(execId);
 
           // Status summary line
           process.stderr.write(`\n[DELEGATE ${finalStatus.toUpperCase()}] ${execId} ${toolName}/${mode}\n`);
@@ -589,6 +602,9 @@ export function registerDelegateCommand(program: Command): void {
                 workDir,
                 backend,
                 ...(request.sessionId ? { sessionId: request.sessionId } : {}),
+                ...(finalMeta?.providerSessionId
+                  ? { providerSessionId: finalMeta.providerSessionId }
+                  : {}),
               },
             });
           } catch {
@@ -730,6 +746,9 @@ export function registerDelegateCommand(program: Command): void {
         console.log(`Mode:   ${meta.mode}`);
         console.log(`Status: ${statusLabel(meta)}`);
         console.log(`Start:  ${meta.startedAt}`);
+        if (meta.providerSessionId) {
+          console.log(`Provider session: ${meta.providerSessionId}`);
+        }
         if (meta.completedAt) {
           console.log(`End:    ${meta.completedAt}`);
         }
@@ -782,6 +801,9 @@ export function registerDelegateCommand(program: Command): void {
         console.log(`Tool:   ${meta.tool}`);
         console.log(`Mode:   ${meta.mode}`);
         console.log(`Start:  ${meta.startedAt}`);
+        if (meta.providerSessionId) {
+          console.log(`Provider session: ${meta.providerSessionId}`);
+        }
         if (meta.completedAt) {
           console.log(`End:    ${meta.completedAt}`);
         }

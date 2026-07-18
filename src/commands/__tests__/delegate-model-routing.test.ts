@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildDetachedDelegateWorkerArgs,
+  launchDetachedDelegateWorker,
   type DelegateExecutionRequest,
 } from '../delegate.js';
 
@@ -62,5 +63,36 @@ describe('detached delegate model routing', () => {
       .toEqual(['--model', 'grok-4.5']);
     expect(args.slice(args.indexOf('--effort'), args.indexOf('--effort') + 2))
       .toEqual(['--effort', 'high']);
+  });
+
+  it('preserves provider session metadata when relaunching the same execution', () => {
+    const providerSessionId = '00000000-0000-4000-8000-000000000021';
+    let savedMeta: Record<string, unknown> | undefined;
+    const historyStore = {
+      loadMeta: vi.fn(() => ({ providerSessionId })),
+      saveMeta: vi.fn((_execId: string, meta: Record<string, unknown>) => { savedMeta = meta; }),
+    } as never;
+    const brokerClient = {
+      publishEvent: vi.fn(),
+    } as never;
+    const child = { pid: 1234, unref: vi.fn() };
+
+    launchDetachedDelegateWorker(
+      makeRequest({
+        tool: 'grok',
+        execId: 'grk-same',
+        resume: 'grk-same',
+      }),
+      {
+        historyStore,
+        brokerClient,
+        entryScript: '/opt/maestro/bin.js',
+        spawnProcess: vi.fn(() => child),
+        env: {},
+        now: () => '2026-07-19T02:00:00.000Z',
+      },
+    );
+
+    expect(savedMeta).toMatchObject({ providerSessionId });
   });
 });

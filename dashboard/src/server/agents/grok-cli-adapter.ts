@@ -15,6 +15,10 @@ import { StreamMonitor, DEFAULT_STREAM_TIMEOUT_MS } from './stream-monitor.js';
 import { createStaleHandler } from './stale-handler.js';
 import { killProcessTree } from './process-tree-kill.js';
 import { cleanSpawnEnv } from './env-cleanup.js';
+import {
+  buildGrokSessionArgs,
+  isValidGrokSessionId,
+} from '../../../../shared/grok-cli-contract.js';
 
 const GROK_REASONING_EFFORTS = new Set(['low', 'medium', 'high', 'max']);
 const FORCE_KILL_DELAY_MS = 5000;
@@ -70,6 +74,7 @@ export class GrokCliAdapter extends BaseAgentAdapter {
     config: AgentConfig,
   ): Promise<AgentProcess> {
     this.validateReasoningEffort(config.reasoningEffort);
+    const sessionArgs = buildGrokSessionArgs(config.metadata);
 
     const promptDirectory = mkdtempSync(join(tmpdir(), 'maestro-grok-prompt-'));
     const promptPath = join(promptDirectory, 'prompt.txt');
@@ -82,6 +87,10 @@ export class GrokCliAdapter extends BaseAgentAdapter {
       '--output-format',
       'streaming-json',
     ];
+
+    // A new Delegate gets a client-chosen provider-session UUID; a resumed Delegate uses the
+    // provider's native transcript instead of rebuilding it in Maestro.
+    args.push(...sessionArgs);
 
     if (config.model) {
       args.push('--model', config.model);
@@ -159,7 +168,7 @@ export class GrokCliAdapter extends BaseAgentAdapter {
       const rl = createInterface({ input: child.stdout });
       rl.on('line', (line: string) => {
         monitor.heartbeat();
-        this.parseGrokEvent(line, processId);
+        this.parseGrokEvent(line, processId, config);
       });
 
       child.stderr.on('data', (chunk: Buffer) => {
@@ -198,6 +207,7 @@ export class GrokCliAdapter extends BaseAgentAdapter {
         startedAt: new Date().toISOString(),
         pid: child.pid,
         interactive: false,
+        metadata: config.metadata ? { ...config.metadata } : undefined,
       };
     } catch (error) {
       removeStartupListeners();
@@ -256,7 +266,11 @@ export class GrokCliAdapter extends BaseAgentAdapter {
     }
   }
 
-  private parseGrokEvent(line: string, processId: string): void {
+  private parseGrokEvent(
+    line: string,
+    processId: string,
+    config: AgentConfig,
+  ): void {
     const trimmed = line.trim();
     if (trimmed.length === 0 || this.terminalStatuses.has(processId)) return;
 
@@ -286,6 +300,33 @@ export class GrokCliAdapter extends BaseAgentAdapter {
         }
         break;
       case 'end':
+        if (event.sessionId) {
+          if (!isValidGrokSessionId(event.sessionId)) {
+            this.emitEntry(
+              processId,
+              EntryNormalizer.error(
+                processId,
+                `Invalid Grok session ID in end event: ${event.sessionId}`,
+                'grok_session_contract',
+              ),
+            );
+          } else {
+            const metadata = {
+              ...(config.metadata ?? {}),
+              providerSessionId: event.sessionId,
+              providerSessionMode: 'resume',
+            };
+            // Update the config object first. A very fast CLI can emit its
+            // terminal event before BaseAgentAdapter registers the process;
+            // the runner still reads this shared config after spawn returns.
+            config.metadata = metadata;
+            const process = this.getProcess(processId);
+            if (process) {
+              process.metadata = { ...metadata };
+              process.config.metadata = { ...metadata };
+            }
+          }
+        }
         this.flushThinking(processId);
         this.flushPendingMessages(processId);
         if (event.usage) {

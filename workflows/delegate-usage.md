@@ -80,6 +80,18 @@ not silently substitute the lower-quality build model or another provider.
 Cost alone is not a routing reason: keep ambiguous cross-subsystem reasoning,
 high-risk architecture, and deep planning on a provider suited to that work.
 
+Each new Grok Delegate receives a provider-session UUID through `--session-id`. Maestro
+persists the session ID emitted by Grok's `end` event, and a later
+`--resume <exec-id>` uses Grok's native `--resume <provider-session-id>` without
+replaying the stored transcript. History created before this bridge, or history
+with missing/invalid provider metadata, falls back to the existing transcript
+resume in a new Grok session. A native resume failure is reported rather than
+silently replaying a potentially mutating task.
+
+Run `npm run test:grok-contract` after upgrading Grok. The smoke test calls only
+`grok --version` and `grok --help`; it checks every headless/session flag used by
+the adapter and does not start a model request.
+
 **`--mode` is authoritative** — `MODE:` in prompt text is a hint only.
 
 ## Prompt Template
@@ -155,6 +167,11 @@ maestro delegate "<PROMPT>" --to gemini --resume           # last session
 maestro delegate "<PROMPT>" --to gemini --resume <id>      # specific
 ```
 
+`<id>` is always a Maestro execution ID. Grok resolves it through the persisted
+provider session mapping; callers do not pass a Grok UUID directly. Other
+non-interactive adapters continue to rebuild a bounded prompt from Maestro
+history.
+
 ### Message Delivery
 
 | Mode | Use For |
@@ -166,6 +183,18 @@ maestro delegate "<PROMPT>" --to gemini --resume <id>      # specific
 maestro delegate message <exec-id> "additional context"
 maestro delegate message <exec-id> "next task" --delivery after_complete
 ```
+
+Delivery timing depends on the provider transport. Claude's stream-json input
+keeps stdin open, so `inject` can enter the live process. Codex Delegate uses
+one-shot `codex exec`, and Grok Delegate uses one-shot headless mode; for these
+non-interactive adapters `inject` cancels the current process and dispatches the
+queued message after termination. The Grok restart uses its native session;
+Codex currently uses Maestro transcript resume. Consequently, a Codex message
+cannot steer the active turn and may only appear after that turn completes if
+termination races with `turn.completed`. Codex app-server protocol has
+`turn/steer`, but Maestro's current `codex-server` follow-up path still uses
+`turn/start`, while the default `codex exec` adapter exposes neither transport.
+Neither Codex Delegate path currently provides live-turn steering.
 
 ## Auto-Invoke Triggers
 

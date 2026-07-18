@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { resolve, join } from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { readFileSync, appendFileSync } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
@@ -16,6 +16,7 @@ import { loadSpecs, type SpecCategory } from '../tools/spec-loader.js';
 import { NOTIFY_PREFIX } from '../hooks/constants.js';
 import { DelegateBrokerClient, type DelegateBrokerApi, type DelegateJobStatus, type JsonObject } from '../async/index.js';
 import { buildDelegateAgentEnv } from './delegate-execution-context.js';
+import { isValidGrokSessionId } from '../../shared/grok-cli-contract.js';
 
 // ---------------------------------------------------------------------------
 // Types imported from the canonical shared definition
@@ -567,20 +568,47 @@ export class CliAgentRunner {
     const now = this.dependencies.now ?? (() => new Date().toISOString());
     const jobMetadata = syncMode ? {} as JsonObject : buildJobMetadata(options);
 
-    // Handle --resume: prepend previous session context to user prompt
-    let userPrompt = options.prompt;
+    // Resolve the Maestro execution being resumed. Grok can bridge this to its
+    // provider-native session; other providers retain transcript reconstruction.
+    let resumeId: string | undefined;
     if (options.resume) {
-      let resumeId = options.resume;
+      resumeId = options.resume;
       if (resumeId === 'last') {
         const recent = store.listRecent(1);
-        resumeId = recent.length > 0 ? recent[0].execId : '';
+        resumeId = recent.length > 0 ? recent[0].execId : undefined;
       }
+    }
+
+    const resumeMeta = resumeId ? store.loadMeta(resumeId) : null;
+    const nativeGrokResumeId = agentType === 'grok'
+      && isValidGrokSessionId(resumeMeta?.providerSessionId)
+      ? resumeMeta.providerSessionId
+      : undefined;
+
+    if (
+      agentType === 'grok'
+      && resumeMeta?.providerSessionId
+      && !nativeGrokResumeId
+    ) {
+      console.error(
+        `Warning: invalid Grok provider session metadata for ${resumeId}; ` +
+        'falling back to Maestro transcript resume.',
+      );
+    }
+
+    let userPrompt = options.prompt;
+    if (options.resume && !nativeGrokResumeId) {
       if (resumeId) {
         userPrompt = store.buildResumePrompt(resumeId, userPrompt);
       } else {
         console.error('No previous execution found for --resume');
       }
     }
+
+    const grokProviderSessionId = agentType === 'grok'
+      ? nativeGrokResumeId ?? randomUUID()
+      : undefined;
+    const grokProviderSessionMode = nativeGrokResumeId ? 'resume' : 'new';
 
     // Assemble final prompt: protocol + user prompt + template
     const finalPrompt = await assemblePrompt(userPrompt, options.mode, options.rule, options.workDir, options.role);
@@ -612,6 +640,14 @@ export class CliAgentRunner {
       settingsFile: options.settingsFile?.replace(/^~(?=[\\/])/, homedir()),
       reasoningEffort: options.reasoningEffort,
       streamTimeoutMs: options.streamTimeout,
+      ...(grokProviderSessionId
+        ? {
+            metadata: {
+              providerSessionId: grokProviderSessionId,
+              providerSessionMode: grokProviderSessionMode,
+            },
+          }
+        : {}),
       ...(childEnv && Object.keys(childEnv).length > 0
         ? { env: childEnv }
         : {}),
@@ -619,9 +655,19 @@ export class CliAgentRunner {
 
     const agentProcess = await adapter.spawn(config);
     bridge.forwardSpawn(agentProcess as unknown as Parameters<typeof bridge.forwardSpawn>[0]);
+    const currentProviderSessionId = (): string | undefined => {
+      const value = agentProcess.metadata?.providerSessionId
+        ?? agentProcess.config.metadata?.providerSessionId
+        ?? grokProviderSessionId;
+      return isValidGrokSessionId(value) ? value : undefined;
+    };
+    const initialProviderSessionId = currentProviderSessionId();
     const agentJobMetadata = {
       ...jobMetadata,
       agentProcessId: agentProcess.id,
+      ...(initialProviderSessionId
+        ? { providerSessionId: initialProviderSessionId }
+        : {}),
     } as JsonObject;
     store.saveMeta(execId, {
       execId,
@@ -631,6 +677,9 @@ export class CliAgentRunner {
       prompt: options.prompt.substring(0, 500),
       workDir: options.workDir,
       startedAt: agentProcess.startedAt,
+      ...(initialProviderSessionId
+        ? { providerSessionId: initialProviderSessionId }
+        : {}),
     });
 
     /** Write a snapshot-style progress line to stderr (sync mode). */
@@ -695,6 +744,7 @@ export class CliAgentRunner {
       if (metaWritten) return;
       metaWritten = true;
       const completedAt = now();
+      const providerSessionId = currentProviderSessionId();
       store.saveMeta(execId, {
         execId,
         tool: options.tool,
@@ -706,6 +756,7 @@ export class CliAgentRunner {
         completedAt,
         exitCode,
         ...(status === 'cancelled' ? { cancelledAt: completedAt } : {}),
+        ...(providerSessionId ? { providerSessionId } : {}),
       });
 
       publishEvent(
@@ -717,6 +768,7 @@ export class CliAgentRunner {
           completedAt,
           status,
         },
+        providerSessionId ? { providerSessionId } : undefined,
       );
 
       // Write delegate completion notification (for hook fallback) — skip in sync mode

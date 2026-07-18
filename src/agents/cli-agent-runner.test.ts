@@ -1054,6 +1054,225 @@ describe('CliAgentRunner', () => {
       prompt: 'Inject follow-up message',
     }]);
   });
+
+  it('creates and persists a provider-native Grok session', async () => {
+    const actualSessionId = '00000000-0000-4000-8000-000000000011';
+    let spawnedConfig: Record<string, unknown> | undefined;
+    let processRecord: Record<string, any> | undefined;
+    const adapter = {
+      async spawn(config: Record<string, any>) {
+        spawnedConfig = config;
+        processRecord = {
+          id: 'proc-grok-new',
+          type: 'grok',
+          status: 'running',
+          config,
+          metadata: { ...config.metadata },
+          startedAt: '2026-07-19T01:00:00.000Z',
+        };
+        return processRecord as any;
+      },
+      async stop() {
+        return;
+      },
+      onEntry(processId: string, cb: (entry: Record<string, unknown>) => void) {
+        queueMicrotask(() => {
+          processRecord!.metadata.providerSessionId = actualSessionId;
+          cb({
+            id: 'entry-grok-new-stop',
+            processId,
+            timestamp: '2026-07-19T01:00:01.000Z',
+            type: 'status_change',
+            status: 'stopped',
+          });
+        });
+        return () => undefined;
+      },
+    };
+
+    const runner = new CliAgentRunner({
+      createAdapter: async () => adapter as any,
+      createBridge: () => ({
+        async tryConnect() { return false; },
+        forwardSpawn() { return; },
+        forwardEntry() { return; },
+        forwardStopped() { return; },
+        close() { return; },
+      }),
+      renderEntry: () => undefined,
+    });
+
+    const exitCode = await runner.run({
+      execId: 'exec-grok-new',
+      prompt: 'Start a native Grok session',
+      tool: 'grok',
+      mode: 'analysis',
+      workDir: tempHome,
+      sync: true,
+    });
+
+    assert.equal(exitCode, 0);
+    const metadata = spawnedConfig?.metadata as Record<string, unknown>;
+    assert.match(String(metadata.providerSessionId), /^[0-9a-f-]{36}$/i);
+    assert.equal(metadata.providerSessionMode, 'new');
+    assert.equal(
+      new CliHistoryStore().loadMeta('exec-grok-new')?.providerSessionId,
+      actualSessionId,
+    );
+  });
+
+  it('uses Grok native resume without replaying the Maestro transcript', async () => {
+    const providerSessionId = '00000000-0000-4000-8000-000000000012';
+    const store = new CliHistoryStore();
+    store.saveMeta('exec-grok-previous', {
+      execId: 'exec-grok-previous',
+      tool: 'grok',
+      model: 'grok-4.5',
+      mode: 'analysis',
+      prompt: 'Original request',
+      workDir: tempHome,
+      startedAt: '2026-07-19T01:10:00.000Z',
+      completedAt: '2026-07-19T01:10:01.000Z',
+      exitCode: 0,
+      providerSessionId,
+    });
+    store.appendEntry('exec-grok-previous', {
+      type: 'assistant_message',
+      content: 'OLD_TRANSCRIPT_SENTINEL',
+      partial: false,
+    });
+
+    let spawnedConfig: Record<string, any> | undefined;
+    const adapter = {
+      async spawn(config: Record<string, any>) {
+        spawnedConfig = config;
+        return {
+          id: 'proc-grok-resume',
+          type: 'grok',
+          status: 'running',
+          config,
+          metadata: { ...config.metadata },
+          startedAt: '2026-07-19T01:11:00.000Z',
+        } as any;
+      },
+      async stop() { return; },
+      onEntry(processId: string, cb: (entry: Record<string, unknown>) => void) {
+        queueMicrotask(() => cb({
+          id: 'entry-grok-resume-stop',
+          processId,
+          timestamp: '2026-07-19T01:11:01.000Z',
+          type: 'status_change',
+          status: 'stopped',
+        }));
+        return () => undefined;
+      },
+    };
+
+    const runner = new CliAgentRunner({
+      createAdapter: async () => adapter as any,
+      createBridge: () => ({
+        async tryConnect() { return false; },
+        forwardSpawn() { return; },
+        forwardEntry() { return; },
+        forwardStopped() { return; },
+        close() { return; },
+      }),
+      renderEntry: () => undefined,
+    });
+
+    const exitCode = await runner.run({
+      execId: 'exec-grok-resumed',
+      prompt: 'Continue with native state',
+      tool: 'grok',
+      mode: 'analysis',
+      workDir: tempHome,
+      resume: 'exec-grok-previous',
+      sync: true,
+    });
+
+    assert.equal(exitCode, 0);
+    assert.deepEqual(spawnedConfig?.metadata, {
+      providerSessionId,
+      providerSessionMode: 'resume',
+    });
+    assert.match(String(spawnedConfig?.prompt), /Continue with native state/);
+    assert.doesNotMatch(String(spawnedConfig?.prompt), /OLD_TRANSCRIPT_SENTINEL/);
+  });
+
+  it('falls back to transcript resume for legacy Grok history without a provider session', async () => {
+    const store = new CliHistoryStore();
+    store.saveMeta('exec-grok-legacy', {
+      execId: 'exec-grok-legacy',
+      tool: 'grok',
+      mode: 'analysis',
+      prompt: 'Legacy request',
+      workDir: tempHome,
+      startedAt: '2026-07-19T01:20:00.000Z',
+      completedAt: '2026-07-19T01:20:01.000Z',
+      exitCode: 0,
+    });
+    store.appendEntry('exec-grok-legacy', {
+      type: 'assistant_message',
+      content: 'LEGACY_TRANSCRIPT_SENTINEL',
+      partial: false,
+    });
+
+    let spawnedConfig: Record<string, any> | undefined;
+    const adapter = {
+      async spawn(config: Record<string, any>) {
+        spawnedConfig = config;
+        return {
+          id: 'proc-grok-legacy',
+          type: 'grok',
+          status: 'running',
+          config,
+          metadata: { ...config.metadata },
+          startedAt: '2026-07-19T01:21:00.000Z',
+        } as any;
+      },
+      async stop() { return; },
+      onEntry(processId: string, cb: (entry: Record<string, unknown>) => void) {
+        queueMicrotask(() => cb({
+          id: 'entry-grok-legacy-stop',
+          processId,
+          timestamp: '2026-07-19T01:21:01.000Z',
+          type: 'status_change',
+          status: 'stopped',
+        }));
+        return () => undefined;
+      },
+    };
+
+    const runner = new CliAgentRunner({
+      createAdapter: async () => adapter as any,
+      createBridge: () => ({
+        async tryConnect() { return false; },
+        forwardSpawn() { return; },
+        forwardEntry() { return; },
+        forwardStopped() { return; },
+        close() { return; },
+      }),
+      renderEntry: () => undefined,
+    });
+
+    const exitCode = await runner.run({
+      execId: 'exec-grok-legacy-resume',
+      prompt: 'Continue from legacy history',
+      tool: 'grok',
+      mode: 'analysis',
+      workDir: tempHome,
+      resume: 'exec-grok-legacy',
+      sync: true,
+    });
+
+    assert.equal(exitCode, 0);
+    assert.equal(
+      (spawnedConfig?.metadata as Record<string, unknown>).providerSessionMode,
+      'new',
+    );
+    assert.match(String(spawnedConfig?.prompt), /LEGACY_TRANSCRIPT_SENTINEL/);
+    assert.match(String(spawnedConfig?.prompt), /Continue from legacy history/);
+  });
 });
 
 describe('CliAgentRunner provider routing', () => {

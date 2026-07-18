@@ -51,6 +51,7 @@
     "start": "node bin/maestro.js",
     "mcp": "node bin/maestro-mcp.js",
     "test": "vitest run",
+    "test:grok-contract": "vitest run src/agents/grok-cli-contract.smoke.test.ts",
     "test:kg": "vitest run src/graph",
     "lint": "tsc --noEmit",
     "lint:session-run": "node scripts/lint-invocation-policy.mjs && node scripts/lint-session-run-prompts.mjs && node scripts/lint-session-run-mirrors.mjs",
