@@ -1,3 +1,4 @@
+<!-- session-mode: none -->
 # Knowledge System Operations
 
 This guide contains the operational detail intentionally omitted from managed
