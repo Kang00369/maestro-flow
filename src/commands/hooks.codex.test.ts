@@ -7,6 +7,7 @@ import {
   getGenericHooksForLevel,
   installCodexHooksByLevel,
 } from './hooks.js';
+import { getMaestroHookCommand } from '../utils/runtime-entrypoints.js';
 
 const roots: string[] = [];
 
@@ -34,7 +35,12 @@ describe('Codex prompt context lifecycle', () => {
     const preToolHooks = Object.entries(CODEX_HOOK_DEFS)
       .filter(([, def]) => def.event === 'PreToolUse')
       .map(([name]) => name);
-    expect(preToolHooks).toEqual(['preflight-guard', 'spec-validator', 'workflow-guard']);
+    expect(preToolHooks).toEqual([
+      'preflight-guard',
+      'spec-validator',
+      'workflow-guard',
+      'csv-wave-guard',
+    ]);
   });
 
   it('installs one prompt context hook and removes all legacy KG hook entries', () => {
@@ -67,10 +73,12 @@ describe('Codex prompt context lifecycle', () => {
       .flatMap((group: { hooks: Array<{ command: string }> }) => group.hooks.map(hook => hook.command));
 
     expect(preToolCommands).toEqual([
-      'maestro hooks run preflight-guard',
-      'maestro hooks run spec-validator',
+      getMaestroHookCommand('preflight-guard'),
+      getMaestroHookCommand('spec-validator'),
+      getMaestroHookCommand('csv-wave-guard'),
     ]);
-    expect(promptCommands).toContain('maestro hooks run keyword-spec-injector');
+    expect(promptCommands).toContain(getMaestroHookCommand('keyword-spec-injector'));
+    expect(preToolCommands.every((command: string) => !/^maestro\b/.test(command))).toBe(true);
     expect(JSON.stringify(installed)).not.toMatch(/kg-(?:context|unified)-injector/);
   });
 

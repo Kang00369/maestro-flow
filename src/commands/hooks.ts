@@ -1,8 +1,12 @@
 import type { Command } from 'commander';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { paths } from '../config/paths.js';
+import {
+  getMaestroEntrypointCommand,
+  getMaestroHookCommand,
+} from '../utils/runtime-entrypoints.js';
 import { evaluateCsvWaveGuard } from '../hooks/csv-wave-guard.js';
 import {
   loadConfig,
@@ -183,11 +187,6 @@ export function loadClaudeSettings(settingsPath: string): ClaudeSettings {
   return JSON.parse(readFileSync(settingsPath, 'utf8'));
 }
 
-function getMaestroBinDir(): string {
-  // From dist/src/commands/ → 3 levels up to package root, then into bin/
-  return resolve(new URL('../../../bin', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'));
-}
-
 const HOOK_MARKER = 'maestro';
 
 /**
@@ -317,7 +316,10 @@ export function installStatusline(opts: {
       ? join(process.cwd(), '.claude', 'settings.json')
       : getClaudeSettingsPath());
   const settings = loadClaudeSettings(settingsPath);
-  settings.statusLine = { type: 'command', command: 'maestro-statusline' };
+  settings.statusLine = {
+    type: 'command',
+    command: getMaestroEntrypointCommand('maestro-statusline.js'),
+  };
   paths.ensure(join(settingsPath, '..'));
   writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 
@@ -372,7 +374,7 @@ export function installHooksByLevel(
     if (!settings.hooks[eventKey]) settings.hooks[eventKey] = [] as never;
     const groups = settings.hooks[eventKey] as HookGroup[];
     const group: HookGroup = {
-      hooks: [{ type: 'command', command: `maestro hooks run ${name}` }],
+      hooks: [{ type: 'command', command: getMaestroHookCommand(name) }],
     };
     // Skip matcher on SessionStart: Grok rejects matchers on lifecycle events;
     // Claude still runs these hooks on all SessionStart sources (hooks are guarded).
@@ -520,7 +522,7 @@ export function installCodexHooksByLevel(
 
     const hookEntry: { type: string; command: string; statusMessage?: string; timeout?: number } = {
       type: 'command',
-      command: `maestro hooks run ${name}`,
+      command: getMaestroHookCommand(name),
     };
     if (def.statusMessage) hookEntry.statusMessage = def.statusMessage;
     if (def.timeout) hookEntry.timeout = def.timeout;
@@ -827,7 +829,7 @@ export function installAgyHooksByLevel(
     if (customSet ? !customSet.has(name) : !hookIncludedInLevel(def.level, level)) continue;
 
     const hookName = `${AGY_HOOK_NAME_PREFIX}${name}`;
-    const handler: AgyHookHandler = { type: 'command', command: `maestro hooks run ${name}` };
+    const handler: AgyHookHandler = { type: 'command', command: getMaestroHookCommand(name) };
     if (def.timeout) handler.timeout = def.timeout;
 
     const config: AgyHookConfig = {};

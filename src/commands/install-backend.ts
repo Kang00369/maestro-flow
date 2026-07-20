@@ -3,8 +3,7 @@
 // for testability and reuse.
 // ---------------------------------------------------------------------------
 
-import { join, dirname, resolve, relative, basename, isAbsolute } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, dirname, relative, basename, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import {
@@ -31,6 +30,10 @@ import { applyOverlays, ensureOverlayDir, deleteOverlayManifest } from '../core/
 import { injectDocFile, hasAnyMarkers, removeAllSections, type MigrateResult } from '../core/tag-injector.js';
 import { COMPONENT_DEFS, type ComponentDef } from '../core/component-defs.js';
 import {
+  getMaestroNodeInvocation,
+  getMaestroPackageRoot,
+} from '../utils/runtime-entrypoints.js';
+import {
   HOOK_LEVELS,
   HOOK_LEVEL_DESCRIPTIONS,
   removeClaudeStatusline,
@@ -42,13 +45,6 @@ import {
   getClaudeSettingsPath,
   type HookLevel,
 } from './hooks.js';
-
-// ---------------------------------------------------------------------------
-// ESM __dirname shim
-// ---------------------------------------------------------------------------
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -182,18 +178,14 @@ export function addMcpServer(
   enabledTools: string[],
   projectRoot?: string,
 ): string | null {
-  const isWin = process.platform === 'win32';
   const env: Record<string, string> = {
     MAESTRO_ENABLED_TOOLS: enabledTools.join(','),
   };
   if (projectRoot) env.MAESTRO_PROJECT_ROOT = projectRoot;
 
-  // Use the maestro-mcp binary exposed by the globally installed maestro-flow package.
-  // On Windows, npm generates maestro-mcp.cmd shim resolved via cmd.exe; on Unix, it's
-  // symlinked onto PATH directly.
+  const invocation = getMaestroNodeInvocation('maestro-mcp.js');
   const serverConfig = {
-    command: isWin ? 'cmd' : 'maestro-mcp',
-    args: isWin ? ['/c', 'maestro-mcp'] : [],
+    ...invocation,
     env,
   };
 
@@ -423,7 +415,6 @@ export function addCodexMcpServer(
   enabledTools: string[],
   projectRoot?: string,
 ): string | null {
-  const isWin = process.platform === 'win32';
   const fp = getCodexConfigPath(scope, projectPath);
 
   try {
@@ -436,8 +427,9 @@ export function addCodexMcpServer(
     content = removeCodexMcpBlock(content);
 
     // Build TOML block
-    const command = isWin ? 'cmd' : 'maestro-mcp';
-    const args = isWin ? '["/c", "maestro-mcp"]' : '[]';
+    const invocation = getMaestroNodeInvocation('maestro-mcp.js');
+    const command = JSON.stringify(invocation.command);
+    const args = JSON.stringify(invocation.args);
     const envLines = [`MAESTRO_ENABLED_TOOLS = "${enabledTools.join(',')}"`];
     if (projectRoot) {
       envLines.push(`MAESTRO_PROJECT_ROOT = "${projectRoot.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
@@ -446,7 +438,7 @@ export function addCodexMcpServer(
     const block = [
       '',
       `[mcp_servers.maestro-tools]`,
-      `command = "${command}"`,
+      `command = ${command}`,
       `args = ${args}`,
       '',
       `[mcp_servers.maestro-tools.env]`,
@@ -490,8 +482,7 @@ export function removeCodexMcpServerAt(configPath: string): boolean {
 // ---------------------------------------------------------------------------
 
 export function getPackageRoot(): string {
-  // Compiled JS at dist/src/commands/ → 3 levels up to project root
-  return resolve(__dirname, '..', '..', '..');
+  return getMaestroPackageRoot();
 }
 
 export function countFiles(dir: string): number {
@@ -886,15 +877,14 @@ function buildServerConfig(
   projectRoot: string | undefined,
   format: McpFormat,
 ): Record<string, unknown> {
-  const isWin = process.platform === 'win32';
   const env: Record<string, string> = {
     MAESTRO_ENABLED_TOOLS: enabledTools.join(','),
   };
   if (projectRoot) env.MAESTRO_PROJECT_ROOT = projectRoot;
 
+  const invocation = getMaestroNodeInvocation('maestro-mcp.js');
   const base: Record<string, unknown> = {
-    command: isWin ? 'cmd' : 'maestro-mcp',
-    args: isWin ? ['/c', 'maestro-mcp'] : [],
+    ...invocation,
     env,
   };
 

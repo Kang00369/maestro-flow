@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { addCodexMcpServer, configureCodexMultiAgentV2, removeCodexMcpServer } from './install-backend.js';
+import { getMaestroEntrypoint } from '../utils/runtime-entrypoints.js';
 
 const roots: string[] = [];
 
@@ -85,6 +86,17 @@ describe('configureCodexMultiAgentV2', () => {
     expect(content).toContain('multi_agents_v2 = true');
     expect(content).toContain('tool_namespace = "maestro"');
     expect(content).toContain('min_wait_timeout_ms = 180000');
+  });
+
+  it('launches MCP through Node and the package entrypoint', () => {
+    const { root, configPath } = project();
+
+    expect(addCodexMcpServer('project', root, ['search'])).toBe(configPath);
+    const content = readFileSync(configPath, 'utf8');
+
+    expect(content).toContain(`command = ${JSON.stringify(process.execPath)}`);
+    expect(content).toContain(`args = ${JSON.stringify([getMaestroEntrypoint('maestro-mcp.js')])}`);
+    expect(content).not.toMatch(/^command = "?(?:maestro-mcp|cmd)"?$/m);
   });
 
   it('recognizes section headers with trailing comments without duplicating them', () => {
