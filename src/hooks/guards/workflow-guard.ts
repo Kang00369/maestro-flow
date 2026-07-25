@@ -9,7 +9,10 @@ import type { WorkflowHookRegistry } from '../workflow-hooks.js';
 
 const DANGEROUS_PATTERNS: RegExp[] = [
   /\brm\s+-rf\s+[\/~]/,
-  /\bgit\s+push\s+--force\b/,
+  // `--force-with-lease` / `--force-if-includes` are the safe variants: they
+  // abort when the remote moved since the last fetch. Only bare `--force` is
+  // unconditionally destructive.
+  /\bgit\s+push\s+--force(?!-with-lease|-if-includes)\b/,
   /\bgit\s+reset\s+--hard\b/,
   /\bgit\s+clean\s+-[a-z]*f/,
   /\bdrop\s+table\b/i,

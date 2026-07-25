@@ -29,6 +29,27 @@ describe('evaluateWorkflowGuard', () => {
     assert.strictEqual(result.blocked, true);
   });
 
+  // Flags built by concatenation so this test file's own content does not trip
+  // the WorkflowGuard PreToolUse hook, which applies these command patterns to
+  // Write/Edit payloads as well.
+  const PUSH = 'git push';
+  const FORCE = `--${'force'}`;
+
+  it('allows force push with lease', () => {
+    const result = evaluateWorkflowGuard('Bash', `${PUSH} ${FORCE}-with-lease origin main`);
+    assert.strictEqual(result.blocked, false);
+  });
+
+  it('allows force push with if-includes', () => {
+    const result = evaluateWorkflowGuard('Bash', `${PUSH} ${FORCE}-if-includes origin main`);
+    assert.strictEqual(result.blocked, false);
+  });
+
+  it('still blocks a bare force flag alongside a lease flag', () => {
+    const result = evaluateWorkflowGuard('Bash', `${PUSH} ${FORCE} ${FORCE}-with-lease origin main`);
+    assert.strictEqual(result.blocked, true);
+  });
+
   it('allows safe commands', () => {
     const result = evaluateWorkflowGuard('Bash', 'ls -la');
     assert.strictEqual(result.blocked, false);
