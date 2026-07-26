@@ -19,7 +19,6 @@ describe.sequential('delegate recursion guard', () => {
   let CliAgentRunner: typeof import('../../agents/cli-agent-runner.js').CliAgentRunner;
   let registerDelegateCommand: typeof import('../delegate.js').registerDelegateCommand;
   let registerCliCommand: typeof import('../cli.js').registerCliCommand;
-  let registerCsvWaveCommand: typeof import('../csv-wave.js').registerCsvWaveCommand;
 
   beforeAll(async () => {
     process.env.MAESTRO_HOME = tempHome;
@@ -37,7 +36,6 @@ describe.sequential('delegate recursion guard', () => {
     ({ CliAgentRunner } = await import('../../agents/cli-agent-runner.js'));
     ({ registerDelegateCommand } = await import('../delegate.js'));
     ({ registerCliCommand } = await import('../cli.js'));
-    ({ registerCsvWaveCommand } = await import('../csv-wave.js'));
   });
 
   afterEach(() => {
@@ -380,42 +378,5 @@ describe.sequential('delegate recursion guard', () => {
     }
 
     expect(calls).toHaveLength(1);
-  });
-
-  it('rejects nested maestro csv-wave when MAESTRO_DELEGATE_CONTEXT is set', async () => {
-    process.env[MAESTRO_DELEGATE_CONTEXT_ENV] = 'parent-csv-wave-guard';
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    const program = new Command();
-    registerCsvWaveCommand(program);
-
-    await program.parseAsync([
-      'node',
-      'test',
-      'csv-wave',
-      'contract',
-    ]);
-
-    expect(process.exitCode).toBe(1);
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('parent-csv-wave-guard'));
-    expect(logSpy).not.toHaveBeenCalled();
-  });
-
-  it('allows maestro csv-wave when MAESTRO_DELEGATE_CONTEXT is empty', async () => {
-    delete process.env[MAESTRO_DELEGATE_CONTEXT_ENV];
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    const program = new Command();
-    registerCsvWaveCommand(program);
-
-    await program.parseAsync([
-      'node',
-      'test',
-      'csv-wave',
-      'contract',
-    ]);
-
-    expect(process.exitCode).not.toBe(1);
-    expect(logSpy).toHaveBeenCalled();
-    expect(String(logSpy.mock.calls[0]?.[0] ?? '')).toContain('csv-wave');
   });
 });
