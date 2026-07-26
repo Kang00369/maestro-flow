@@ -501,6 +501,20 @@ export class KgQueryBuilder {
     ).all() as unknown as FileRow[];
   }
 
+  /**
+   * Drop every files row for a source type.
+   *
+   * Sync replaces a source's nodes wholesale via deleteNodesBySourceType, but
+   * upsertFile alone never removes rows, so files that vanished or became
+   * ignored (build output, vendored deps) would linger forever. Callers pair
+   * this with the node delete so both tables are rebuilt from the same scan.
+   */
+  deleteFilesBySourceType(sourceType: SourceType): number {
+    return Number(this.db.prepare(
+      'DELETE FROM files WHERE source_type = ?'
+    ).run(sourceType).changes);
+  }
+
   // ── Stats ──────────────────────────────────────────────────────────
 
   getStats(dbSizeBytes: number): UnifiedGraphStats {

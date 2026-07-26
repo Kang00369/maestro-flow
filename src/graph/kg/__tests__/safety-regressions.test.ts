@@ -192,4 +192,37 @@ describe('MaestroGraph safety regressions', () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it('drops files rows for sources that no longer produce them', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'maestro-files-prune-'));
+    try {
+      mkdirSync(join(root, 'src'), { recursive: true });
+      writeFileSync(join(root, '.maestroignore'), '');
+      writeFileSync(join(root, 'src', 'kept.yml'), 'service:\n  name: kept\n');
+      writeFileSync(join(root, 'src', 'removed.yml'), 'service:\n  name: removed\n');
+      await syncKnowledgeGraph(root, { sources: ['codegraph'], codegraph: { createMaestroIgnore: false } });
+
+      const graph = await MaestroGraph.open(root);
+      try {
+        const queries = graph.getQueryBuilder();
+        expect(queries.getFile(join(root, 'src', 'removed.yml'))).not.toBeNull();
+
+        // Simulate a file that disappeared or became ignored between syncs.
+        rmSync(join(root, 'src', 'removed.yml'));
+        await syncKnowledgeGraph(root, {
+          sources: ['codegraph'],
+          codegraph: { createMaestroIgnore: false },
+          graph,
+        });
+
+        // upsertFile alone would leave the stale row behind forever.
+        expect(queries.getFile(join(root, 'src', 'removed.yml'))).toBeNull();
+        expect(queries.getFile(join(root, 'src', 'kept.yml'))).not.toBeNull();
+      } finally {
+        graph.close();
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

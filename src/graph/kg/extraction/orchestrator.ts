@@ -77,6 +77,9 @@ async function syncKnowledgeGraphUnlocked(
         }
         const removed = mg.getConnection().transaction(() => {
           const n = queries.deleteNodesBySourceType(entry.sourceType);
+          // Paired with the node delete so files that vanished or became
+          // ignored do not survive as orphan rows.
+          queries.deleteFilesBySourceType(entry.sourceType);
           if (extractionResult.nodes.length > 0) {
             queries.insertNodes(extractionResult.nodes);
             queries.insertEdges(extractionResult.edges);
@@ -124,6 +127,10 @@ async function syncKnowledgeGraphUnlocked(
       const connection = mg.getConnection();
       const removedCode = await connection.transactionAsync(async () => {
         const removed = queries.deleteNodesBySourceType('codegraph');
+        // Paired with the node delete: the scan below re-adds every file that
+        // still qualifies, so rows left behind are ones that were deleted or
+        // became ignored.
+        queries.deleteFilesBySourceType('codegraph');
         connection.raw.exec(`
           DROP TABLE IF EXISTS temp._kg_pending_edges;
           CREATE TEMP TABLE _kg_pending_edges (
