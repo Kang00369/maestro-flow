@@ -145,16 +145,27 @@ naturally, as with CSV Wave.
 
 When the current session is already a Maestro Delegate worker, it must not
 create a second Maestro orchestration layer through another
-`maestro delegate`, `spawn_agents_on_csv`, or Codex native `spawn_agent`. If an
-injected lifecycle skill says the coordinator should delegate, treat that as a
-coordinator boundary, not permission to create another Delegate layer.
-Provider-internal workers owned by the explicitly selected CLI remain valid;
-in particular, Grok may use native `spawn_subagent` / Composer without creating
-a nested Maestro job. Recursive `maestro delegate` is rejected before
+`maestro delegate`, `maestro cli`, `maestro csv-wave` / `spawn_agents_on_csv`,
+or Codex native `spawn_agent`. Recursive rejection covers all three Maestro
+entry points (`maestro delegate`, `maestro cli`, `maestro csv-wave`), not only
+`delegate`. If an injected lifecycle skill says the coordinator should
+delegate, treat that as a coordinator boundary, not permission to create
+another Delegate layer. Provider-internal workers owned by the explicitly
+selected CLI remain valid; in particular, Grok may use native
+`spawn_subagent` / Composer without creating a nested Maestro job. Recursive
+`maestro delegate` / `maestro cli` / `maestro csv-wave` is rejected before
 job/history creation; the worker must otherwise finish within the selected
 provider execution or return failure. If a nested Maestro job is ever created,
 classify it as a guard defect and fix the guard instead of messaging or
 cancelling that nested session as the primary recovery.
+
+Workers receive a `[DELEGATE WORKER IDENTITY]` bracket block at the start of
+the prompt (includes parent execution id) as the identity signal. Presence of
+that block means the session is a Delegate worker; absence means it is a
+user-started coordinator. Do not rely on environment variables for this check.
+Full identity and nesting rules are also restated in each provider's managed
+instructions (`claude-instructions.md`, `codex-instructions.md`,
+`grok-instructions.md`).
 
 ### Execution ID Prefix
 

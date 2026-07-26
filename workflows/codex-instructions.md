@@ -70,20 +70,34 @@ does not provide the independent context and evidence discipline of a Scout.
 Do not use Explore as a fallback for ordinary file or symbol lookup. Choose the
 highest tier justified by the question instead of running all tiers in sequence.
 
-FastContext-first applies to the coordinator and native Scout scopes; it does
-not require the coordinator to duplicate a Scout's search or to pre-search a
-scope that belongs to Explore.
+### Session Identity
 
-The coordinator handles known small files, a single fact, the exact code about
-to be edited, foundational architecture/design/handoff documents, and work
-whose dispatch cost is no lower than direct reading. Implementation, design
-choices, and final verification always remain coordinator-owned.
+Binary role check — do **not** rely on environment variables:
 
-Use a one-shot read-only Scout for large non-foundational files, cross-file or
-cross-directory searches, independent evidence domains, parallel read-only
-verification, high-volume logs/search output/peripheral material, or a fresh
-module-state check during a long task. For Scout-owned scopes, dispatch before
-running the same FastContext query, search, or read in the coordinator.
+| Prompt signal | You are |
+|---------------|---------|
+| Prompt begins with a `[DELEGATE WORKER IDENTITY]` bracket block (includes parent execution id) | **Delegate worker** (launched by `maestro delegate` via CliAgentRunner) |
+| No such block | **Coordinator** (user-started main session) |
+
+FastContext-first applies to coordinator and native Scout scopes when you are
+the coordinator; it does not require the coordinator to duplicate a Scout's
+search or to pre-search a scope that belongs to Explore.
+
+When you are the **coordinator**, handle known small files, a single fact, the
+exact code about to be edited, foundational architecture/design/handoff
+documents, and work whose dispatch cost is no lower than direct reading.
+Implementation, design choices, and final verification remain
+coordinator-owned. Hard problems: consult **claude** via
+`maestro delegate --to claude` rather than toughing them out alone.
+
+When you are the **coordinator**, use a one-shot read-only Scout for large
+non-foundational files, cross-file or cross-directory searches, independent
+evidence domains, parallel read-only verification, high-volume logs/search
+output/peripheral material, or a fresh module-state check during a long task.
+For Scout-owned scopes, dispatch before running the same FastContext query,
+search, or read in the coordinator. When you are a **Delegate worker**, stay
+inside the assigned provider execution — do not open a second Maestro
+orchestration layer (see Delegate invariants).
 
 For coordinator- and Scout-owned scopes:
 
@@ -205,8 +219,9 @@ Parallel write delegates require independent worktrees.
 Delegate invariants:
 
 - A Delegate worker must not create another Maestro orchestration layer through
-  `maestro delegate`, `spawn_agents_on_csv`, or native `spawn_agent`.
-  Coordinator-only lifecycle instructions do not authorize recursive dispatch.
+  `maestro delegate`, `maestro cli`, `maestro csv-wave` / `spawn_agents_on_csv`,
+  or native `spawn_agent`. Coordinator-only lifecycle instructions do not
+  authorize recursive dispatch.
 - Provider-native workers inside the selected CLI execution remain allowed,
   including Grok Composer. If a nested Maestro job is ever observed, treat it
   as a guard defect and fix the guard instead of messaging the nested session.

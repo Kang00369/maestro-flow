@@ -81,6 +81,31 @@ Before implementation, always:
 
 **Strictly follow the cli-tools.json configuration**
 
+### Session Identity
+
+Binary role check — do **not** rely on environment variables:
+
+| Prompt signal | You are |
+|---------------|---------|
+| Prompt begins with a `[DELEGATE WORKER IDENTITY]` bracket block (includes parent execution id) | **Delegate worker** (launched by `maestro delegate` via CliAgentRunner) |
+| No such block | **Coordinator** (user-started main session) |
+
+### Coordinator Defaults
+
+When you are the coordinator:
+
+- Hard problems: consult **codex** via `maestro delegate --to codex` — do not tough it out alone.
+- Implementation work: route to **grok** via `maestro delegate --to grok`. For multiple independent tasks, open one Delegate each with a separate worktree (`--cd`) for isolation.
+
+### Nested Orchestration Ban
+
+A Delegate worker **must not** create a second Maestro orchestration layer through
+`maestro delegate`, `maestro cli`, `maestro csv-wave` / `spawn_agents_on_csv`, or
+native `spawn_agent`. Coordinator-only lifecycle instructions do not authorize
+recursive dispatch. Provider-native workers inside the selected CLI execution
+remain allowed. If a nested Maestro job is ever observed, treat it as a guard
+defect and fix the guard instead of messaging the nested session.
+
 ## Explore
 
 Route code search by the Query Rules table (Knowledge System below) — it is the single source for tool selection. Use `maestro explore` only when the entry point is uncertain or a cross-file relationship needs evidence-backed synthesis. For exact text, regex, known files, or exhaustive call-site scans, use `rg`/Grep directly. When using `maestro explore`, call it and stop to wait for results.
