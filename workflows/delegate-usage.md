@@ -48,12 +48,12 @@ lowest sufficient tier:
 | Task shape | Model and effort | Examples |
 |------------|------------------|----------|
 | Hard reasoning | `gpt-5.6-sol` + `max` | Ambiguous multi-step understanding, cross-subsystem planning, high-risk design decisions |
-| Simple work | `gpt-5.6-sol` + `low` | Bounded implementation, simple analysis, straightforward review with clear acceptance criteria |
+| Simple reasoning | `gpt-5.6-sol` + `low` | Simple analysis or straightforward review with clear acceptance criteria |
 | Scout/chore | `gpt-5.6-terra` + `medium` | Mechanical extraction, supporting-document scan, independent bounded code-location scout |
 
 ```bash
 maestro delegate "<HARD_TASK>" --to codex --model gpt-5.6-sol --effort max --mode analysis
-maestro delegate "<SIMPLE_TASK>" --to codex --model gpt-5.6-sol --effort low --mode write
+maestro delegate "<SIMPLE_TASK>" --to codex --model gpt-5.6-sol --effort low --mode analysis
 maestro delegate "<SCOUT_TASK>" --to codex --model gpt-5.6-terra --effort medium --mode analysis
 ```
 
@@ -64,9 +64,11 @@ by the adapter to its supported highest local reasoning setting.
 
 ### Grok Delegate
 
-Use Grok as a fast, cost-efficient, high-value worker for bounded implementation, rapid code
-iteration, test/fix loops, and straightforward review when it is the explicitly
-selected provider:
+For implementation that can be isolated, the coordinator first decomposes it
+into the smallest independently verifiable bounded tasks and uses Grok as the
+default delegated executor. Grok is the fast, cost-efficient, high-value worker
+for those implementation tasks, rapid code iteration, test/fix loops, and
+straightforward review:
 
 ```bash
 maestro delegate "<TASK>" --to grok --mode write --model grok-4.5 --effort high
@@ -77,8 +79,11 @@ maps `analysis` to Grok's `read-only` sandbox and `write` to its `workspace`
 sandbox, and does not emit `--no-subagents`. Grok may therefore use its native
 Composer-backed subagents according to the user's Grok configuration. It must
 not silently substitute the lower-quality build model or another provider.
-Cost alone is not a routing reason: keep ambiguous cross-subsystem reasoning,
-high-risk architecture, and deep planning on a provider suited to that work.
+The coordinator retains decomposition, integration, and final verification;
+direct implementation is reserved for narrow deterministic edits whose dispatch
+cost is no lower than doing the work. Keep unresolved cross-subsystem ambiguity,
+high-risk architecture, and deep planning on the appropriate Claude/Codex
+consultation path, then send only the clarified bounded implementation to Grok.
 
 Each new Grok Delegate receives a provider-session UUID through `--session-id`. Maestro
 persists the session ID emitted by Grok's `end` event, and a later

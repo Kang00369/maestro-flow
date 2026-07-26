@@ -86,9 +86,8 @@ search or to pre-search a scope that belongs to Explore.
 When you are the **coordinator**, handle known small files, a single fact, the
 exact code about to be edited, foundational architecture/design/handoff
 documents, and work whose dispatch cost is no lower than direct reading.
-Implementation, design choices, and final verification remain
-coordinator-owned. Hard problems: consult **claude** via
-`maestro delegate --to claude` rather than toughing them out alone.
+Decomposition, design choices, integration, and final verification remain
+coordinator-owned.
 
 When you are the **coordinator**, use a one-shot read-only Scout for large
 non-foundational files, cross-file or cross-directory searches, independent
@@ -175,6 +174,23 @@ Native Codex `spawn_agent` is forbidden except for the one-shot read-only
 scouts defined in Code Exploration. A lifecycle name such as Ralph, analyze,
 plan, or execute does not by itself justify CSV Wave.
 
+### Coordinator Provider Routing
+
+When you are the coordinator:
+
+- For hard reasoning, ambiguous cross-subsystem understanding, or high-risk
+  design, consult **Claude** via `maestro delegate --to claude` instead of
+  working through the uncertainty alone.
+- For implementation that can be isolated, first split it into the smallest
+  independently verifiable bounded tasks, then use **Grok** as the default
+  delegated executor via
+  `maestro delegate --to grok --mode write --model grok-4.5 --effort high`.
+  The coordinator retains decomposition, integration, and final verification.
+- Implement directly only when the edit is narrow and deterministic enough that
+  dispatch costs at least as much as doing it. Do not send unresolved
+  architectural ambiguity or high-risk design decisions to Grok; clarify them
+  with Claude first, then delegate the bounded implementation.
+
 ### Delegate
 
 Use `maestro delegate` as the default offload primitive for one bounded task,
@@ -193,18 +209,12 @@ For explicit Codex delegates:
 | Task | Model / effort |
 |------|----------------|
 | Ambiguous cross-subsystem reasoning or planning | `gpt-5.6-sol` / `max` |
-| Simple implementation or analysis with clear acceptance | `gpt-5.6-sol` / `low` |
+| Simple analysis or review with clear acceptance | `gpt-5.6-sol` / `low` |
 | Mechanical chores, extraction, or bounded support scans | `gpt-5.6-terra` / `medium` |
 
 Model and effort selection never changes `--to` or enables provider fallback.
 Do not pass Codex model names or effort semantics to another provider unless
 its adapter explicitly supports them.
-
-Use explicit `--to grok --model grok-4.5 --effort high` for fast,
-cost-efficient bounded implementation, iteration, test/fix loops, and
-straightforward review. Keep provider-native Composer workers available; do
-not substitute the lower-quality build model or use Grok for work that needs
-Sol-level ambiguity handling, high-risk architecture, or deep planning.
 
 Default Delegate execution is synchronous, independent of expected duration.
 Use --async only when the coordinator can make useful progress on concrete,

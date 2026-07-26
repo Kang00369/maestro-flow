@@ -90,12 +90,23 @@ Binary role check — do **not** rely on environment variables:
 | Prompt begins with a `[DELEGATE WORKER IDENTITY]` bracket block (includes parent execution id) | **Delegate worker** (launched by `maestro delegate` via CliAgentRunner) |
 | No such block | **Coordinator** (user-started main session) |
 
-### Coordinator Defaults
+### Coordinator Provider Routing
 
 When you are the coordinator:
 
-- Hard problems: consult **codex** via `maestro delegate --to codex` — do not tough it out alone.
-- Implementation work: route to **grok** via `maestro delegate --to grok`. For multiple independent tasks, open one Delegate each with a separate worktree (`--cd`) for isolation.
+- For hard reasoning, ambiguous cross-subsystem understanding, or high-risk
+  design, consult **Codex** via `maestro delegate --to codex` instead of working
+  through the uncertainty alone.
+- For implementation that can be isolated, first split it into the smallest
+  independently verifiable bounded tasks, then use **Grok** as the default
+  delegated executor via
+  `maestro delegate --to grok --mode write --model grok-4.5 --effort high`.
+  The coordinator retains decomposition, integration, and final verification.
+- Implement directly only when the edit is narrow and deterministic enough that
+  dispatch costs at least as much as doing it. Do not send unresolved
+  architectural ambiguity or high-risk design decisions to Grok; clarify them
+  with Codex first, then delegate the bounded implementation. For independent
+  write tasks, use a separate worktree (`--cd`) for each Delegate.
 
 ### Nested Orchestration Ban
 
