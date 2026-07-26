@@ -100,11 +100,13 @@ When you are the coordinator:
 ### Nested Orchestration Ban
 
 A Delegate worker **must not** create a second Maestro orchestration layer through
-`maestro delegate`, `maestro cli`, `maestro csv-wave` / `spawn_agents_on_csv`, or
-native `spawn_agent`. Coordinator-only lifecycle instructions do not authorize
-recursive dispatch. Provider-native workers inside the selected CLI execution
-remain allowed. If a nested Maestro job is ever observed, treat it as a guard
-defect and fix the guard instead of messaging the nested session.
+`maestro delegate`, `maestro cli`, host-native `spawn_agent`, or
+`spawn_agents_on_csv`. Coordinator-only lifecycle instructions do not authorize
+recursive dispatch. The read-only `maestro csv-wave verify` and
+`maestro csv-wave contract` commands do not dispatch workers and remain valid
+for checking assigned artifacts. Provider-native workers inside the selected
+CLI execution remain allowed. If a nested Maestro job is ever observed, treat
+it as a guard defect and fix the guard instead of messaging the nested session.
 
 ## Explore
 

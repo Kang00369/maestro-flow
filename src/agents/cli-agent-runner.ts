@@ -213,8 +213,10 @@ async function assemblePrompt(options: AssemblePromptOptions): Promise<string> {
       `You are a Maestro Delegate worker, not the coordinator.\n` +
       `Parent execution: ${delegateContext}\n\n` +
       `You must not create a second layer of Maestro orchestration: ` +
-      `\`maestro delegate\`, \`maestro cli\`, \`maestro csv-wave\`, or Codex-native \`spawn_agent\`. ` +
-      `Those entry points are rejected at the code layer and fail immediately rather than falling back.\n\n` +
+      `\`maestro delegate\`, \`maestro cli\`, or Codex-native \`spawn_agent\` / \`spawn_agents_on_csv\`. ` +
+      `The Maestro dispatch entry points are rejected at the code layer and fail immediately rather than falling back.\n\n` +
+      `\`maestro csv-wave verify\` and \`maestro csv-wave contract\` are read-only validation commands; ` +
+      `they do not dispatch workers and remain available for checking assigned artifacts.\n\n` +
       `Provider-native subagents remain allowed (for example Grok Composer / \`spawn_subagent\`).\n\n` +
       `If an injected lifecycle skill says a coordinator should delegate, that is the coordinator's boundary, ` +
       `not permission for you to dispatch another worker.\n\n` +

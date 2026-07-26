@@ -19,6 +19,7 @@ describe.sequential('delegate recursion guard', () => {
   let CliAgentRunner: typeof import('../../agents/cli-agent-runner.js').CliAgentRunner;
   let registerDelegateCommand: typeof import('../delegate.js').registerDelegateCommand;
   let registerCliCommand: typeof import('../cli.js').registerCliCommand;
+  let registerCsvWaveCommand: typeof import('../csv-wave.js').registerCsvWaveCommand;
 
   beforeAll(async () => {
     process.env.MAESTRO_HOME = tempHome;
@@ -36,6 +37,7 @@ describe.sequential('delegate recursion guard', () => {
     ({ CliAgentRunner } = await import('../../agents/cli-agent-runner.js'));
     ({ registerDelegateCommand } = await import('../delegate.js'));
     ({ registerCliCommand } = await import('../cli.js'));
+    ({ registerCsvWaveCommand } = await import('../csv-wave.js'));
   });
 
   afterEach(() => {
@@ -242,6 +244,8 @@ describe.sequential('delegate recursion guard', () => {
     expect(captured[0].prompt.startsWith('[DELEGATE WORKER IDENTITY]')).toBe(true);
     expect(captured[0].prompt).toContain('Parent execution: parent-exec-identity-42');
     expect(captured[0].prompt).toContain('You are a Maestro Delegate worker, not the coordinator');
+    expect(captured[0].prompt).toContain('`maestro csv-wave verify` and `maestro csv-wave contract` are read-only');
+    expect(captured[0].prompt).not.toContain('`maestro csv-wave`, or');
   });
 
   it('omits Delegate identity and keeps mode protocol first without context', async () => {
@@ -378,5 +382,25 @@ describe.sequential('delegate recursion guard', () => {
     }
 
     expect(calls).toHaveLength(1);
+  });
+
+  it('allows read-only maestro csv-wave validation inside a Delegate worker', async () => {
+    process.env[MAESTRO_DELEGATE_CONTEXT_ENV] = 'parent-csv-validation';
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const program = new Command();
+    registerCsvWaveCommand(program);
+
+    await program.parseAsync([
+      'node',
+      'test',
+      'csv-wave',
+      'contract',
+    ]);
+
+    expect(process.exitCode).not.toBe(1);
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalled();
+    expect(String(logSpy.mock.calls[0]?.[0] ?? '')).toContain('csv-wave');
   });
 });

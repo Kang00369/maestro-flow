@@ -174,11 +174,13 @@ Binary role check — do **not** rely on environment variables:
 ### Nested Orchestration Ban
 
 A Delegate worker **must not** create a second Maestro orchestration layer through
-`maestro delegate`, `maestro cli`, `maestro csv-wave` / `spawn_agents_on_csv`, or
-native `spawn_agent`. Coordinator-only lifecycle instructions do not authorize
-recursive dispatch. Provider-native workers inside the selected CLI execution
-remain allowed. If a nested Maestro job is ever observed, treat it as a guard
-defect and fix the guard instead of messaging the nested session.
+`maestro delegate`, `maestro cli`, host-native `spawn_agent`, or
+`spawn_agents_on_csv`. Coordinator-only lifecycle instructions do not authorize
+recursive dispatch. The read-only `maestro csv-wave verify` and
+`maestro csv-wave contract` commands do not dispatch workers and remain valid
+for checking assigned artifacts. Provider-native workers inside the selected
+CLI execution remain allowed. If a nested Maestro job is ever observed, treat
+it as a guard defect and fix the guard instead of messaging the nested session.
 
 ## Grok Build notes
 
@@ -194,6 +196,7 @@ defect and fix the guard instead of messaging the nested session.
 - The caller or `~/.grok/config.toml` owns model and reasoning effort. Do not silently downgrade a delegated job to the build model; the recommended default is `grok-4.5` with `high` effort, while native subagents may use their configured Composer models.
 - When you are a Delegate worker (see Session Identity), you **must not** recursively
   start another Maestro orchestration layer (`maestro delegate`, `maestro cli`,
-  `maestro csv-wave`). Finish within this provider execution or return failure.
-  This ban does not restrict Grok's native subagents.
+  or host-native orchestration tools). Finish within this provider execution or
+  return failure. This ban does not restrict Grok's native subagents or the
+  read-only `maestro csv-wave verify|contract` validators.
 - `compatibility` imports selected Claude, Cursor, or Codex configuration surfaces; it is separate from Grok's model selection and native subagent system.
