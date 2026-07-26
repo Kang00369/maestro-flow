@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Command } from 'commander';
 import type { CliRunOptions } from '../../agents/cli-agent-runner.js';
 import type { CliToolsConfig, ReasoningEffort } from '../../config/cli-tools-config.js';
+import { MAESTRO_DELEGATE_CONTEXT_ENV } from '../../agents/delegate-execution-context.js';
 import { registerCliCommand } from '../cli.js';
 
 class ExitError extends Error {
@@ -55,8 +56,23 @@ async function runCli(
 }
 
 describe('maestro cli config routing', () => {
+  const originalContext = process.env[MAESTRO_DELEGATE_CONTEXT_ENV];
+  const originalExitCode = process.exitCode;
+
+  beforeEach(() => {
+    // Coordinator-path routing tests must not inherit a parent Delegate marker.
+    delete process.env[MAESTRO_DELEGATE_CONTEXT_ENV];
+    process.exitCode = undefined;
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
+    process.exitCode = originalExitCode;
+    if (originalContext === undefined) {
+      delete process.env[MAESTRO_DELEGATE_CONTEXT_ENV];
+    } else {
+      process.env[MAESTRO_DELEGATE_CONTEXT_ENV] = originalContext;
+    }
   });
 
   it('gives explicit --effort precedence over the selected provider config', async () => {

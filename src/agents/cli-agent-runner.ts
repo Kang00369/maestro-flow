@@ -191,14 +191,38 @@ const MODE_SPEC_CATEGORIES: Record<string, SpecCategory[]> = {
   write:    ['coding', 'arch', 'test'],
 };
 
-async function assemblePrompt(
-  userPrompt: string,
-  mode: 'analysis' | 'write',
-  rule?: string,
-  workDir?: string,
-  role?: string,
-): Promise<string> {
+interface AssemblePromptOptions {
+  prompt: string;
+  mode: 'analysis' | 'write';
+  rule?: string;
+  workDir?: string;
+  role?: string;
+  /** When set, injects the Delegate worker identity block as part 0. */
+  delegateExecutionContext?: string;
+}
+
+async function assemblePrompt(options: AssemblePromptOptions): Promise<string> {
+  const { prompt: userPrompt, mode, rule, workDir, role, delegateExecutionContext } = options;
   const parts: string[] = [];
+
+  // 0. Delegate worker identity — only when maestro delegate launched this run
+  const delegateContext = delegateExecutionContext?.trim();
+  if (delegateContext) {
+    parts.push(
+      `[DELEGATE WORKER IDENTITY]\n\n` +
+      `You are a Maestro Delegate worker, not the coordinator.\n` +
+      `Parent execution: ${delegateContext}\n\n` +
+      `You must not create a second layer of Maestro orchestration: ` +
+      `\`maestro delegate\`, \`maestro cli\`, \`maestro csv-wave\`, or Codex-native \`spawn_agent\`. ` +
+      `Those entry points are rejected at the code layer and fail immediately rather than falling back.\n\n` +
+      `Provider-native subagents remain allowed (for example Grok Composer / \`spawn_subagent\`).\n\n` +
+      `If an injected lifecycle skill says a coordinator should delegate, that is the coordinator's boundary, ` +
+      `not permission for you to dispatch another worker.\n\n` +
+      `Work beyond your assigned boundary — ambiguous cross-subsystem reasoning or high-risk architecture ` +
+      `decisions — must be escalated to the coordinator in your result, not by opening another worker.\n\n` +
+      `Complete the assigned work within this execution, or return failure.`,
+    );
+  }
 
   // 1. Load mode protocol
   const protocol = await loadProtocol(mode);
@@ -610,8 +634,15 @@ export class CliAgentRunner {
       : undefined;
     const grokProviderSessionMode = nativeGrokResumeId ? 'resume' : 'new';
 
-    // Assemble final prompt: protocol + user prompt + template
-    const finalPrompt = await assemblePrompt(userPrompt, options.mode, options.rule, options.workDir, options.role);
+    // Assemble final prompt: identity (optional) + protocol + user prompt + template
+    const finalPrompt = await assemblePrompt({
+      prompt: userPrompt,
+      mode: options.mode,
+      rule: options.rule,
+      workDir: options.workDir,
+      role: options.role,
+      delegateExecutionContext: options.delegateExecutionContext,
+    });
 
     const adapterFactory = this.dependencies.createAdapter ?? createAdapter;
     const adapter = await adapterFactory(agentType, options.backend);

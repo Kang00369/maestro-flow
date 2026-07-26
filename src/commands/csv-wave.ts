@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import type { Command } from 'commander';
+import { assertDelegateEntryAllowed } from '../agents/delegate-execution-context.js';
 import { buildCsvWaveContract, verifyCsvWave } from '../csv-wave/verify.js';
 
 export function registerCsvWaveCommand(program: Command): void {
@@ -29,6 +30,15 @@ export function registerCsvWaveCommand(program: Command): void {
       repairFromArtifacts?: boolean;
       json?: boolean;
     }) => {
+      try {
+        assertDelegateEntryAllowed();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Error: ${message}`);
+        process.exitCode = 1;
+        return;
+      }
+
       const report = verifyCsvWave(target, {
         artifactDir: opts.artifactDir,
         requireArtifacts: !!opts.requireArtifacts,
@@ -53,6 +63,15 @@ export function registerCsvWaveCommand(program: Command): void {
     .option('--required <fields>', 'Comma-separated required JSON fields')
     .option('--id-column <name>', 'Row id column name (default: id)', 'id')
     .action((opts: { artifactDir?: string; required?: string; idColumn?: string }) => {
+      try {
+        assertDelegateEntryAllowed();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Error: ${message}`);
+        process.exitCode = 1;
+        return;
+      }
+
       console.log(buildCsvWaveContract({
         artifactDir: opts.artifactDir,
         requiredFields: parseList(opts.required),

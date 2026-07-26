@@ -10,6 +10,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { CliAgentRunner, type CliRunOptions } from '../agents/cli-agent-runner.js';
 import { CliHistoryStore } from '../agents/cli-history-store.js';
 import type { ExecutionMeta, EntryLike } from '../agents/cli-history-store.js';
+import { assertDelegateEntryAllowed } from '../agents/delegate-execution-context.js';
 import {
   loadCliToolsConfig,
   REASONING_EFFORTS,
@@ -92,6 +93,15 @@ export function registerCliCommand(
       resume?: string | true;
       includeDirs?: string;
     }) => {
+      try {
+        assertDelegateEntryAllowed();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Error: ${message}`);
+        process.exitCode = 1;
+        return;
+      }
+
       if (!opts.prompt) {
         console.error('error: required option \'-p, --prompt <prompt>\' not specified');
         return exit(1);
