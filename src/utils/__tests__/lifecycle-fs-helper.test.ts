@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -272,6 +274,33 @@ test('rejects native aggregate to resource mismatch', () => {
     assert.throws(
       () => verifyIntegratedResources({ workspaceRoot: fixture.root, receipt: parsed }),
       /checked-in resource mismatch/,
+    );
+  } finally {
+    cleanup(fixture.root);
+  }
+});
+
+test('installs and verifies executable bits for non-Windows native helpers', () => {
+  if (process.platform === 'win32') return;
+
+  const fixture = createFixtureWorkspace();
+  try {
+    const parsed = parseNativeLifecycleDispatchReceipt(fixture.receipt, fixture.context);
+    const verified = integrateNativeLifecycleResources(parsed, { workspaceRoot: fixture.root });
+    const unixArtifacts = verified.manifest.artifacts.filter(
+      (artifact: { platform: string }) => artifact.platform !== 'win32',
+    );
+
+    for (const artifact of unixArtifacts) {
+      const path = resolve(fixture.root, artifact.path);
+      assert.notEqual(statSync(path).mode & 0o111, 0);
+    }
+
+    const brokenPath = resolve(fixture.root, unixArtifacts[0].path);
+    chmodSync(brokenPath, 0o644);
+    assert.throws(
+      () => verifyIntegratedResources({ workspaceRoot: fixture.root, receipt: parsed }),
+      /checked-in resource is not executable/,
     );
   } finally {
     cleanup(fixture.root);

@@ -609,6 +609,7 @@ function atomicInstallExact(path, bytes, expectedHash, executable) {
   if (existsSync(path)) {
     const existing = readFileSync(path);
     if (sha256(existing) !== expectedHash) fail(`existing resource is not the expected byte: ${path}`);
+    if (executable && process.platform !== 'win32') chmodSync(path, 0o755);
     return;
   }
   atomicWrite(path, bytes, executable ? 0o755 : 0o600);
@@ -711,13 +712,19 @@ export function verifyIntegratedResources({ workspaceRoot, receipt = null }) {
     const mapping = NATIVE_TARGETS[artifact.target];
     if (!mapping || seen.has(artifact.target)) fail('manifest target set mismatch');
     seen.add(artifact.target);
+    const artifactPath = resolve(root, artifact.path);
     if (artifact.platform !== mapping.platform
       || artifact.arch !== mapping.arch
       || artifact.path !== mapping.binaryPath
       || artifact.protocol !== NATIVE_PROTOCOL
       || !HEX_64.test(artifact.sha256)
-      || sha256(readFileSync(resolve(root, artifact.path))) !== artifact.sha256) {
+      || sha256(readFileSync(artifactPath)) !== artifact.sha256) {
       fail(`${artifact.target} checked-in resource mismatch`);
+    }
+    if (process.platform !== 'win32'
+      && artifact.platform !== 'win32'
+      && (statSync(artifactPath).mode & 0o111) === 0) {
+      fail(`${artifact.target} checked-in resource is not executable`);
     }
   }
   if (seen.size !== 5 || TARGET_ORDER.some(target => !seen.has(target))) {
