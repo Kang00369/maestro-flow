@@ -70,6 +70,12 @@ does not provide the independent context and evidence discipline of a Scout.
 Do not use Explore as a fallback for ordinary file or symbol lookup. Choose the
 highest tier justified by the question instead of running all tiers in sequence.
 
+Exploration and consultation are sequential ownership stages. A Claude
+consultant is never an exploration tier: finish exactly one tier above, verify
+its key `file:line` evidence, and consult only when a named decision remains
+unresolved. Do not launch Scout, Explore, Codex Delegate, and Claude Delegate
+against the same evidence scope in parallel.
+
 ### Session Identity
 
 Binary role check — do **not** rely on environment variables:
@@ -178,9 +184,12 @@ plan, or execute does not by itself justify CSV Wave.
 
 When you are the coordinator:
 
-- For hard reasoning, ambiguous cross-subsystem understanding, or high-risk
-  design, consult **Claude** via `maestro delegate --to claude` instead of
-  working through the uncertainty alone.
+- After the selected exploration tier has returned verified evidence, consult
+  **Claude** only for a named unresolved high-risk decision. Use
+  `maestro delegate "QUESTION: <decision> | EVIDENCE: <verified file:line excerpts> | OPTIONS: <bounded choices> | EXPECTED: recommendation with tradeoffs | CONSTRAINTS: consultation only; no broad repository exploration" --to claude --mode analysis --model claude-sonnet-4-6 --effort high`.
+  Do not use an Opus-class model for repository understanding; it requires an
+  explicit user request or a documented high-risk decision that remains open
+  after Sonnet consultation.
 - For implementation that can be isolated, first split it into the smallest
   independently verifiable bounded tasks, then use **Grok** as the default
   delegated executor via
@@ -204,6 +213,10 @@ Missing, unknown, or disabled providers fail without fallback; `--role` controls
 spec injection only and never selects a provider. Explicit user model and
 effort flags always win.
 
+Codex and Claude Delegates require explicit non-empty `--model` and `--effort`;
+the CLI rejects omission before creating an execution id, history, or process.
+Their `primaryModel` config is not a Delegate routing mechanism.
+
 For explicit Codex delegates:
 
 | Task | Model / effort |
@@ -222,8 +235,9 @@ independent work. When the result becomes necessary, run
 `maestro delegate wait <exec_id>` and wait exactly once. Do not use sleep or
 repeated status/output queries. A harness using `write_stdin` to await that one
 still-running wait process is process waiting, not Delegate status polling.
-When hosting synchronous Delegate or `delegate wait` in `functions.exec`, omit
-an outer early `yield_time_ms` so the blocking command can return naturally.
+When hosting synchronous Delegate or `delegate wait` in `functions.exec`, use
+the fixed blocking recipe in @~/.maestro/workflows/shell-exec-protocol.md. Do
+not choose a shorter outer yield or invent a polling interval.
 Parallel write delegates require independent worktrees.
 
 Delegate invariants:
@@ -254,9 +268,10 @@ CSV Wave details belong in the owning skill,
 Before invoking `spawn_agents_on_csv` directly, read the selected skill's
 schema and recovery instructions. Set
 `max_runtime_seconds` explicitly with `3600` as the hard ceiling. The call is
-already blocking; when hosting it in `functions.exec`, normally omit an outer
-explicit `yield_time_ms` so the complete wave returns naturally. Only opt into
-early yield for requested mid-wave observation or cancellation.
+already blocking; when hosting it in `functions.exec`, use the fixed long outer
+window from @~/.maestro/workflows/shell-exec-protocol.md so the complete wave
+returns in one tool turn. Only opt into early yield for requested mid-wave
+observation or cancellation.
 
 Require strict non-empty worker results, schema-backed output,
 artifact-backed recovery when needed, and no recursive fan-out. Do not diagnose

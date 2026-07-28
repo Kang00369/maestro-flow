@@ -31,10 +31,11 @@ message_types:
 
 | Method | Backend | CLI Tool |
 |--------|---------|----------|
-| `codex` | `maestro delegate --to codex --mode write` | Background CLI |
-| `agy` | `maestro delegate --to agy --mode write` | Background CLI |
+| `grok` / Auto | `maestro delegate --to grok --mode write --model grok-4.5 --effort high` | Synchronous CLI |
+| `codex` | `maestro delegate --to codex --mode write --model gpt-5.6-sol --effort low` | Explicit only |
+| `agy` | `maestro delegate --to agy --mode write` | Explicit only |
 
-### CLI Backend (Codex/Agy)
+### Default CLI Backend (Grok)
 
 ```bash
 maestro delegate "PURPOSE: Implement solution for issue <issueId>; success = all tasks completed, tests pass
@@ -45,10 +46,11 @@ EXPECTED: Working implementation with: code changes, test updates, no syntax err
 CONSTRAINTS: Follow existing patterns | Maintain backward compatibility
 Issue: <issueId>
 Title: <solution.title>
-Solution: <solution JSON>" --tool <codex|agy> --mode write --rule development-implement-feature
+Solution: <solution JSON>" --to grok --mode write --model grok-4.5 --effort high --rule development-implement-feature
 ```
 
-Wait for CLI completion before proceeding to verification.
+The result is an immediate dependency, so keep Delegate synchronous and wait
+for its command to return before verification. Do not poll status/output.
 
 ## Phase 4: Verification + Commit
 

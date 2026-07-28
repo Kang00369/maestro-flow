@@ -93,11 +93,9 @@ rg "^import .* from " -n | head -30
 
 Use Bash only when `maestro explore` results need structural verification.
 
-### Fallback: `maestro delegate` (only when explore unavailable)
-
-```bash
-maestro delegate "PURPOSE: {from prompt} TASK: {from prompt} MODE: analysis" --role explore --mode analysis
-```
+If `maestro explore` is unavailable, stay in this read-only worker and use the
+structural Bash scan only. Report the semantic-coverage gap to the coordinator;
+do not create a nested Delegate or switch providers.
 
 ### Dual-Source Synthesis
 

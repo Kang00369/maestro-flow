@@ -65,15 +65,14 @@ Otherwise build the option prompts from the enabled tools:
 
 ```
 available tools = enabled tools from maestro delegate-config show --json (excluding agent, which is always available)
-frontendTool = first tool with the "frontend" tag, fall back to first enabled
-backendTool  = first tool with the "backend" tag, fall back to first enabled
+implementationDelegate = grok when enabled; otherwise agent
 ```
 
 | Question | Resolution |
 |------|------|
-| Executor (how to execute tasks) | Auto → `domainRouting {frontend, backend, default:"agent"}`; tool name → single executor; Other text → parse by domain rules (e.g. `frontend gemini backend codex`) |
+| Executor (how to execute tasks) | Auto → isolated implementation uses Grok, otherwise agent; an explicit tool name remains explicit |
 | Review (code-review after execution?) | store as `codeReviewTool`, Skip means no review |
-| Verify (smoke self-check tool?) | Auto → first enabled; tool name → that tool; Skip → do nothing |
+| Verify (smoke self-check tool?) | Auto → coordinator deterministic checks; tool name → that explicit tool; Skip → do nothing |
 
 Store `executionMethod`, `domainRouting`, `codeReviewTool`, `verificationTool`.
 
@@ -85,8 +84,8 @@ Read the plan from the `current-plan` path injected by create.
 
 ```
 executionMethod = Step 1 choice || --method || plan default || "auto"
-defaultExecutor = --executor || first enabled tool
-domainRouting   = Step 1 || build from delegate-config domain tags (frontend/backend match tag, default "agent")
+defaultExecutor = --executor || (grok when enabled, otherwise "agent")
+domainRouting   = Step 1 || { frontend: defaultExecutor, backend: defaultExecutor, general: defaultExecutor }
 ```
 
 **Checkpoint resume**: scan each task's status, collect completed tasks; if any exist record resume state and jump to the first wave containing an incomplete task.
@@ -123,7 +122,17 @@ backend  — API/server/database/service/algorithm (.go/.rs/.java/.py/.sql/.prot
 general  — mixed, only .ts/.js, config, tests, or domain unclear
 ```
 
-Record the routing decision per task before dispatch: `TASK-001 [frontend] → gemini`.
+Record the routing decision per task before dispatch: `TASK-001 [frontend] → grok (grok-4.5/high)`.
+
+Provider arguments are part of that decision, not inferred from
+`primaryModel`:
+
+```
+grok  -> --model grok-4.5 --effort high
+codex -> --model gpt-5.6-sol --effort low  # only when explicitly selected
+claude -> invalid implementation executor; use Claude only for evidence-backed consultation
+other providers -> their adapter's explicit/configured contract
+```
 
 ### Delegate writing skeleton
 
@@ -163,13 +172,17 @@ for each wave in queue (serial):
 
     ELSE (CLI path maestro delegate):
       fixedId = "${scope_slug}-${task.id}", stored in the execution record
-      dispatch: maestro delegate "${prompt}" --to ${executor} --mode write --id ${fixedId}
+      dispatch async only because the wave has independent work:
+        maestro delegate "${prompt}" --to ${executor} --mode write --id ${fixedId} ${providerArgs} --async
       after dispatch the main flow verifies convergence criteria against file state
       the main flow writes the summary, updates task status, auto-commits if enabled
 
     collect result: { task.id, status, executor, summary_path, commit_hash, delegate_id }
 
-  wait for all tasks in the wave to complete
+  after all useful independent dispatch work, enter one dependency gate:
+    run exactly one event-driven `maestro delegate wait ${fixedId}` per async Delegate
+    host the waits with @~/.maestro/workflows/shell-exec-protocol.md
+    never use sleep, status/output polling, or an improvised 10/60-second cadence
   IF any blocked AND not -y: ask the user to continue/stop
   ELSE: automatically proceed to the next wave (never ask between waves)
 ```
@@ -178,7 +191,7 @@ for each wave in queue (serial):
 
 ```
 Dispatch all tasks in a wave in parallel in a single message (agent + CLI mixed).
-agent tasks: run_in_background false | CLI tasks: run_in_background true
+agent tasks: run_in_background false | CLI tasks: explicit --async
 one independent dispatch per task, never merge multiple tasks into one delegate prompt
 ```
 
@@ -187,7 +200,9 @@ one independent dispatch per task, never merge multiple tasks into one delegate 
 ```
 Up to 3 auto-fixes per task:
   agent path: handled internally by workflow-executor
-  CLI path: 1) --resume ${fixedId} → 2) simplify prompt → 3) fall back to agent, mark [LOW CONFIDENCE]
+  CLI path: 1) resume with the same executor and original providerArgs
+            2) simplify prompt with the same executor and providerArgs
+            3) mark blocked; never switch providers as failure fallback
 
 All 3 fail: mark "blocked" and write a checkpoint { attempt:3, last_error, partial_files, executor, delegate_id }
 continue the current wave (other tasks unaffected)
@@ -202,9 +217,10 @@ Check 1 summary exists: completed task missing summary → warning "missing_summ
 Check 2 status consistency: cross-check task status against wave_results → mismatch (missing side is critical)
 Check 3 tech stack constraints: extract allowed_languages/disallowed_imports/required_patterns from specs,
         scan the files changed by completed tasks, hit on disallowed → critical "tech_stack_violation"
-Check 4 CLI supplementary validation (optional, skip if no CLI tool or no completed tasks):
-        maestro delegate analysis mode scans changed files for circular deps / dead code / breaking changes,
-        critical items merged into violations
+Check 4 supplementary validation (optional, skip if no completed tasks):
+        use deterministic tools first; use one read-only Scout for cross-file evidence
+        collection. Only a named unresolved decision may become a Codex/Claude
+        consultation with verified file:line evidence and explicit model/effort.
 ```
 
 **Gate logic**: any critical → mark blocked, record blocked_reason + violations, abort; no critical → continue.
@@ -213,7 +229,11 @@ Check 4 CLI supplementary validation (optional, skip if no CLI tool or no comple
 
 ## Step 6: Code review (optional)
 
-If `codeReviewTool == "Skip"` skip. Otherwise maestro delegate (run_in_background) reviews the git diff (execution start point → HEAD) for correctness/style/bugs, record the findings summary.
+If `codeReviewTool == "Skip"` skip. Otherwise review the bounded git diff and
+record the findings summary. A Delegate reviewer is synchronous unless concrete
+independent work remains, and Codex/Claude must use explicit model/effort.
+Claude receives only a named question plus already collected diff evidence; it
+does not perform broad repository discovery.
 
 ---
 
@@ -223,8 +243,9 @@ If `verificationTool == "Skip"` or there are no completed tasks, skip. **This is
 
 ```
 1. Collect files changed by completed tasks, each task's convergence.criteria, session success criteria
-2. Resolve tool: Auto → first enabled, otherwise the specified tool
-3. Dispatch maestro delegate (analysis mode) to do one smoke pass:
+2. Resolve tool: Auto → coordinator with deterministic checks; otherwise the specified tool
+3. Run one smoke pass. If an explicit Delegate tool is selected, obey the
+   evidence/consultation boundary and explicit provider model/effort contract:
    - CONVERGENCE: verify each criterion against the code, with file:line evidence
    - Existence: expected output files exist on disk
    - Substance: files have real implementation, not stub/placeholder/TODO-only/empty return

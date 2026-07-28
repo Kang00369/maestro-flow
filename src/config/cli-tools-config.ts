@@ -361,7 +361,18 @@ export interface InitResult {
   added: string[];
   /** True when the file did not exist before this call. */
   created: boolean;
+  /**
+   * Tool names whose primaryModel was upgraded from a known legacy shipped
+   * default (exact-value match only). Empty when nothing migrated.
+   */
+  migrated: string[];
 }
+
+/** Prior shipped Codex default; only this exact value is auto-migrated. */
+export const LEGACY_SHIPPED_CODEX_PRIMARY_MODEL = 'gpt-5.5';
+
+/** Current shipped Codex default (matches cli-tools-defaults.json). */
+export const CURRENT_SHIPPED_CODEX_PRIMARY_MODEL = 'gpt-5.6-sol';
 
 function buildDefaultTools(): Record<string, ToolEntry> {
   const tools: Record<string, ToolEntry> = {};
@@ -383,14 +394,49 @@ function mergeMissingToolDefs(existing: Record<string, ToolEntry>): { merged: Re
 }
 
 /**
+ * Migrate only known legacy shipped defaults to the current shipped value.
+ *
+ * - codex.primaryModel === "gpt-5.5" → "gpt-5.6-sol"
+ * - Any other codex.primaryModel (custom or already current) is preserved.
+ * - Non-codex tools are untouched.
+ *
+ * Pure: does not touch the filesystem. Safe to unit-test in isolation.
+ */
+export function migrateLegacyShippedToolModels(
+  tools: Record<string, ToolEntry>,
+): { tools: Record<string, ToolEntry>; migrated: string[] } {
+  const migrated: string[] = [];
+  const next: Record<string, ToolEntry> = { ...tools };
+  const codex = next.codex;
+  if (codex && codex.primaryModel === LEGACY_SHIPPED_CODEX_PRIMARY_MODEL) {
+    next.codex = { ...codex, primaryModel: CURRENT_SHIPPED_CODEX_PRIMARY_MODEL };
+    migrated.push('codex');
+  }
+  return { tools: next, migrated };
+}
+
+/**
+ * Apply missing-tool merge + legacy shipped-model migration on an existing
+ * tools map. Pure helper shared by async/sync init paths and unit tests.
+ */
+export function upgradeExistingCliTools(
+  existing: Record<string, ToolEntry>,
+): { tools: Record<string, ToolEntry>; added: string[]; migrated: string[] } {
+  const { merged, added } = mergeMissingToolDefs(existing);
+  const { tools, migrated } = migrateLegacyShippedToolModels(merged);
+  return { tools, added, migrated };
+}
+
+/**
  * Initialize / upgrade ~/.maestro/cli-tools.json.
  *
  * - First install (file missing): create from defaults with availability detection.
  * - Upgrade (file present): merge defaults into existing — only adds tools that
- *   are missing. Existing entries (primaryModel, secondaryModel, settingsFile,
- *   reasoningEffort, tags, enabled) are preserved verbatim.
+ *   are missing; migrates codex.primaryModel when it is exactly the known legacy
+ *   shipped default (`gpt-5.5` → `gpt-5.6-sol`). All other custom values are
+ *   preserved verbatim.
  *
- * Returns details about what changed.
+ * Returns details about what changed (added + migrated) for test evidence.
  */
 export async function initCliToolsConfig(): Promise<InitResult> {
   const configPath = join(homedir(), '.maestro', 'cli-tools.json');
@@ -406,7 +452,7 @@ export async function initCliToolsConfig(): Promise<InitResult> {
     const config: CliToolsConfig = { version: '1.1.0', tools: buildDefaultTools() };
     await mkdir(dirname(configPath), { recursive: true });
     await writeFile(configPath, JSON.stringify(config, null, 2) + '\n');
-    return { changed: true, added: [], created: true };
+    return { changed: true, added: [], created: true, migrated: [] };
   }
 
   let existing: CliToolsConfig;
@@ -414,20 +460,23 @@ export async function initCliToolsConfig(): Promise<InitResult> {
     existing = JSON.parse(existingRaw) as CliToolsConfig;
   } catch {
     // Malformed — leave it alone, don't blow away user data
-    return { changed: false, added: [], created: false };
+    return { changed: false, added: [], created: false, migrated: [] };
   }
 
-  const { merged, added } = mergeMissingToolDefs(existing.tools ?? {});
-  if (added.length === 0) return { changed: false, added: [], created: false };
+  const { tools, added, migrated } = upgradeExistingCliTools(existing.tools ?? {});
+  if (added.length === 0 && migrated.length === 0) {
+    return { changed: false, added: [], created: false, migrated: [] };
+  }
 
-  const next: CliToolsConfig = { ...existing, version: existing.version ?? '1.1.0', tools: merged };
+  const next: CliToolsConfig = { ...existing, version: existing.version ?? '1.1.0', tools };
   await writeFile(configPath, JSON.stringify(next, null, 2) + '\n');
-  return { changed: true, added, created: false };
+  return { changed: true, added, created: false, migrated };
 }
 
 /**
  * Synchronous version of initCliToolsConfig for non-async contexts (e.g. forceInstall).
- * Same semantics: first-install creates, upgrade merges only missing tool defs.
+ * Same semantics: first-install creates, upgrade merges missing tool defs and
+ * migrates only the known legacy codex primaryModel.
  */
 export function initCliToolsConfigSync(): InitResult {
   const configPath = join(homedir(), '.maestro', 'cli-tools.json');
@@ -436,20 +485,22 @@ export function initCliToolsConfigSync(): InitResult {
     const config: CliToolsConfig = { version: '1.1.0', tools: buildDefaultTools() };
     mkdirSync(dirname(configPath), { recursive: true });
     writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
-    return { changed: true, added: [], created: true };
+    return { changed: true, added: [], created: true, migrated: [] };
   }
 
   let existing: CliToolsConfig;
   try {
     existing = JSON.parse(readFileSync(configPath, 'utf-8')) as CliToolsConfig;
   } catch {
-    return { changed: false, added: [], created: false };
+    return { changed: false, added: [], created: false, migrated: [] };
   }
 
-  const { merged, added } = mergeMissingToolDefs(existing.tools ?? {});
-  if (added.length === 0) return { changed: false, added: [], created: false };
+  const { tools, added, migrated } = upgradeExistingCliTools(existing.tools ?? {});
+  if (added.length === 0 && migrated.length === 0) {
+    return { changed: false, added: [], created: false, migrated: [] };
+  }
 
-  const next: CliToolsConfig = { ...existing, version: existing.version ?? '1.1.0', tools: merged };
+  const next: CliToolsConfig = { ...existing, version: existing.version ?? '1.1.0', tools };
   writeFileSync(configPath, JSON.stringify(next, null, 2) + '\n');
-  return { changed: true, added, created: false };
+  return { changed: true, added, created: false, migrated };
 }

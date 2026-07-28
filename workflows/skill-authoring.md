@@ -205,10 +205,10 @@ Codex Skill 不强制使用 CSV Wave。按任务形状选择最小且清晰的�
    fallback when hooks are unavailable.
 6. Set `max_runtime_seconds` explicitly for every worker call; `3600` seconds is
    the hard ceiling.
-7. When the call is hosted by `functions.exec`, omit an outer explicit
-   `yield_time_ms` by default. `spawn_agents_on_csv` already blocks until the
-   whole wave finishes; early-yielding the wrapper creates a needless root
-   `wait` loop and spends extra turns/tokens. Only opt into early yield when the
+7. When the call is hosted by `functions.exec`, use the fixed long outer window
+   from @~/.maestro/workflows/shell-exec-protocol.md. The default ten-second
+   outer yield creates a needless root wait loop even though
+   `spawn_agents_on_csv` already blocks. Only opt into early yield when the
    caller explicitly needs mid-wave cancellation or observation.
 8. spawn_agents_on_csv({
      csv_path: wave-{N}.csv,

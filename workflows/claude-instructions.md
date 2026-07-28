@@ -94,9 +94,11 @@ Binary role check — do **not** rely on environment variables:
 
 When you are the coordinator:
 
-- For hard reasoning, ambiguous cross-subsystem understanding, or high-risk
-  design, consult **Codex** via `maestro delegate --to codex` instead of working
-  through the uncertainty alone.
+- Finish code search or Explore evidence collection first. If a named
+  high-risk decision remains unresolved, consult **Codex** with a compact,
+  verified evidence packet via
+  `maestro delegate "QUESTION: <decision> | EVIDENCE: <verified file:line excerpts> | OPTIONS: <bounded choices> | EXPECTED: recommendation with tradeoffs | CONSTRAINTS: consultation only; no broad repository exploration" --to codex --mode analysis --model gpt-5.6-sol --effort max`.
+  Codex consultation must not duplicate an active exploration scope.
 - For implementation that can be isolated, first split it into the smallest
   independently verifiable bounded tasks, then use **Grok** as the default
   delegated executor via
@@ -107,6 +109,9 @@ When you are the coordinator:
   architectural ambiguity or high-risk design decisions to Grok; clarify them
   with Codex first, then delegate the bounded implementation. For independent
   write tasks, use a separate worktree (`--cd`) for each Delegate.
+
+Codex and Claude Delegate calls require explicit non-empty `--model` and
+`--effort`; `primaryModel` is not a Delegate routing fallback.
 
 ### Nested Orchestration Ban
 

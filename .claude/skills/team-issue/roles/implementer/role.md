@@ -11,8 +11,9 @@ message_types: [impl_complete, impl_failed, error]
 
 | Backend | Condition | Method |
 |---------|-----------|--------|
-| codex | task_count > 3 or explicit | `maestro delegate --to codex --mode write --id issue-<issueId>` |
-| agy | task_count <= 3 or explicit | `maestro delegate --to agy --mode write --id issue-<issueId>` |
+| grok | default or explicit | `maestro delegate --to grok --mode write --model grok-4.5 --effort high --id issue-<issueId>` |
+| codex | explicit only | `maestro delegate --to codex --mode write --model gpt-5.6-sol --effort low --id issue-<issueId>` |
+| agy | explicit only | `maestro delegate --to agy --mode write --id issue-<issueId>` |
 | qwen | explicit | `maestro delegate --to qwen --mode write --id issue-<issueId>` |
 
 ## Phase 2: Load Solution & Resolve Executor
@@ -30,7 +31,7 @@ message_types: [impl_complete, impl_failed, error]
 3. Load solution artifact: `Read("{run_dir}/outputs/solutions/solution-<issueId>.json")`
 4. If no solution artifact -> report error, STOP
 5. Load explorer context (if available)
-6. Resolve execution method (Auto: task_count <= 3 -> agy, else codex)
+6. Resolve execution method (Auto: Grok; if Grok is unavailable, report failure without provider fallback)
 7. Update issue status: `Bash("maestro issue update <issueId> --status in_progress --json")`
 
 ## Phase 3: Implementation (Multi-Backend Routing)
@@ -65,11 +66,13 @@ Dependencies: <explorerContext.dependencies>
 ```
 
 Route by executor:
-- **codex**: `Bash("maestro delegate \\\"<prompt>\" --to codex --mode write --id issue-<issueId>", { run_in_background: false })`
+- **grok**: `Bash("maestro delegate \\\"<prompt>\" --to grok --mode write --model grok-4.5 --effort high --id issue-<issueId>", { run_in_background: false })`
+- **codex**: `Bash("maestro delegate \\\"<prompt>\" --to codex --mode write --model gpt-5.6-sol --effort low --id issue-<issueId>", { run_in_background: false })`
 - **agy**: `Bash("maestro delegate \\\"<prompt>\" --to agy --mode write --id issue-<issueId>", { run_in_background: false })`
 - **qwen**: `Bash("maestro delegate \\\"<prompt>\" --to qwen --mode write --id issue-<issueId>", { run_in_background: false })`
 
-On CLI failure, resume: `maestro delegate "Continue" --resume issue-<issueId> --to <tool> --mode write`
+On CLI failure, resume once with the same provider and its original explicit
+model/effort arguments. Never switch providers as a failure fallback.
 
 ## Phase 4: Verify & Commit
 

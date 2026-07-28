@@ -206,7 +206,9 @@ The following rules apply to all commands with an interview_protocol. Commands r
 3. Knowledge base: `maestro spec load` / `maestro wiki search`
 4. Codebase semantic location: FastContext first, then MaestroGraph/KG for known symbols
 5. Exact verification: Glob / Grep / Read
-6. Open-ended high-cost analysis: FastContext seed queries first; use `maestro delegate --to <enabled-agent> --role analyze` only when explicitly needed
+6. Open-ended high-cost analysis: finish one FastContext/Scout/Explore evidence
+   tier first. A Delegate is then allowed only for a named unresolved question
+   with verified citations; Codex/Claude calls must pin model and effort.
 
 Principle: **never ask what code or memory can answer**; never bounce your own ambiguity back to the user.
 

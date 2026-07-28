@@ -172,7 +172,7 @@ while (true) {
   // Read: phases/02-execute.md
   // Single mode: one maestro delegate call for all skills
   // Chain mode: sequential maestro delegate per skill in chain_order, passing artifacts
-  // Snapshot skill → construct prompt → maestro delegate --to claude --mode write
+  // Snapshot skill → construct prompt → bounded Grok implementation Delegate
   // Collect artifacts
 
   // === Phase 3: Evaluate ===
@@ -200,7 +200,7 @@ Read and execute: `Ref: phases/02-execute.md`
 
 - Snapshot skill → `iteration-{N}/skill-snapshot/`
 - Build execution prompt from skill content + test scenario
-- Execute: `maestro delegate "..." --to claude --mode write --cd "${iterDir}/artifacts"`
+- Execute: `maestro delegate "..." --to grok --mode write --model grok-4.5 --effort high --cd "${iterDir}/artifacts"`
 - Collect artifacts
 
 ### Phase 3: Evaluate Quality (per iteration)

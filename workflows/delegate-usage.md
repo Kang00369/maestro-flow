@@ -12,8 +12,8 @@ maestro delegate "<PROMPT>" [options]
 | `--to <tool>` | Explicit enabled agent: gemini, qwen, codex, claude, grok, opencode | Required |
 | `--role <role>` | Spec-injection role: analyze, explore, review, implement, plan, brainstorm, research | — |
 | `--mode <mode>` | `analysis` (read-only) / `write` (modify) | `analysis` |
-| `--model <model>` | Model override | Tool's `primaryModel` |
-| `--effort <level>` | Reasoning effort: low, medium, high, max | Tool config/default |
+| `--model <model>` | Model selection | Required for Codex/Claude; otherwise tool config |
+| `--effort <level>` | Reasoning effort: low, medium, high, max | Required for Codex/Claude; otherwise tool config |
 | `--cd <dir>` | Working directory | Current |
 | `--rule <template>` | Protocol + prompt template | — |
 | `--id <id>` | Execution ID | Auto: `{prefix}-{HHmmss}-{rand4}` |
@@ -34,16 +34,18 @@ analysis, planning, review, research, or implementation. It is not reserved for
 long-running work. Prefer it before CSV Wave when the task does not require a
 homogeneous row batch, dependency waves, or strict multi-worker recovery.
 
-`--model <model>` overrides the selected agent's `primaryModel`. For example:
+Codex and Claude fail before execution unless both `--model` and `--effort` are
+explicit. Their configured `primaryModel` remains useful for interactive
+`maestro cli`, but never selects a Delegate model. Other providers may inherit
+their configured defaults. For example:
 
 ```bash
-maestro delegate "<PROMPT>" --to codex --model gpt-5.6-luna --mode analysis
+maestro delegate "<PROMPT>" --to codex --model gpt-5.6-terra --effort medium --mode analysis
 ```
 
 ### Codex Model Budget
 
-When `--to codex` is explicit and the caller did not pin a model/effort, use the
-lowest sufficient tier:
+When `--to codex` is explicit, pin the lowest sufficient tier:
 
 | Task shape | Model and effort | Examples |
 |------------|------------------|----------|
@@ -61,6 +63,21 @@ FastContext remains the first code locator. Use the Terra tier when a separate
 scout session still adds value. Model/effort selection never changes the
 explicit agent and never enables provider fallback. Codex `max` is translated
 by the adapter to its supported highest local reasoning setting.
+
+### Claude Consultation
+
+Claude is a consultant after evidence collection, not a repository explorer.
+The coordinator first completes one FastContext/Scout/Explore tier and verifies
+the key citations. Only a named unresolved decision may then be sent to Claude:
+
+```bash
+maestro delegate "QUESTION: <decision> | EVIDENCE: <verified file:line excerpts> | OPTIONS: <bounded choices> | EXPECTED: recommendation with tradeoffs | CONSTRAINTS: consultation only; no broad repository exploration" --to claude --mode analysis --model claude-sonnet-4-6 --effort high
+```
+
+Do not run Claude in parallel with an explorer over the same scope. Do not use
+an Opus-class model for source discovery or general understanding; it requires
+an explicit user request or a documented high-risk decision still unresolved
+after the bounded Sonnet consultation.
 
 ### Grok Delegate
 
@@ -112,7 +129,7 @@ CONSTRAINTS: [scope limits]
 
 ### CONTEXT Patterns
 
-- `@**/*` — all files (default)
+- `@**/*` — broad scope; never use for Claude consultation
 - `@src/**/*.ts` — scoped
 - `@../shared/**/*` — sibling dir (**requires `--includeDirs ../shared`**)
 
@@ -144,9 +161,10 @@ cancelled `130`. Terminal output, including a legal empty string, is written to
 stdout; status is written to stderr. The `status`, `tail`, and `output` commands
 remain available, but status, tail, and output are diagnostics, not waiting
 primitives. Do not sleep and recheck status, or loop over status/output.
-When hosting a synchronous Delegate or `delegate wait` in `functions.exec`, do
-not set an outer early `yield_time_ms`; let the blocking command return
-naturally, as with CSV Wave.
+When hosting a synchronous Delegate or `delegate wait` in `functions.exec`, use
+the fixed one-call blocking recipe in
+@~/.maestro/workflows/shell-exec-protocol.md. Models do not choose or adjust the
+wait interval.
 
 When the current session is already a Maestro Delegate worker, it must not
 create a second Maestro orchestration layer through another

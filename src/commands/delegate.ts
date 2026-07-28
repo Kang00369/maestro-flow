@@ -11,7 +11,14 @@ import { CliHistoryStore, type EntryLike } from '../agents/cli-history-store.js'
 import type { ExecutionMeta } from '../agents/cli-history-store.js';
 import { generateCliExecId } from '../agents/cli-agent-runner.js';
 import { assertDelegateEntryAllowed } from '../agents/delegate-execution-context.js';
-import { loadCliToolsConfig, selectTool, resolveProxyEnv, checkProxyReachable } from '../config/cli-tools-config.js';
+import {
+  loadCliToolsConfig,
+  selectTool,
+  resolveProxyEnv,
+  checkProxyReachable,
+  REASONING_EFFORTS,
+  type ReasoningEffort,
+} from '../config/cli-tools-config.js';
 import { paths } from '../config/paths.js';
 import { DelegateBrokerClient, MAX_DELEGATE_WAIT_TIMEOUT_MS, type JsonObject, type DelegateJobEvent, type DelegateJobRecord, type DelegateQueuedMessage } from '../async/index.js';
 import { handleDelegateMessage } from '../async/delegate-control.js';
@@ -25,6 +32,98 @@ import {
   readExecutionEntries,
   summarizeBrokerEventCli,
 } from '../utils/cli-format.js';
+
+/** Providers that must pin model/effort on every `maestro delegate` call. */
+const DELEGATE_EXPLICIT_MODEL_EFFORT_PROVIDERS = new Set([
+  'codex',
+  'codex-server',
+  'claude',
+  'claude-code',
+]);
+
+/**
+ * True when Delegate must not inherit model/effort from cli-tools.json.
+ * Uses `baseTool` when the selected entry is an alias of Codex or Claude.
+ */
+export function delegateRequiresExplicitModelEffort(
+  tool: string,
+  baseTool?: string,
+): boolean {
+  return DELEGATE_EXPLICIT_MODEL_EFFORT_PROVIDERS.has(tool)
+    || (baseTool !== undefined && DELEGATE_EXPLICIT_MODEL_EFFORT_PROVIDERS.has(baseTool));
+}
+
+export interface ResolveDelegateModelEffortInput {
+  tool: string;
+  baseTool?: string;
+  /** CLI `--model` (may be empty/whitespace). */
+  modelOverride?: string;
+  /** CLI `--effort` (may be empty/whitespace). */
+  effortOverride?: string;
+  /** Selected tool's configured primaryModel (used only when not fail-closed). */
+  configuredModel: string;
+  /** Selected tool's configured reasoningEffort (used only when not fail-closed). */
+  configuredEffort?: ReasoningEffort;
+}
+
+export interface ResolveDelegateModelEffortResult {
+  model: string;
+  reasoningEffort?: ReasoningEffort;
+}
+
+function parseDelegateEffort(raw: string): ReasoningEffort {
+  if (!(REASONING_EFFORTS as readonly string[]).includes(raw)) {
+    throw new Error(`Invalid effort: ${raw}. Use "low", "medium", "high", or "max".`);
+  }
+  return raw as ReasoningEffort;
+}
+
+/**
+ * Resolve model + effort for a Delegate call.
+ *
+ * Codex/Claude (and their aliases via baseTool) require explicit non-empty
+ * `--model` and `--effort` and never fall back to cli-tools.json defaults.
+ * Other providers keep configured defaults when flags are omitted.
+ * Throws before any exec id / history / process side effects should occur.
+ */
+export function resolveDelegateModelAndEffort(
+  input: ResolveDelegateModelEffortInput,
+): ResolveDelegateModelEffortResult {
+  const requiresExplicit = delegateRequiresExplicitModelEffort(input.tool, input.baseTool);
+  const modelOverride = input.modelOverride?.trim();
+  const effortOverride = input.effortOverride?.trim();
+
+  if (requiresExplicit) {
+    if (!modelOverride) {
+      throw new Error(
+        `Error: --model is required for delegate --to ${input.tool}. ` +
+        'Codex and Claude do not inherit primaryModel from cli-tools.json.',
+      );
+    }
+    if (!effortOverride) {
+      throw new Error(
+        `Error: --effort is required for delegate --to ${input.tool}. ` +
+        'Codex and Claude do not inherit reasoningEffort from cli-tools.json.',
+      );
+    }
+    return {
+      model: modelOverride,
+      reasoningEffort: parseDelegateEffort(effortOverride),
+    };
+  }
+
+  const model = modelOverride || input.configuredModel;
+  if (effortOverride) {
+    return {
+      model,
+      reasoningEffort: parseDelegateEffort(effortOverride),
+    };
+  }
+  return {
+    model,
+    reasoningEffort: input.configuredEffort,
+  };
+}
 
 let delegateWaitServiceForTests: DelegateWaitService | null = null;
 
@@ -345,7 +444,7 @@ export function registerDelegateCommand(program: Command): void {
     .option('--to <tool>', 'CLI tool to delegate to (gemini, qwen, codex, claude, grok, opencode)')
     .option('--role <role>', 'Capability role for targeted spec injection (does not select a tool)')
     .option('--mode <mode>', 'Execution mode (analysis or write)', 'analysis')
-    .option('--model <model>', 'Model override')
+    .option('--model <model>', 'Model selection (required for Codex/Claude Delegate)')
     .option('--cd <dir>', 'Working directory')
     .option('--rule <template>', 'Template name — auto-loads protocol + template')
     .option('--id <id>', 'Execution ID (auto-generated if omitted)')
@@ -353,7 +452,7 @@ export function registerDelegateCommand(program: Command): void {
     .option('--includeDirs <dirs>', 'Additional directories (comma-separated)')
     .option('--session <id>', 'Claude Code session ID for completion notifications')
     .option('--backend <type>', 'Adapter backend: direct only (terminal is unsupported for Delegate)')
-    .option('--effort <level>', 'Reasoning effort level (low, medium, high, max) — overrides tool config')
+    .option('--effort <level>', 'Reasoning effort (low, medium, high, max; required for Codex/Claude Delegate)')
     .option('--timeout <ms>', 'Stale-stream timeout in ms — force-terminate CLI after this much silence (default 600000 = 10 min); overrides tool config')
     .option('--async', 'Run detached in the background; results delivered via MCP channel notifications (default: synchronous)')
     .addOption(new Option('--worker').hideHelp())
@@ -444,7 +543,6 @@ export function registerDelegateCommand(program: Command): void {
       }
 
       const toolName = selected.name;
-      const model = opts.model ?? selected.entry.primaryModel;
       const mode = opts.mode as 'analysis' | 'write';
 
       if (mode !== 'analysis' && mode !== 'write') {
@@ -452,18 +550,24 @@ export function registerDelegateCommand(program: Command): void {
         process.exit(1);
       }
 
-      // Resolve reasoning effort: CLI --effort overrides config-level setting
-      const VALID_EFFORTS = ['low', 'medium', 'high', 'max'] as const;
-      type Effort = (typeof VALID_EFFORTS)[number];
-      let reasoningEffort: Effort | undefined;
-      if (opts.effort) {
-        if (!VALID_EFFORTS.includes(opts.effort as Effort)) {
-          console.error(`Invalid effort: ${opts.effort}. Use "low", "medium", "high", or "max".`);
-          process.exit(1);
-        }
-        reasoningEffort = opts.effort as Effort;
-      } else {
-        reasoningEffort = selected.entry.reasoningEffort;
+      // Fail-closed model/effort for Codex/Claude before exec id / history / process.
+      // Other providers (and maestro cli) keep configured defaults.
+      let model: string;
+      let reasoningEffort: ReasoningEffort | undefined;
+      try {
+        const resolved = resolveDelegateModelAndEffort({
+          tool: toolName,
+          baseTool: selected.entry.baseTool,
+          modelOverride: opts.model,
+          effortOverride: opts.effort,
+          configuredModel: selected.entry.primaryModel,
+          configuredEffort: selected.entry.reasoningEffort,
+        });
+        model = resolved.model;
+        reasoningEffort = resolved.reasoningEffort;
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exit(1);
       }
 
       // Resolve stale-stream timeout: CLI --timeout overrides cli-tools.json

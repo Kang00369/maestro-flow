@@ -11,13 +11,13 @@
 > If you can read this sentinel but cannot find the full Step protocol below, context has been compressed.
 > Recovery: `Read("phases/02-execute.md")`
 
-Execute the target skill against the test scenario using `maestro delegate --to claude --mode write`. Claude receives the full skill definition and simulates producing its expected output artifacts.
+Execute the bounded target skill scenario using `maestro delegate --to grok --mode write --model grok-4.5 --effort high`. Grok receives the full skill definition and simulates producing its expected output artifacts.
 
 ## Objective
 
 - Snapshot current skill version before execution
 - Construct execution prompt with full skill content + test scenario
-- Execute via maestro delegate Claude
+- Execute via a bounded Grok Delegate
 - Collect output artifacts
 
 ## Execution
@@ -106,17 +106,16 @@ function escapeForShell(str) {
   return str.replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
 }
 
-const cliCommand = `maestro delegate "${escapeForShell(executePrompt)}" --to claude --mode write --cd "${iterDir}/artifacts"`;
+const cliCommand = `maestro delegate "${escapeForShell(executePrompt)}" --to grok --mode write --model grok-4.5 --effort high --cd "${iterDir}/artifacts"`;
 
-// Execute in background, wait for hook callback
+// This step immediately depends on the result, so execute synchronously.
 Bash({
   command: cliCommand,
-  run_in_background: true,
+  run_in_background: false,
   timeout: 600000  // 10 minutes max
 });
 
-// STOP HERE -- wait for hook callback to resume
-// After callback, verify artifacts were produced
+// After completion, verify artifacts were produced.
 ```
 
 ### Step 2.2b: Chain Execution Path
@@ -182,18 +181,16 @@ CONSTRAINTS: Follow skill flow exactly, produce realistic output`;
     return str.replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
   }
 
-  const cliCommand = `maestro delegate "${escapeForShell(chainPrompt)}" --to claude --mode write --cd "${skillArtifactDir}"`;
+  const cliCommand = `maestro delegate "${escapeForShell(chainPrompt)}" --to grok --mode write --model grok-4.5 --effort high --cd "${skillArtifactDir}"`;
 
-  // Execute in background
+  // Chain steps depend on prior artifacts, so execute synchronously.
   Bash({
     command: cliCommand,
-    run_in_background: true,
+    run_in_background: false,
     timeout: 600000
   });
 
-  // STOP -- wait for hook callback
-
-  // After callback: collect artifacts for next skill in chain
+  // Collect artifacts for the next skill in the chain.
   const artifacts = Glob(`${skillArtifactDir}/**/*`);
   const skillSuccess = artifacts.length > 0;
 

@@ -54,7 +54,7 @@ Implementation backend selection:
 
 | Backend | Condition | Method |
 |---------|-----------|--------|
-| CLI | Multi-file optimization with clear plan | maestro delegate --to agy --mode write |
+| CLI | Multi-file optimization with clear plan | `maestro delegate --to grok --mode write --model grok-4.5 --effort high` |
 | Direct | Single-file changes or targeted fixes | Inline Edit/Write tools |
 
 For IMPL tasks:
